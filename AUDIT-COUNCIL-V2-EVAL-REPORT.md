@@ -31,9 +31,14 @@ fixtures of auditor-visible telltales ("DEFECT (seeded)", "protected
 control", "suspicious-looking", README announcements) — ground truth now
 lives only in the sealed JSONs.
 
-**Not run:** recall/precision scoring with real or fake models — the
-fake-model scoring harness and any real-model tier-2 runs are the
-model-facing half of D.2 and are budget-gated (see below).
+**Fake-model scoring: RUN and GREEN** (`eval/tier2_scoring.py`,
+`eval_cli.py tier2-score`; tests/test_tier2_scoring.py): scripted
+artifacts derived from the sealed truth are driven through the REAL
+state machine and validators — 10/10 fixtures recall = precision = 1.0,
+protected-control violations 0, the seeded false positive is rejected
+in-pipeline, and hand-crafted invalid finals are refused by the real
+validators (reversed ranges, wrong fingerprint). **Not run:** real-model
+tier-2 (budget-gated).
 
 ## Tier 3 — historical replay: EXISTS, approval-gated, NOT executed
 
@@ -69,9 +74,7 @@ models: NOT run (budget-gated) → historical: NOT run (approval-gated).
 
 ## Gates now standing (operator decisions required)
 
-1. Fake-model tier-2 scoring harness wiring (deterministic, no budget) —
-   recommended next deterministic step.
-2. Real-model tier-2 seeded evals — requires budget approval per fixture
+1. Real-model tier-2 seeded evals — requires budget approval per fixture
    cost ceilings.
 3. Tier-3 historical replay execution — requires explicit operator
    approval (`--i-have-operator-approval`).

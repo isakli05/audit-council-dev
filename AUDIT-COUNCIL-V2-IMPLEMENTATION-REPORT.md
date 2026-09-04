@@ -129,3 +129,57 @@ and are documented in AUDIT-COUNCIL-V2-KNOWN-LIMITATIONS.md.
 - Historical runs rerun? **NO.**
 - Final deterministic gates: full suite **523/523 OK**; `eval tier1`
   **READY** with ENVIRONMENT 1.0.
+
+
+## Release-qualification round (2026-09-04, later session)
+
+Operator-identified gaps closed (commits 4e53533, b7d081e, 29c89cb,
+85d8634, 3d1a9c, 3e949ff):
+
+1. **docs/A0-CODEX-CONFINEMENT.md delivered** — codex 0.153.0 probed
+   deterministically (`codex sandbox`: outside reads SUCCEED under the
+   stock sandbox; writes blocked): the stock sandbox is write-only
+   enforcement. A bubblewrap OS boundary was implemented
+   (scripts/codex_sandbox.py) and wired into EVERY codex launch (fresh +
+   resume + repair): repo ro, run dir rw, ~/.codex rw, real toolchain
+   roots ro, system dirs ro, /tmp fresh tmpfs, network preserved
+   (subscription login verified INSIDE the wrapper). Reads outside the
+   bind set are OS-BLOCKED (regressions: tests/test_codex_sandbox.py).
+2. **Environment manager is user-facing**: `audit_council.py prepare
+   --repo <src> --brief <b> [--mode M] [--ref <sha>] [--evidence-allow
+   list]` = detached worktree at the exact HEAD + frozen binding for THAT
+   worktree + authorized-evidence staging + run creation in one command;
+   finalize archives before `git worktree remove`. Eight E2E proofs in
+   tests/test_env_prepare_e2e.py (exact HEAD, live tree untouched,
+   same-HEAD substitution blocked by a run-location identity check,
+   record linkage, archive-before-remove, resume identity, allow/deny
+   enforcement, AUTO-safety).
+3. **Claude confinement is automatic and skill-scoped**: SKILL.md
+   frontmatter now declares the PreToolUse hook (Bash/Read/Grep/Glob →
+   hooks/path_guard_hook.py, `${CLAUDE_SKILL_DIR:-default}` resolution) —
+   registered when /audit-council is invoked, inert without an active
+   run. No operator settings setup required.
+4. **Contract accuracy**: describe --json + PUBLIC-CONTRACT.md carry an
+   exact enforcement map (OS-enforced / pre-tool mechanically denied /
+   runner policy/detection / not enforced·accepted residual); the
+   "session-opt-in" and "runner-enforced read confinement" overclaims
+   are gone (drift-tested).
+5. **Round-5 independent verification** (fresh agent): FAIL(narrow) →
+   both blockers fixed (HISTORICAL evidence staging now realpath-resolves
+   every entry — in-repo symlinks can no longer stage host files or
+   deny-listed content; active-run registry gained dead-entry GC and the
+   eval harness isolates its cache; 1,942 polluted real-cache entries
+   purged, 0 alive) plus NEW-1/2/4/7 lows (codex-bin file-bind only,
+   run-dir realpath containment at wrap time, Glob pattern prefix check,
+   scorer path normalization) — all with regressions.
+6. **Fake-model Tier-2 scoring harness** (eval/tier2_scoring.py,
+   `eval_cli.py tier2-score`): scripted artifacts derived from sealed
+   truth driven through the REAL state machine — 10/10 fixtures
+   recall = precision = 1.0, protected controls 0 violations, seeded
+   false positive rejected in-pipeline (tests/test_tier2_scoring.py).
+
+Final state: **552/552 tests OK**; `eval tier1` **READY,
+ENVIRONMENT pass_fraction 1.0**. Still NOT done (operator gates):
+installation (the installed ~/.claude skill is stale v1.0.3 WITHOUT
+hooks/ — shipping hooks/ is mandatory at install time), real-model
+tier-2, tier-3 replay, any real inference.
