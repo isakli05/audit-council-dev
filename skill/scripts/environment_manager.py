@@ -216,23 +216,37 @@ def _is_denylisted(rel: str) -> bool:
 def _stage_evidence(source: str, run_id: str,
                     allowlist: list[str]) -> list[dict[str, Any]]:
     """Copy ONLY allow-listed, non-deny-listed files into the run's
-    staged-evidence dir, recording sha256 per file."""
+    staged-evidence dir, recording sha256 per file.
+
+    R5 NEW-3: relative entries are resolved through REALPATH before any
+    check/copy — an in-repo symlink (attacker-controllable content) can
+    no longer stage host files or deny-listed paths; the RESOLVED path
+    must stay inside the source repo and re-pass the deny-list."""
     staged_root = staged_evidence_dir(run_id)
     entries: list[dict[str, Any]] = []
+    source_real = os.path.realpath(source)
     for raw in allowlist:
         rel = _evidence_relpath(source, raw)
-        if _is_denylisted(rel):
-            raise EnvironmentManagerError(
-                f"evidence deny-list violation: {rel!r} matches "
-                f"EVIDENCE_DENYLIST {EVIDENCE_DENYLIST}")
         src = os.path.join(source, rel)
-        if not os.path.isfile(src):
+        resolved = os.path.realpath(src)
+        if not path_guard.is_within(resolved, source_real):
+            raise EnvironmentManagerError(
+                f"evidence path resolves outside the source repository "
+                f"(symlink escape): {raw!r} -> {resolved}")
+        resolved_rel = os.path.relpath(resolved, source_real)
+        if _is_denylisted(rel) or _is_denylisted(resolved_rel):
+            raise EnvironmentManagerError(
+                f"evidence deny-list violation: {rel!r} (resolved "
+                f"{resolved_rel!r}) matches EVIDENCE_DENYLIST "
+                f"{EVIDENCE_DENYLIST}")
+        if not os.path.isfile(resolved):
             raise EnvironmentManagerError(
                 f"allow-listed evidence file missing: {raw!r}")
-        dest = os.path.join(staged_root, rel)
+        dest = os.path.join(staged_root, resolved_rel)
         os.makedirs(os.path.dirname(dest), exist_ok=True)
-        shutil.copyfile(src, dest)
-        entries.append({"path": rel, "sha256": sha256_file(dest),
+        shutil.copyfile(resolved, dest)
+        entries.append({"path": resolved_rel,
+                        "sha256": sha256_file(dest),
                         "allowed": True})
     entries.sort(key=lambda e: e["path"])
     return entries

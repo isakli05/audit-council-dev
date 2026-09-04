@@ -130,10 +130,35 @@ def _active_runs_dir() -> str:
     return os.path.join(env_binding.cache_root(), "active-runs")
 
 
+def _prune_dead_active_runs() -> int:
+    """R5 NEW-6: registrations whose run dir no longer exists are dead —
+    remove them so the path-guard hook never goes fail-closed-for-nothing.
+    Called before every registration; returns the number pruned."""
+    d = _active_runs_dir()
+    if not os.path.isdir(d):
+        return 0
+    pruned = 0
+    for name in os.listdir(d):
+        entry = os.path.join(d, name)
+        try:
+            with open(entry, "r", encoding="utf-8") as fh:
+                run_dir = fh.read().strip().splitlines()[0].strip()
+        except (OSError, IndexError):
+            run_dir = ""
+        if not run_dir or not os.path.isdir(run_dir):
+            try:
+                os.unlink(entry)
+                pruned += 1
+            except OSError:
+                pass
+    return pruned
+
+
 def _register_active_run(run_id: str, run_dir: str,
                          pinned_digest: str | None = None) -> None:
     d = _active_runs_dir()
     os.makedirs(d, exist_ok=True)
+    _prune_dead_active_runs()
     # R3-N3: line 2 pins the binding digest OUTSIDE the frozen root so a
     # confined session cannot rewrite the hook's policy source
     payload = os.path.abspath(run_dir)

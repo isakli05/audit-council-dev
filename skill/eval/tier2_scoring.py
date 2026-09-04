@@ -40,8 +40,15 @@ AUDIT_COUNCIL = str(SCRIPTS / "audit_council.py")
 
 
 def _cli(*args, stdin=None):
+    env = dict(os.environ)
+    # R5 NEW-6: never leak active-run registrations into the real user
+    # cache from the eval harness
+    env.setdefault("AUDIT_COUNCIL_CACHE_HOME",
+                    os.path.join(tempfile.gettempdir(),
+                                 "audit-council-eval-cache"))
     proc = subprocess.run([PYTHON, AUDIT_COUNCIL, *args], input=stdin,
-                          capture_output=True, text=True, check=False)
+                          capture_output=True, text=True, check=False,
+                          env=env)
     return proc
 
 

@@ -1,3 +1,6 @@
 __pycache__/
 repro/tmp/
 *.pyc
+skill/tests/fixtures/*/
+skill/tests/fixtures/**/cache/
+skill/tests/fixtures/**/active-runs/
