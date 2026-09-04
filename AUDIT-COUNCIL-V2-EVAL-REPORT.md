@@ -40,7 +40,12 @@ in-pipeline, and hand-crafted invalid finals are refused by the real
 validators (reversed ranges, wrong fingerprint). **Not run:** real-model
 tier-2 (budget-gated).
 
-## Tier 3 — historical replay: EXISTS, approval-gated, NOT executed
+## Tier 3 — historical replay: EXECUTED (operator-authorized, this session)
+
+Run from recorded artifacts only (both historical trees READ-ONLY;
+no re-audit; no new Claude/Codex inference). Results are reported in
+the session's final gate report; scorecards persist only in the
+replay output (nothing was written into the historical dirs).
 
 `eval/tier3_replay.py` implements read-only replay + PROCESS/HARNESS/
 ECONOMICS/DIVERSITY scoring over the sealed runs (Benchmark 001

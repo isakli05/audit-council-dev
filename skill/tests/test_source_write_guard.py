@@ -40,6 +40,9 @@ def make_repo(tmp: str) -> str:
     return repo
 
 
+_TEST_CACHE = tempfile.mkdtemp(prefix="writeguard-test-cache-")
+
+
 def init_run(repo: str, tmp: str) -> str:
     brief = os.path.join(tmp, "brief.md")
     with open(brief, "w") as fh:
@@ -47,7 +50,9 @@ def init_run(repo: str, tmp: str) -> str:
     proc = subprocess.run(
         [PYTHON, AUDIT_COUNCIL, "init-run", "--repo", repo,
          "--brief", brief],
-        capture_output=True, text=True, check=False)
+        capture_output=True, text=True, check=False,
+        env=dict(os.environ,
+                 AUDIT_COUNCIL_CACHE_HOME=_TEST_CACHE))  # R6 hygiene
     assert proc.returncode == 0, proc.stdout + proc.stderr
     pat = re.compile(r"^\S*audit-output/audit-council/"
                      r"[0-9]{8}T[0-9]{6}Z-[0-9a-f]{6}\s*$")

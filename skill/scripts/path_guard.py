@@ -662,22 +662,38 @@ def check_tool_call(tool: str, tool_input: dict[str, Any],
         # R5 NEW-4 / R6: Glob patterns can carry their own path prefixes —
         # and escapes may appear AFTER the first metacharacter
         # ("a?/../../etc/*") or inside brace alternatives. Classify EVERY
-        # literal chunk between metacharacters: any chunk that is
-        # absolute, ~-rooted, or contains a ".." component is a denial.
+        # literal chunk between metacharacters. A chunk that FOLLOWS a
+        # wildcard metachar starts with a path SEPARATOR ("**/x" → "/x"),
+        # not an absolute root — strip it before the absolute test. A
+        # chunk that begins the pattern or follows "{" / "," starts a
+        # COMPLETE ALTERNATIVE and is tested as-is. ".." components are
+        # always escapes regardless of position.
         if tool == "Glob" and reason is None:
             pattern = tool_input.get("pattern")
             if isinstance(pattern, str) and pattern:
-                for chunk in re.split(r"[*?\[\]{}]", pattern):
-                    if not chunk:
+                prev_meta = None  # metachar preceding the current chunk
+                for token in re.split(r"([*?\[\]{}])", pattern):
+                    if not token:
                         continue
+                    if len(token) == 1 and token in "*?[]{}":
+                        prev_meta = token
+                        continue
+                    chunk = token
                     compact = chunk.replace("\\", "/")
+                    if prev_meta not in (None, "{", ","):
+                        # mid-pattern after a wildcard: leading '/' is a
+                        # separator, not an absolute root
+                        compact = compact.lstrip("/")
+                        if not compact:
+                            continue
                     dotdot = ".." in compact.split("/")
                     absolute = compact.startswith("/") \
                         and compact.strip("/") != ""
                     tilde = compact.startswith("~") and compact != "~"
                     if dotdot or absolute or tilde:
-                        cr = _classify_path(chunk, os.getcwd(), frozen,
-                                            allowed)
+                        cr = _classify_path(chunk if absolute or tilde
+                                            else compact, os.getcwd(),
+                                            frozen, allowed)
                         if cr:
                             reason = cr
                             break

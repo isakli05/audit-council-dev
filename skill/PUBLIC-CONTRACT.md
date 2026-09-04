@@ -122,6 +122,7 @@ worktree is removed via git.
 | Codex cannot READ outside the bind set (other repos, home data, ~/.ssh, other runs, /tmp) | OS-enforced by the bubblewrap wrapper on every launch (fresh + resume); bind set = repo(ro), run dir(rw), ~/.codex(rw), resolved toolchain roots(ro), /etc+/usr+/lib(ro), authorized fixture roots(ro), /tmp = fresh tmpfs |
 | Codex reads of SYSTEM dirs (/etc, /usr) | not confined (documented — required for CA certs/resolver/toolchain) |
 | Codex read confinement WITHOUT bubblewrap (`AC_CODEX_BWRAP=0` or missing) | not enforced / accepted residual (runner validates argv + output only) |
+| Codex access to `~/.codex` (auth + session state) | accepted AUTH-BOUNDARY residual: read-write inside the bind set because subscription auth and explicit-session resume require it — not path confinement, never claimed as such |
 | Claude out-of-root tool calls during a run | pre-tool mechanically denied: skill-scoped PreToolUse hook (Bash/Read/Grep/Glob) registered automatically when /audit-council is invoked; inert when no run is active |
 | Claude side against encoded/dynamic payloads | runner policy/detection layer (no-inference scanner) + fingerprint/write-guard detection |
 

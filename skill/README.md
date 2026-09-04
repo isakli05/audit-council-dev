@@ -143,7 +143,9 @@ files; remove them yourself if desired.
   `~/.codex` and toolchain readable, everything else outside the bind
   set unreadable, `/tmp` a fresh tmpfs. See
   docs/A0-CODEX-CONFINEMENT.md for the probe evidence and the honest
-  boundary (system dirs remain readable).
+  boundary (system dirs remain readable; `~/.codex` is read-write
+  inside the bind set as an accepted auth-boundary residual —
+  subscription auth and session resume require it).
 - **What the hook is NOT**: a mechanical, no-inference scanner. Encoded or
   dynamically-constructed payloads (`base64 -d | sh`, `chr()`-built paths,
   interpreter-generated strings) are beyond any lexical deny layer — the

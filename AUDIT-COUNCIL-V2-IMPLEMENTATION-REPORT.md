@@ -178,8 +178,23 @@ Operator-identified gaps closed (commits 4e53533, b7d081e, 29c89cb,
    recall = precision = 1.0, protected controls 0 violations, seeded
    false positive rejected in-pipeline (tests/test_tier2_scoring.py).
 
-Final state: **552/552 tests OK**; `eval tier1` **READY,
-ENVIRONMENT pass_fraction 1.0**. Still NOT done (operator gates):
-installation (the installed ~/.claude skill is stale v1.0.3 WITHOUT
-hooks/ — shipping hooks/ is mandatory at install time), real-model
-tier-2, tier-3 replay, any real inference.
+## Round 6 (final gate, this session)
+
+Fresh read-only verifier, scoped to the post-round-5 changes: two
+Medium issues found (Glob post-metachar/brace escapes; test-suite
+cache leakage bricking the auto-hook with dead registrations) + one
+LOW (scorer symlink alias) + two nits. ALL FIXED: per-chunk Glob
+confinement; cache isolation in every test/harness init-run spawner
+(in-process ones included) with a suite-level real-cache-cleanliness
+regression; scorer realpath normalization; clean exit-3 refusals for
+wrap-time containment violations; tool-file bind ordered after the
+/tmp tmpfs. Fixes reverified by the same round-6 verifier (PASS).
+
+Final state: **555/555 tests OK**; `eval tier1` **READY,
+ENVIRONMENT pass_fraction 1.0**; the real user cache stays EMPTY after
+the full suite. Tier-3 replay of Benchmark 001 + the Fifth run was
+executed under explicit operator authorization from RECORDED ARTIFACTS
+ONLY (read-only; no re-audit; no new inference). Still NOT done
+(operator gates): installation (the installed ~/.claude skill is stale
+v1.0.3 WITHOUT hooks/ — shipping hooks/ is mandatory at install time),
+real-model tier-2, any new real inference.

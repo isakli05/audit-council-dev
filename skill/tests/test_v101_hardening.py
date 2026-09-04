@@ -34,6 +34,10 @@ class Fixture(unittest.TestCase):
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="v101-")
+        # R6: keep active-run registrations out of the real user cache
+        self._prev_cache = os.environ.get("AUDIT_COUNCIL_CACHE_HOME")
+        os.environ["AUDIT_COUNCIL_CACHE_HOME"] = os.path.join(
+            self.tmp, "cache")
         self.repo = os.path.join(self.tmp, "repo")
         os.makedirs(self.repo)
         for c in (["git", "init", "-q", "."],
@@ -49,6 +53,10 @@ class Fixture(unittest.TestCase):
             f.write("# brief\naudit a.txt\n")
 
     def tearDown(self):
+        if self._prev_cache is None:
+            os.environ.pop("AUDIT_COUNCIL_CACHE_HOME", None)
+        else:
+            os.environ["AUDIT_COUNCIL_CACHE_HOME"] = self._prev_cache
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def init_run(self, extra=None, stdin_text=None):

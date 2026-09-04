@@ -48,9 +48,15 @@ def make_repo(tmp: str) -> str:
     return repo
 
 
+_TEST_CACHE = tempfile.mkdtemp(prefix="resume-test-cache-")
+
+
 def cli(*args: str, stdin: bytes | None = None) -> subprocess.CompletedProcess:
+    env = dict(os.environ,
+               AUDIT_COUNCIL_CACHE_HOME=_TEST_CACHE)  # R6: no real-cache leak
     return subprocess.run([PYTHON, AUDIT_COUNCIL, *args],
-                          input=stdin, capture_output=True, check=False)
+                          input=stdin, capture_output=True, check=False,
+                          env=env)
 
 
 def init_run(repo: str, tmp: str) -> str:
@@ -244,12 +250,22 @@ class TestRunIdCollision(unittest.TestCase):
 
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
+        # R6 hygiene: tests here drive init-run IN-PROCESS via
+        # audit_council.main — subprocess-level isolation in cli() cannot
+        # cover those, so set the env directly
+        self._prev_cache = os.environ.get("AUDIT_COUNCIL_CACHE_HOME")
+        os.environ["AUDIT_COUNCIL_CACHE_HOME"] = os.path.join(
+            self._tmp.name, "cache")
         self.repo = make_repo(self._tmp.name)
         self.brief = os.path.join(self._tmp.name, "brief.md")
         with open(self.brief, "w") as fh:
             fh.write("# brief\n")
 
     def tearDown(self):
+        if self._prev_cache is None:
+            os.environ.pop("AUDIT_COUNCIL_CACHE_HOME", None)
+        else:
+            os.environ["AUDIT_COUNCIL_CACHE_HOME"] = self._prev_cache
         self._tmp.cleanup()
 
     def test_new_run_id_regenerates_suffix_on_collision(self):

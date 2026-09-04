@@ -1404,6 +1404,11 @@ PUBLIC_CONTRACT: dict[str, Any] = {
         "but does not scope reads to the frozen root; with bubblewrap, "
         "reads outside the enumerated bind set are OS-blocked but system "
         "directories (/etc, /usr) remain readable inside",
+        "accepted auth-boundary residual: the bwrap bind set exposes "
+        "~/.codex (read-write) to the codex process because subscription "
+        "auth + explicit-session resume require it; a model command "
+        "inside codex can read codex's own auth/session material — same "
+        "access the codex process legitimately has on the host",
         "the Claude path-confinement hook is a no-inference lexical layer: "
         "encoded/dynamically-constructed payloads are beyond it; it "
         "hardens on top of detection (fingerprint + write-guard + binding "

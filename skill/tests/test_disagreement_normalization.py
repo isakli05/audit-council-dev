@@ -340,10 +340,14 @@ class TestLedgerAdvanceIntegration(unittest.TestCase):
     def tearDown(self):
         self._tmp.cleanup()
 
+    _TEST_CACHE = tempfile.mkdtemp(prefix="disagree-test-cache-")
+
     def _cli(self, *args, stdin_doc=None):
         data = None if stdin_doc is None else json.dumps(stdin_doc).encode()
+        env = dict(os.environ,
+                   AUDIT_COUNCIL_CACHE_HOME=self._TEST_CACHE)  # R6 hygiene
         return subprocess.run([PYTHON, AUDIT_COUNCIL, *args], input=data,
-                              capture_output=True, check=False)
+                              capture_output=True, check=False, env=env)
 
     def _opus_cex(self):
         doc = cross_examination()

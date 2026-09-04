@@ -701,15 +701,21 @@ class TestRound6Hardening(unittest.TestCase):
 
     def test_glob_post_metachar_and_brace_escapes_denied(self):
         for pattern in ("a?/../../etc/*", "x[a]/../../../etc/*",
-                        "{/etc/passwd,/tmp/x}", "src/*/../../../*"):
+                        "{/etc/passwd,/tmp/x}", "src/*/../../../*",
+                        "*/..", "?/..", "x?/../y", "//etc/*", "~/*",
+                        "~/a{/etc/x}", "{a,{/etc/x}}"):
             ok, reason = path_guard.check_tool_call(
                 "Glob", {"pattern": pattern}, self.root, [])
             self.assertFalse(ok,
                              f"R6 Glob escape allowed: {pattern}")
 
     def test_glob_benign_metachar_patterns_allowed(self):
+        # R6-reverification: mid-pattern "/name" chunks are separators,
+        # not absolute roots — these MUST stay usable
         for pattern in ("*", "**/*.py", "src/**/*.py", "src/*.py",
-                        "?ache", "[abc]*", ""):
+                        "?ache", "[abc]*", "", "**/x", "*/x", "src/*/x",
+                        "?/x", "[ab]/x", "a?/b/c.py", "mod?/util.py",
+                        "a*/b", "**/test_*.py", "docs/**/*.{md,txt}"):
             ok, reason = path_guard.check_tool_call(
                 "Glob", {"pattern": pattern}, self.root, [])
             self.assertTrue(ok, f"{pattern}: {reason}")
