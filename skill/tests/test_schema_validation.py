@@ -18,7 +18,7 @@ import validate_artifact  # noqa: E402
 
 SCHEMAS_DIR = Path(__file__).resolve().parent.parent / "schemas"
 SCHEMA_NAMES = sorted(p.name for p in SCHEMAS_DIR.glob("*.json"))
-assert len(SCHEMA_NAMES) == 11, SCHEMA_NAMES  # v2: + env-binding, environment-record, evidence-record
+assert len(SCHEMA_NAMES) == 12, SCHEMA_NAMES  # v2: + env-binding, environment-record, evidence-record, public-contract
 
 _KNOWN_TYPES = {"object", "array", "string", "integer", "number",
                 "boolean", "null"}
@@ -282,6 +282,15 @@ def evidence_record_doc():
             "deterministic": True, "reproducible": True}
 
 
+def public_contract_doc():
+    # PKG-PUB: the real machine-readable contract; single definition lives
+    # in audit_council.PUBLIC_CONTRACT (deep-copied — callers mutate)
+    import copy
+
+    import audit_council
+    return copy.deepcopy(audit_council.PUBLIC_CONTRACT)
+
+
 BUILDERS = {
     "finding.schema.json": finding,
     "audit-contract.schema.json": contract,
@@ -293,6 +302,7 @@ BUILDERS = {
     "environment-record.schema.json": environment_record_doc,
     "evidence-record.schema.json": evidence_record_doc,
     "final-findings.schema.json": final_findings,
+    "public-contract.schema.json": public_contract_doc,
     "state.schema.json": state_doc,
 }
 
@@ -316,7 +326,7 @@ class TestSchemaShape(unittest.TestCase):
             "env-binding.schema.json", "environment-record.schema.json",
             "evidence-record.schema.json", "final-findings.schema.json",
             "finding.schema.json", "independent-audit.schema.json",
-            "state.schema.json",
+            "public-contract.schema.json", "state.schema.json",
         ])
 
 

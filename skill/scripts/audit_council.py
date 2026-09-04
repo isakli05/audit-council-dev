@@ -1038,6 +1038,159 @@ def cmd_finalize(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# describe (v2 F: public audit contract)
+# ---------------------------------------------------------------------------
+# Single machine-readable definition of the public contract (pillar F).
+# PUBLIC-CONTRACT.md mirrors this document for humans; tests enforce the
+# mirror for enum/list facts (completeness states, budgets, failure
+# taxonomy, artifact inventory). Compatibility policy: additive changes
+# keep protocol 2.x; any change to a documented field's meaning or any
+# removal bumps the major version.
+PUBLIC_CONTRACT: dict[str, Any] = {
+    "protocol_version": "2.0",
+    "compatibility_policy": (
+        "additive changes keep 2.x; any change to a documented field's "
+        "meaning or removal bumps the major version"),
+    "environment_modes": ["AUTO", "CURRENT", "RELEASE", "HISTORICAL"],
+    "model_roles": {
+        "opus": {
+            "model": "claude-opus-5",
+            "role": "primary interactive orchestrator + independent auditor",
+            "independent_pass": True,
+        },
+        "codex": {
+            "model": "gpt-5.6-sol",
+            "reasoning_effort": "xhigh",
+            "role": "independent second auditor via codex exec",
+            "read_only_sandbox": True,
+            "independent_pass": True,
+        },
+    },
+    "independence_rules": [
+        "first-pass independence barrier: neither auditor sees the other's "
+        "findings before both independent audits complete",
+        "cross-examination is falsification, not validation",
+        "no forced consensus; disagreements preserved in the ledger",
+    ],
+    "artifact_semantics": {
+        "canonical_artifacts": [
+            "00-run-manifest.json",
+            "01-environment-binding.json",
+            "02-audit-contract.json",
+            "10-opus-independent.json",
+            "20-codex-independent.json",
+            "30-normalized-findings.json",
+            "31-opus-cross-examination.json",
+            "32-codex-cross-examination.json",
+            "40-disagreement-ledger.json",
+            "50-targeted-adjudication.json",
+            "90-final-findings.json",
+            "99-run-metrics.json",
+        ],
+        "evidence_model": (
+            "typed line_ranges: [{start,end}] integers >=1, up to 32 "
+            "disjoint ranges, deterministic ordering"),
+        "raw_outputs_preserved": True,
+    },
+    "completeness_states": [
+        "RUNNING",
+        "COMPLETE",
+        "COMPLETE_WITH_RESIDUAL_UNCERTAINTY",
+        "PARTIAL_CODEX_QUOTA",
+        "PARTIAL_CODEX_FAILURE",
+        "PARTIAL_CLAUDE_INTERRUPTION",
+        "STALE_REPOSITORY",
+        "INVALID_AUDIT_INPUT",
+        "INVALID_AUDIT_ENVIRONMENT",
+    ],
+    "environment_integrity": {
+        "binding": ("AuditEnvironmentBinding frozen at init; "
+                    "digest excludes frozen_at"),
+        "failure_taxonomy": [
+            "BRIEF_ROOT_MISMATCH",
+            "BRIEF_HEAD_MISMATCH",
+            "WORKTREE_IDENTITY_CHANGED",
+            "CWD_OUTSIDE_FROZEN_ROOT",
+            "PATH_ESCAPE_ATTEMPT",
+            "ALTERNATE_WORKTREE_ACCESS",
+            "UNAUTHORIZED_TMP_ACCESS",
+            "REPO_ROOT_REPLACED",
+            "SYMLINK_ESCAPE",
+        ],
+        "environment_failure_yields_product_verdict": False,
+        "zero_model_calls_on_environment_failure": True,
+    },
+    "governor_constraints": {
+        "max_successful_stages_per_phase": 1,
+        "max_total_successful_stages": 3,
+        "max_attempts_per_phase": 3,
+        "max_repairs_per_phase": 1,
+        "specialists_default": 0,
+        "specialists_normal_cap": 2,
+        "specialists_hard_cap": 3,
+        "max_specialist_turns": 2,
+        "max_dynamic_probes": 4,
+        "cached_evidence_policy": "REUSE_WHEN_VALID",
+        "force_fresh_release_gates": True,
+        "omissions": ("every budget-driven omission is recorded explicitly "
+                      "in run metrics"),
+    },
+    "brief_target_metadata": {
+        "format": ('fenced ```json block containing {"target": '
+                   '{"repository_root": <abs path>, "expected_head": '
+                   "<40-hex>}}"),
+        "prose_paths_are": "inert text — never execution authority",
+    },
+    "runtime_capabilities": {
+        "codex_invocation": ("direct codex exec (fresh) / codex exec resume "
+                             "<explicit-id>"),
+        "auth": "subscription only; PAYG keys fail preflight",
+        "claude_path_confinement": ("PreToolUse hook deny-before-exec when "
+                                    "an active run is registered "
+                                    "(runner-enforced)"),
+        "codex_read_confinement": ("write prevention OS-enforced (read-only "
+                                   "sandbox); read confinement "
+                                   "runner-enforced (documented residual "
+                                   "risk)"),
+        "resumable": True,
+        "write_scope": "audit-output/audit-council/<run-id>/ only",
+    },
+    "known_limitations": [
+        "codex read confinement is runner-enforced, not OS-enforced: the "
+        "read-only sandbox prevents writes but does not scope reads to the "
+        "frozen root (documented residual risk)",
+        "the Claude path-confinement hook is runner-enforced and "
+        "session-opt-in: a session without the hook installed weakens to "
+        "detection-only (fingerprint + write-guard)",
+        "specialists are default-off until eval-proven; activation requires "
+        "a pre-frozen documented reason recorded before first-pass "
+        "completion",
+        "historical replay is approval-gated; finalized benchmark runs are "
+        "never re-run implicitly",
+    ],
+}
+
+
+def cmd_describe(args: argparse.Namespace) -> int:
+    """Print the versioned public audit contract (pillar F).
+
+    `describe --json` prints the machine-readable contract (source of
+    truth; PUBLIC-CONTRACT.md mirrors it). Without --json prints a short
+    pointer summary. Deterministic: no environment reads, no model calls.
+    """
+    if getattr(args, "json", False):
+        _emit(PUBLIC_CONTRACT)
+        return EXIT_OK
+    _emit({
+        "ok": True,
+        "protocol_version": PUBLIC_CONTRACT["protocol_version"],
+        "human_readable_contract": "PUBLIC-CONTRACT.md",
+        "machine_readable_contract": "audit_council.py describe --json",
+    })
+    return EXIT_OK
+
+
+# ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
 def build_parser() -> argparse.ArgumentParser:
@@ -1104,6 +1257,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--run", required=True)
     p.add_argument("--artifact", required=True)
     p.set_defaults(func=cmd_render)
+
+    p = sub.add_parser("describe",
+                       help="print the public audit contract")
+    p.add_argument("--json", action="store_true",
+                   help="print the machine-readable public contract "
+                        "(source of truth; PUBLIC-CONTRACT.md mirrors it)")
+    p.set_defaults(func=cmd_describe)
 
     return ap
 
