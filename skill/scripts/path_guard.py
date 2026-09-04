@@ -678,7 +678,7 @@ def check_tool_call(tool: str, tool_input: dict[str, Any],
                         or pattern[:1]
                     reason = _classify_path(head, os.getcwd(), frozen,
                                             allowed)
-            if reason is None:
+            if reason is None and pattern:
                 prev_meta = None  # metachar preceding the current chunk
                 for token in re.split(r"([*?\[\]{},])", pattern):
                     if not token:
