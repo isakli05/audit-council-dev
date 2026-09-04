@@ -29,14 +29,18 @@ residuals with documented risk.
    run dir who rewrites files AND recomputes the whole checksum ledger
    can forge consistency. Tamper-evident against non-recomputing edits;
    not tamper-proof.
-5. The hook must be operator-installed (one-time opt-in). Without it,
-   Claude-side confinement degrades to detection-only — recorded as a
-   v1-era posture, not a regression.
-6. Codex read confinement is NOT provided by `codex --sandbox
-   read-only` (it prevents writes OS-level; reads are not repo-scoped).
-   v2 validates argv/output runner-side; the OS-wrapper spike
-   (bubblewrap/Landlock) is documented in the A0 research task and NOT
-   wired in.
+5. RESOLVED (was: hook requires one-time operator opt-in): the
+   PreToolUse hook is now declared in SKILL.md frontmatter and registers
+   AUTOMATICALLY when /audit-council is invoked (active for the session,
+   inert when no run is active). The no-inference lexical boundary
+   itself (item 1-3) is unchanged.
+6. RESOLVED (was: codex read confinement not wired): every codex launch
+   (fresh + resume) now runs under the bubblewrap OS boundary
+   (scripts/codex_sandbox.py; docs/A0-CODEX-CONFINEMENT.md): reads
+   outside the enumerated bind set are OS-BLOCKED. Residuals: system
+   directories (/etc, /usr) remain readable by design; without bwrap
+   (`AC_CODEX_BWRAP=0` or absent) confinement falls back to the accepted
+   residual posture (argv/output validation only), recorded per job.
 
 ## Evaluation (D)
 

@@ -102,12 +102,36 @@ Source, tests, config, docs, and git state of the audited repository. Codex writ
 (read-only sandbox). The only writable location is `audit-output/audit-council/<run-id>/`; finalized
 historical runs are never rewritten.
 
+## Invocation (environment modes are user-facing)
+
+    /audit-council <brief.md> [--mode AUTO|CURRENT|RELEASE|HISTORICAL]
+                      [--repo <source-repo>] [--ref <exact-head>]
+                      [--evidence-allow path1,path2]
+
+RELEASE/HISTORICAL prepare a detached isolated worktree at the exact
+requested HEAD, freeze the environment binding for THAT worktree, stage
+only authorized evidence, and start the run — the live source tree is
+never touched. At completion the run is archived before the ephemeral
+worktree is removed via git.
+
+## Runtime enforcement map
+
+| Guarantee | Classification |
+|---|---|
+| Codex cannot WRITE the audited repo | OS-enforced (codex read-only sandbox AND bubblewrap ro bind) |
+| Codex cannot READ outside the bind set (other repos, home data, ~/.ssh, other runs, /tmp) | OS-enforced by the bubblewrap wrapper on every launch (fresh + resume); bind set = repo(ro), run dir(rw), ~/.codex(rw), resolved toolchain roots(ro), /etc+/usr+/lib(ro), authorized fixture roots(ro), /tmp = fresh tmpfs |
+| Codex reads of SYSTEM dirs (/etc, /usr) | not confined (documented — required for CA certs/resolver/toolchain) |
+| Codex read confinement WITHOUT bubblewrap (`AC_CODEX_BWRAP=0` or missing) | not enforced / accepted residual (runner validates argv + output only) |
+| Claude out-of-root tool calls during a run | pre-tool mechanically denied: skill-scoped PreToolUse hook (Bash/Read/Grep/Glob) registered automatically when /audit-council is invoked; inert when no run is active |
+| Claude side against encoded/dynamic payloads | runner policy/detection layer (no-inference scanner) + fingerprint/write-guard detection |
+
 ## Known limitations
 
-- Codex read confinement is runner-enforced, not OS-enforced (documented
-  residual risk); the sandbox prevents writes but does not scope reads.
-- The Claude path-confinement hook is runner-enforced and session-opt-in;
-  without it enforcement weakens to detection (fingerprint + write-guard).
+- Without bubblewrap, codex repo-read confinement is NOT enforced
+  (accepted residual); with it, system directories remain readable by
+  design.
+- The Claude hook is a no-inference lexical layer: encoded payloads are
+  beyond it; it hardens detection, it is not a sandbox.
 - Specialists are default-off until eval-proven.
 - Historical replay is approval-gated; benchmarks are never re-run implicitly.
 

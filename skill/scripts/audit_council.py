@@ -1355,23 +1355,34 @@ PUBLIC_CONTRACT: dict[str, Any] = {
         "codex_invocation": ("direct codex exec (fresh) / codex exec resume "
                              "<explicit-id>"),
         "auth": "subscription only; PAYG keys fail preflight",
-        "claude_path_confinement": ("PreToolUse hook deny-before-exec when "
-                                    "an active run is registered "
-                                    "(runner-enforced)"),
-        "codex_read_confinement": ("write prevention OS-enforced (read-only "
-                                   "sandbox); read confinement "
-                                   "runner-enforced (documented residual "
-                                   "risk)"),
+        "claude_path_confinement": (
+            "pre-tool mechanically denied: skill-scoped PreToolUse hook "
+            "(Bash/Read/Grep/Glob) registered AUTOMATICALLY when "
+            "/audit-council is invoked, active for the session, inert when "
+            "no run is active; runner-enforced (not OS)"),
+        "codex_write_confinement": (
+            "OS-enforced: codex read-only sandbox AND bubblewrap read-only "
+            "repo bind on every launch (fresh + resume)"),
+        "codex_read_confinement": (
+            "OS-enforced EXCLUSION outside the bwrap bind set (repo ro, run "
+            "dir rw, ~/.codex, resolved toolchain roots, system dirs "
+            "/etc+/usr+/lib, authorized fixture roots; /tmp is a fresh "
+            "tmpfs). System directories remain readable by design. Without "
+            "bubblewrap (AC_CODEX_BWRAP=0 or missing): not enforced / "
+            "accepted residual — runner validates argv and output only"),
         "resumable": True,
         "write_scope": "audit-output/audit-council/<run-id>/ only",
     },
     "known_limitations": [
-        "codex read confinement is runner-enforced, not OS-enforced: the "
-        "read-only sandbox prevents writes but does not scope reads to the "
-        "frozen root (documented residual risk)",
-        "the Claude path-confinement hook is runner-enforced and "
-        "session-opt-in: a session without the hook installed weakens to "
-        "detection-only (fingerprint + write-guard)",
+        "without bubblewrap, codex repo-read confinement is not enforced "
+        "(accepted residual): the codex read-only sandbox prevents writes "
+        "but does not scope reads to the frozen root; with bubblewrap, "
+        "reads outside the enumerated bind set are OS-blocked but system "
+        "directories (/etc, /usr) remain readable inside",
+        "the Claude path-confinement hook is a no-inference lexical layer: "
+        "encoded/dynamically-constructed payloads are beyond it; it "
+        "hardens on top of detection (fingerprint + write-guard + binding "
+        "verification), not a sandbox",
         "specialists are default-off until eval-proven; activation requires "
         "a pre-frozen documented reason recorded before first-pass "
         "completion",

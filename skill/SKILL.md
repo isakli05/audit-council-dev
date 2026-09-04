@@ -3,9 +3,15 @@ name: audit-council
 description: Two-model adversarial audit council (Claude Opus 5 + Codex GPT-5.6 Sol). User-invoked only; runs a bounded, read-only, resumable audit and produces a provenance-preserving final report.
 disable-model-invocation: true
 model: claude-opus-5
-argument-hint: <audit-brief.md | "inline brief text" | --resume audit-output/audit-council/<run-id>>
+argument-hint: <audit-brief.md | "inline brief" | --resume <run-dir> | [--mode AUTO|CURRENT|RELEASE|HISTORICAL] [--repo <source>] [--ref <head>] [--evidence-allow p1,p2]>
 allowed-tools: Read, Grep, Glob, Bash
 disallowed-tools: Edit, Write, NotebookEdit, AskUserQuestion
+hooks:
+  PreToolUse:
+    - matcher: "Bash|Read|Grep|Glob"
+      hooks:
+        - type: command
+          command: /usr/bin/python3 "${CLAUDE_SKILL_DIR:-$HOME/.claude/skills/audit-council}/hooks/path_guard_hook.py"
 ---
 
 # Audit Council — Orchestrator Instructions
@@ -87,12 +93,26 @@ target repository; the only writable location is `audit-output/audit-council/<ru
 ## Startup: parse invocation
 
 - `$ARGUMENTS` = `--resume <run-dir>` → Resume mode (below).
+- `$ARGUMENTS` contains `--mode` or `--repo` or `--ref` or
+  `--evidence-allow` (with a brief) → Isolated run: extract the flags and
+  the brief, then run ONE command
+  `AC prepare --repo <source> --brief <brief> [--mode M] [--ref H]
+  [--evidence-allow list]` (or `--brief-inline` piping the brief text) —
+  it creates the detached worktree at the exact HEAD, freezes the binding
+  for THAT worktree, stages only authorized evidence, creates the run, and
+  prints the run dir as JSON. Continue from "Phase 0.5" below against
+  that run. Never check out branches in the live source tree.
 - `$ARGUMENTS` = path to an existing brief file → New run (Phase 0, file brief).
 - `$ARGUMENTS` = any other non-empty text (quoted inline brief) → New run (Phase 0,
   INLINE brief: pipe the exact text on stdin to `--brief-inline` below; the script
   materializes it into the run-owned immutable `inputs/original-audit-brief.md` with a
   checksum before any inference).
 - Anything else → print usage and stop (INVALID_AUDIT_INPUT).
+
+Path confinement for this session is AUTOMATIC: the skill's frontmatter
+PreToolUse hook (Bash/Read/Grep/Glob → hooks/path_guard_hook.py) is
+registered when the skill is invoked and denies out-of-root calls while a
+run is active (inert otherwise).
 
 # New run
 

@@ -130,15 +130,20 @@ files; remove them yourself if desired.
   may declare its target explicitly with a fenced ```json block
   `{"target": {"repository_root": ..., "expected_head": ...}}`; all other
   prose paths are inert text.
-- **Optional path-guard hook (runner-enforced, one-time operator opt-in)**:
-  register a PreToolUse hook to deny out-of-root Read/Grep/Glob/Bash calls
-  before execution while an audit run is active:
-  in `~/.claude/settings.json` under `hooks.PreToolUse` (matcher
-  `Bash|Read|Grep| Glob`), command
-  `/usr/bin/python3 ~/.claude/skills/audit-council/hooks/path_guard_hook.py`.
-  With no active run the hook allows everything (zero impact on normal
-  sessions). Without the hook, confinement degrades to detection
-  (fingerprint + write-guard), recorded in the run.
+- **Automatic path confinement (skill-scoped, no setup needed)**: the
+  skill's frontmatter registers a PreToolUse hook (Bash/Read/Grep/Glob →
+  hooks/path_guard_hook.py) the moment /audit-council is invoked; it
+  denies out-of-root tool calls before execution while a run is active
+  and is inert otherwise (zero impact on sessions that never invoke the
+  skill). An optional belt-and-suspenders GLOBAL registration
+  (~/.claude/settings.json PreToolUse, same command) can still be added
+  by the operator, but is NOT required for release/historical audits.
+- **Codex OS confinement**: every codex launch (fresh and resume) runs
+  inside a bubblewrap boundary — repo read-only, run dir writable,
+  `~/.codex` and toolchain readable, everything else outside the bind
+  set unreadable, `/tmp` a fresh tmpfs. See
+  docs/A0-CODEX-CONFINEMENT.md for the probe evidence and the honest
+  boundary (system dirs remain readable).
 - **What the hook is NOT**: a mechanical, no-inference scanner. Encoded or
   dynamically-constructed payloads (`base64 -d | sh`, `chr()`-built paths,
   interpreter-generated strings) are beyond any lexical deny layer — the

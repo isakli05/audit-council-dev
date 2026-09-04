@@ -171,3 +171,60 @@ class TestUntouchedRegression(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSkillScopedHooksAndConfinementClaims(unittest.TestCase):
+    """Release-qualification: skill-scoped AUTOMATIC PreToolUse hooks and
+    honest enforcement taxonomy (no 'session-opt-in' overclaim, no
+    'runner-enforced read confinement' overclaim)."""
+
+    SKILL_MD = Path(__file__).resolve().parent.parent / "SKILL.md"
+
+    def test_frontmatter_declares_pretooluse_hook(self):
+        text = self.SKILL_MD.read_text()
+        fm = text.split("---", 2)[1]
+        self.assertIn("hooks:", fm)
+        self.assertIn("PreToolUse:", fm)
+        self.assertIn('matcher: "Bash|Read|Grep|Glob"', fm)
+        self.assertIn("type: command", fm)
+        self.assertIn("path_guard_hook.py", fm)
+        # the hook file exists at the referenced location
+        self.assertTrue((self.SKILL_MD.parent / "hooks" /
+                         "path_guard_hook.py").is_file())
+
+    def test_contract_claude_confinement_not_opt_in(self):
+        doc = json.loads(subprocess.run(
+            ["python3", AUDIT_COUNCIL,
+             "describe", "--json"],
+            capture_output=True, text=True, check=True).stdout)
+        claim = doc["runtime_capabilities"]["claude_path_confinement"]
+        self.assertIn("pre-tool mechanically denied", claim)
+        self.assertIn("AUTOMATICALLY", claim)
+        self.assertNotIn("opt-in", claim.lower())
+        self.assertNotIn("session-opt-in", claim.lower())
+
+    def test_contract_codex_claims_use_exact_taxonomy(self):
+        doc = json.loads(subprocess.run(
+            ["python3", AUDIT_COUNCIL,
+             "describe", "--json"],
+            capture_output=True, text=True, check=True).stdout)
+        caps = doc["runtime_capabilities"]
+        self.assertIn("OS-enforced", caps["codex_write_confinement"])
+        read_claim = caps["codex_read_confinement"]
+        self.assertIn("OS-enforced EXCLUSION", read_claim)
+        self.assertIn("not enforced", read_claim)  # the no-bwrap branch
+        # no overclaim of blanket "runner-enforced read confinement"
+        self.assertNotIn("read confinement runner-enforced", read_claim)
+        lim = " ".join(doc["known_limitations"])
+        self.assertNotIn("session-opt-in", lim)
+
+    def test_public_contract_md_has_enforcement_map(self):
+        md = (Path(__file__).resolve().parent.parent /
+              "PUBLIC-CONTRACT.md").read_text()
+        self.assertIn("Runtime enforcement map", md)
+        for phrase in ("OS-enforced", "pre-tool mechanically denied",
+                       "not enforced / accepted residual",
+                       "runner policy/detection"):
+            self.assertIn(phrase, md)
+        self.assertNotIn("runner-enforced, not OS-enforced", md)
+        self.assertNotIn("session-opt-in", md)

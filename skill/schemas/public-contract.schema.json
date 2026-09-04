@@ -177,6 +177,7 @@
         "codex_invocation",
         "auth",
         "claude_path_confinement",
+        "codex_write_confinement",
         "codex_read_confinement",
         "resumable",
         "write_scope"
@@ -185,6 +186,7 @@
         "codex_invocation": {"type": "string", "minLength": 1},
         "auth": {"type": "string", "minLength": 1},
         "claude_path_confinement": {"type": "string", "minLength": 1},
+        "codex_write_confinement": {"type": "string", "minLength": 1},
         "codex_read_confinement": {"type": "string", "minLength": 1},
         "resumable": {"const": true},
         "write_scope": {"type": "string", "minLength": 1}
