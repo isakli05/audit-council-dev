@@ -139,6 +139,13 @@ files; remove them yourself if desired.
   With no active run the hook allows everything (zero impact on normal
   sessions). Without the hook, confinement degrades to detection
   (fingerprint + write-guard), recorded in the run.
+- **What the hook is NOT**: a mechanical, no-inference scanner. Encoded or
+  dynamically-constructed payloads (`base64 -d | sh`, `chr()`-built paths,
+  interpreter-generated strings) are beyond any lexical deny layer — the
+  hook is a deny-before-exec hardening layer on top of detection
+  (fingerprint freeze + write-guard), not a sandbox. Harness operands
+  (the skill's own `scripts/`+`hooks/` trees and the system interpreter
+  binaries) are inherently allowed so the audit can run itself.
 - **Typed evidence (G)**: evidence citations use `line_ranges:
   [{"start": 184, "end": 185}, {"start": 240, "end": 273}]`; v1 artifacts
   are read via an in-memory migration reader and never rewritten.

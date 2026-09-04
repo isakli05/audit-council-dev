@@ -2,7 +2,7 @@
 """Tier-2 seeded fixture corpus generator (pillar D, Task D.2).
 
 Deterministic, NO models: builds ten tiny git repositories, each carrying
-one REAL seeded defect (or, for negative-controls, deliberately
+one REAL seeded defect (or, for clean-idioms, deliberately
 suspicious-looking-but-correct patterns that MUST stay unfound), plus a
 sealed ground-truth file written OUTSIDE the fixture repo at
 <fixtures-root>/sealed/<name>.json so it never enters auditor context.
@@ -108,7 +108,7 @@ module.exports = function documents(db) {
   return router;
 };
 """
-_AUTH_OWNERSHIP = """// Ownership enforcement helper (protected control).
+_AUTH_OWNERSHIP = """// Ownership enforcement helper.
 function requireOwnership(idOf) {
   return async (req, res, next) => {
     const id = idOf(req);
@@ -119,7 +119,7 @@ function requireOwnership(idOf) {
 }
 module.exports = { requireOwnership };
 """
-_AUTH_AUTH = """// JWT authentication (protected control): verifies and attaches req.user.
+_AUTH_AUTH = """// JWT authentication: verifies and attaches req.user.
 const jwt = require('./jwt');
 module.exports = function authenticate(req, res, next) {
   const claims = jwt.verify(req.headers.authorization);
@@ -183,7 +183,7 @@ def _truth_auth_bypass(dir_: str) -> dict:
 # 2. stale-transaction-recovery
 # ---------------------------------------------------------------------------
 _RECOVERY_FILES = {
-"journal.py": '''"""Append-only transaction journal (protected control)."""
+"journal.py": '''"""Append-only transaction journal."""
 class Journal:
     def __init__(self):
         self.entries = []       # [{txid, op, args}]
@@ -276,7 +276,7 @@ def _truth_stale_tx(dir_: str) -> dict:
 # 3. path-escape-toctou
 # ---------------------------------------------------------------------------
 _PATH_FILES = {
-"storage.py": '''"""Attachment storage (protected control): open the RESOLVED path."""
+"storage.py": '''"""Attachment storage: open the RESOLVED path."""
 import os
 
 ATTACHMENT_DIR = "/srv/attachments"
@@ -355,7 +355,7 @@ def _truth_path_escape(dir_: str) -> dict:
 # 4. cross-tenant-access
 # ---------------------------------------------------------------------------
 _TENANT_FILES = {
-"cache.py": '''"""Shared multi-tenant cache (protected on write)."""
+"cache.py": '''"""Shared multi-tenant cache."""
 class Cache:
     def __init__(self, backend):
         self.backend = backend
@@ -646,7 +646,7 @@ def _truth_supply_chain(dir_: str) -> dict:
 # ---------------------------------------------------------------------------
 # 8. evidence-provenance-mismatch
 # ---------------------------------------------------------------------------
-_LEDGER = '''"""Audit event ledger (protected control)."""
+_LEDGER = '''"""Audit event ledger."""
 def append(events, kind, payload):
     events.append({"kind": kind, "payload": payload})
     return len(events) - 1
@@ -743,7 +743,7 @@ _MANIFEST = """{
   "structure_sha256": "5f4dcc3b5aa765d61d8327deb882cf99"
 }
 """
-_ENGINE = '''"""Core engine (protected control)."""
+_ENGINE = '''"""Core engine."""
 class Engine:
     def __init__(self, bridge):
         self.bridge = bridge
@@ -756,7 +756,7 @@ class Bridge:
     def submit(self, task):
         return {"accepted": True, "task": task}
 '''
-_HTTP_ADAPTER = '''"""HTTP adapter (protected control)."""
+_HTTP_ADAPTER = '''"""HTTP adapter."""
 from core.bridge import Bridge
 
 def make_adapter():
@@ -810,7 +810,7 @@ def _truth_structural_identity(dir_: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# 10. negative-controls
+# 10. clean-idioms
 # ---------------------------------------------------------------------------
 _NEG_FILES = {
 "src/sanitize.py": '''"""Log sanitization
@@ -872,7 +872,7 @@ def _build_negative_controls(dir_: str) -> None:
 
 def _truth_negative_controls(dir_: str) -> dict:
     return _truth(
-        "negative-controls",
+        "clean-idioms",
         defects=[],
         protected_controls=["sanitize-re-escape",
                             "paths-resolved-containment",
@@ -1021,7 +1021,7 @@ FIXTURE_SPECS: list[dict[str, Any]] = [
                       "elapsed_sec": 900},
      "build": _build_structural_identity,
      "ground_truth": _truth_structural_identity},
-    {"name": "negative-controls",
+    {"name": "clean-idioms",
      "description": "clean code with protected suspicious-looking-but-"
                     "correct patterns that MUST stay unfound",
      "severity_range": [],

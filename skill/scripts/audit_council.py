@@ -163,6 +163,13 @@ def _env_gate_errors(run_dir: str) -> list[str]:
         binding = load_json(path)
     except (json.JSONDecodeError, OSError) as exc:
         return [f"INVALID_AUDIT_ENVIRONMENT:BINDING_UNREADABLE: {exc}"]
+    # R2 NEW-6: the state-pinned digest anchors the binding — a substituted
+    # (otherwise valid) binding from ANOTHER run must not pass the gate
+    pinned = state.get("env_binding_digest")
+    if pinned and binding.get("binding_digest") != pinned:
+        return ["INVALID_AUDIT_ENVIRONMENT:BINDING_DIGEST_MISMATCH: on-disk "
+                "binding digest does not match the digest pinned in "
+                "state.json at freeze time"]
     try:
         env_binding.assert_consistent(binding)
     except env_binding.EnvironmentBindingError as exc:

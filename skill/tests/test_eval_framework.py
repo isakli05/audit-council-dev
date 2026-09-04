@@ -285,11 +285,11 @@ class TestTier2Fixtures(unittest.TestCase):
         self.assertIn("requireOwnership", delete_handler)
 
     def test_negative_controls_protected_pattern_and_no_defect(self):
-        truth = tier2_fixtures.load_ground_truth("negative-controls",
+        truth = tier2_fixtures.load_ground_truth("clean-idioms",
                                                  self.root)
         self.assertEqual(truth["defects"], [])
         self.assertGreaterEqual(len(truth["must_not_flag"]), 4)
-        repo = self.summary["fixtures"]["negative-controls"]["repo"]
+        repo = self.summary["fixtures"]["clean-idioms"]["repo"]
         with open(os.path.join(repo, "src", "legacy.py")) as fh:
             legacy = fh.read()
         self.assertIn("hmac.compare_digest", legacy)  # protected pattern
@@ -300,7 +300,7 @@ class TestTier2Fixtures(unittest.TestCase):
                 self.assertTrue(line.lstrip().startswith("#"))
 
     def test_each_seeded_fixture_carries_exactly_its_defects(self):
-        expected = {spec["name"]: 0 if spec["name"] == "negative-controls"
+        expected = {spec["name"]: 0 if spec["name"] == "clean-idioms"
                     else 1 for spec in tier2_fixtures.FIXTURE_SPECS}
         for name, defect_count in expected.items():
             truth = tier2_fixtures.load_ground_truth(name, self.root)

@@ -23,6 +23,7 @@ import os
 import re
 import shlex
 import subprocess
+import sys
 from typing import Any
 
 import env_binding
@@ -40,11 +41,14 @@ _PATH_ARG_FLAGS = {"-C", "--git-dir", "--work-tree", "--exec-path"}
 # paths past exact-token flag matching
 _JOINED_FLAG_RE = re.compile(
     r"^(?:-C(/.+)|--(?:git-dir|work-tree|exec-path|namespace)=(.+))$")
-# absolute / ~ / dotdot path SUBSTRINGS inside any single shell word
-# (quoted payloads like "cat /etc/passwd" are one token to shlex)
+# absolute / ~ / dotdot path SUBSTRINGS inside any single shell word —
+# R2 NEW-1: BOUNDARY-ANCHORED (start-of-word or after whitespace/quote/
+# '='/'('/','), so the interior '/' of a RELATIVE word like src/pkg/a.py is
+# never mistaken for an absolute path; '://' (URLs) is excluded likewise
 _PATH_SUBSTRING_RE = re.compile(
-    r"(/(?:[^/\s\"'\\]+/)*[^\s\"'\\]*)"
-    r"|(~/[^\s\"'\\]+)"
+    r"(?:(?<=\s)|(?<=^)|(?<=[\"'=(,]))"
+    r"(/(?:[^/\\\s\"'\\]+/)*[^\s\"'\\]*)"
+    r"|(?:(?<=\s)|(?<=^)|(?<=[\"'=(,]))(~/[^\s\"'\\]+)"
     r"|((?:\.\./)+[^\s\"'\\]*)")
 # interpreters/wrappers whose argument is ITSELF a command or that merely
 # prefix another command — recursed, never trusted as inert arguments
@@ -53,6 +57,26 @@ _INTERPRETERS = {"bash", "sh", "zsh", "dash", "ksh", "ash",
                  "php", "lua"}
 _WRAPPERS = {"env", "nohup", "stdbuf", "timeout", "nice", "exec",
              "command", "xargs", "sudo"}
+# harness operands (R2 NEW-2): the skill tree this guard lives in, and the
+# interpreter binaries the harness runs under (plain realpath — canonicalize
+# is defined below). Only the EXECUTABLE harness subtrees are allowed
+# (scripts/, hooks/) — not the whole skill tree (tests/fixtures under it
+# must stay governed like any other path). sys.executable alone is NOT a
+# reliable anchor on this host (an app-image shim may own it), so pin the
+# common system interpreters + shells explicitly.
+_HARNESS_DIRS = [
+    os.path.realpath(os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), sub))
+    for sub in ("scripts", "hooks")
+]
+_INTERPRETER_PATHS = set()
+for _cand in (sys.executable, "/usr/bin/python3", "/bin/sh", "/bin/bash",
+              "/usr/bin/env"):
+    try:
+        if _cand:
+            _INTERPRETER_PATHS.add(os.path.realpath(os.path.abspath(_cand)))
+    except (OSError, ValueError):
+        continue
 
 
 # ---------------------------------------------------------------------------
@@ -127,6 +151,15 @@ def _token_candidates(token: str) -> list[str]:
     if joined:
         candidates.append(joined.group(1) or joined.group(2))
     candidates.append(body)
+    # R2 NEW-4: a bare $VAR / ${VAR} / ~ token may itself BE an outside path
+    # after expansion — classify the expanded value, not just the sigil
+    env_only = re.fullmatch(r"\$\{?[A-Za-z_][A-Za-z0-9_]*\}?", token)
+    if env_only:
+        value = os.environ.get(env_only.group(0).strip("${}"), "")
+        if value and _looks_like_path(value):
+            candidates.append(value)
+    if token == "~":
+        candidates.append(os.path.expanduser("~"))
     if "$" not in token:
         # substring extraction is meaningless pre-expansion: $VAR-bearing
         # tokens are classified whole (env expansion happens there); a `$`
@@ -208,7 +241,13 @@ def _classify_path(candidate: str, cwd: str, frozen_root: str,
         path = os.path.join(cwd, path)
     lexical = os.path.normpath(path)        # no symlink resolution
     resolved_path = os.path.realpath(lexical)
-    roots = [frozen_root, *allowed_roots]
+    # R2 NEW-2: the harness's own operands are inherently authorized — the
+    # audit-council skill tree (scripts/schemas the runner itself executes)
+    # and the interpreter binary running it. Without this, an installed
+    # path-guard hook blocks the skill's own CLI mid-run.
+    if resolved_path in _INTERPRETER_PATHS:
+        return None
+    roots = [frozen_root, *allowed_roots, *_HARNESS_DIRS]
     if any(_within(resolved_path, r) for r in roots):
         return None
     if any(_within(lexical, r) for r in roots):
@@ -450,6 +489,19 @@ def _scan_segment(segment: str, cur_cwd: str, prev_cwd: str,
     # `bash -c 'cat /etc/passwd'` must scan the payload as a command. Same
     # for eval; wrappers (env/nohup/xargs/...) prefix another command, which
     # the normal token scan also covers via substring extraction.
+    if tokens[0] in _WRAPPERS:
+        # wrappers prefix another command (plus their own flags / KEY=VALUE
+        # pairs): strip them and scan the wrapped command directly
+        rest = tokens[1:]
+        while rest and (rest[0].startswith("-") or
+                        ("=" in rest[0] and not rest[0].startswith("-"))):
+            rest = rest[1:]
+        if rest:
+            sub_reasons, _, _ = _scan_segment(
+                " ".join(rest), cur_cwd, prev_cwd, frozen_root,
+                allowed_roots)
+            reasons.extend(sub_reasons)
+
     if tokens[0] in _INTERPRETERS or tokens[0] == "eval":
         payload = None
         for i, tok in enumerate(tokens[1:], start=1):

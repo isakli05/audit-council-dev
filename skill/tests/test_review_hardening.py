@@ -304,3 +304,88 @@ def codex_runner_cmd(argv):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRound2Hardening(unittest.TestCase):
+    """R2 re-verification regressions: NEW-1 (relative paths), NEW-2
+    (harness operands), NEW-4 (bare $VAR/~), NEW-6 (binding substitution)."""
+
+    def setUp(self):
+        self.base = tempfile.mkdtemp(prefix="r2-", dir=str(FIXTURES))
+        self.root = path_guard.canonicalize(
+            os.path.join(self.base, "root"))
+        os.makedirs(os.path.join(self.root, "src", "pkg"))
+        self.outside = path_guard.canonicalize(
+            os.path.join(self.base, "outside"))
+        os.makedirs(self.outside)
+
+    def tearDown(self):
+        shutil.rmtree(self.base, ignore_errors=True)
+
+    def _scan(self, cmd):
+        return path_guard.scan_bash_command(cmd, self.root, self.root, [])
+
+    def test_new1_relative_multi_component_paths_allowed(self):
+        for cmd in ("cat src/pkg/a.py", "ls src/pkg", "rg pattern src/pkg",
+                    "git diff -- src/pkg", "echo a/b/c",
+                    "echo https://example.com/x"):
+            self.assertEqual(self._scan(cmd), [], cmd)
+        # and the quoted-payload denial still holds
+        self.assertTrue(self._scan('cat "prefix /etc/passwd suffix"'))
+
+    def test_new2_harness_operands_allowed(self):
+        scripts = path_guard._HARNESS_DIRS[0]
+        ok, reason = path_guard.check_tool_call(
+            "Bash",
+            {"command": f"/usr/bin/python3 {scripts}/audit_council.py "
+                        f"advance --run {self.root}/audit-output/audit-"
+                        f"council/x --to OPUS_INDEPENDENT_COMPLETE "
+                        f"--artifact - --stdin"},
+            self.root, [])
+        self.assertTrue(ok, reason)
+        # ...but unrelated outside paths stay denied in the same command
+        ok, reason = path_guard.check_tool_call(
+            "Read", {"file_path": "/etc/passwd"}, self.root, [])
+        self.assertFalse(ok)
+
+    def test_new4_bare_env_var_and_tilde_denied(self):
+        with unittest.mock.patch.dict(
+                os.environ, {"SECRET": os.path.join(self.outside, "s")}):
+            self.assertTrue(self._scan("cat $SECRET"),
+                            "bare $VAR outside path must be denied")
+        self.assertTrue(self._scan("ls ~"), "bare ~ must be denied")
+
+    def test_new6_substituted_binding_rejected(self):
+        # two runs: copy run B's VALID binding over run A's binding → the
+        # state-pinned digest must catch the substitution
+        run_a = self._make_run("a")
+        run_b = self._make_run("b")
+        shutil.copy(os.path.join(run_b, "01-environment-binding.json"),
+                    os.path.join(run_a, "01-environment-binding.json"))
+        proc = subprocess.run(
+            [PYTHON, AUDIT_COUNCIL, "verify-env", "--run", run_a],
+            capture_output=True, check=False, env=dict(os.environ))
+        self.assertEqual(proc.returncode, 10,
+                         "NEW-6 regression: substituted binding accepted")
+        self.assertIn("BINDING_DIGEST_MISMATCH", proc.stdout.decode())
+
+    def _make_run(self, label):
+        repo = os.path.join(self.base, label)
+        os.makedirs(repo)
+        git(repo, "init", "-q", "-b", "main")
+        git(repo, "config", "user.email", "t@e.com")
+        git(repo, "config", "user.name", "t")
+        with open(os.path.join(repo, "a.py"), "w") as fh:
+            fh.write("1\n")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-q", "-m", "c")
+        brief = os.path.join(self.base, f"{label}.md")
+        with open(brief, "w") as fh:
+            fh.write("# b\n")
+        proc = subprocess.run(
+            [PYTHON, AUDIT_COUNCIL, "init-run", "--repo", repo,
+             "--brief", brief], capture_output=True, check=False,
+            env=dict(os.environ))
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        return [l.strip() for l in proc.stdout.decode().splitlines()
+                if "audit-output/audit-council/" in l][0]

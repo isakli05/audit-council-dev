@@ -228,21 +228,31 @@ def _env_gate_errors(run_dir: str) -> list:
     """A0.2/A0.6: refuse to LAUNCH codex when the audit environment is
     inconsistent — zero model calls on environment failure. v1-era runs
     without a binding are ungated (migration path). A v2 run whose binding
-    file is missing fails CLOSED (H.4 review F6)."""
+    file is missing fails CLOSED (H.4 review F6); the state-pinned digest
+    anchors the binding against substitution (R2 NEW-6)."""
+    try:
+        state = load_state(run_dir)
+    except Exception:
+        return ["INVALID_AUDIT_ENVIRONMENT:BINDING_UNREADABLE: "
+                "run state unreadable"]
     path = os.path.join(run_dir, "01-environment-binding.json")
     if not os.path.isfile(path):
-        try:
-            state = load_state(run_dir)
-        except Exception:
-            return ["INVALID_AUDIT_ENVIRONMENT:BINDING_UNREADABLE: "
-                    "run state unreadable"]
         if state.get("env_binding_digest"):
             return ["INVALID_AUDIT_ENVIRONMENT:BINDING_UNREADABLE: v2 run "
                     "is missing its frozen environment binding file"]
         return []
     import env_binding
     try:
-        env_binding.assert_consistent(read_json(path))
+        binding = read_json(path)
+    except (ValueError, OSError) as exc:
+        return ["INVALID_AUDIT_ENVIRONMENT:BINDING_UNREADABLE: %s" % exc]
+    pinned = state.get("env_binding_digest")
+    if pinned and binding.get("binding_digest") != pinned:
+        return ["INVALID_AUDIT_ENVIRONMENT:BINDING_DIGEST_MISMATCH: "
+                "on-disk binding digest does not match the digest pinned "
+                "in state.json at freeze time"]
+    try:
+        env_binding.assert_consistent(binding)
     except env_binding.EnvironmentBindingError as exc:
         return ["INVALID_AUDIT_ENVIRONMENT:%s: refusing to launch codex: %s"
                 % (exc.reason, exc)]
