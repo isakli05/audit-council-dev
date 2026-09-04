@@ -714,7 +714,11 @@ class TestRound6Hardening(unittest.TestCase):
                         "{a,/}/etc/x", "{/,a}/etc/x", "{a,//}/etc/x",
                         "{a,~}/etc/x", "{~,a}/x", "{/,/}/y",
                         "{a,{b,/etc/x}}", "{x{a,b},/etc/y}",
-                        "{a,{b,{c,/tmp/z}}}"):
+                        "{a,{b,{c,/tmp/z}}}",
+                        # R6-final4: empty-alternative recombination
+                        "{a,}/etc/x", "{,a}/etc/x", "{,}/etc/x",
+                        "{a,b,}/etc/x", "{a,,b}/etc/x", "{a,}/*",
+                        "{x,{a,}}/etc", "{,}/*"):
             ok, reason = path_guard.check_tool_call(
                 "Glob", {"pattern": pattern}, self.root, [])
             self.assertFalse(ok,
@@ -729,7 +733,7 @@ class TestRound6Hardening(unittest.TestCase):
                         "a*/b", "**/test_*.py", "docs/**/*.{md,txt}",
                         "{a,b}.py", "src/{x,y}/*.py", "*//etc/x",
                         "{a,b/..}", "{a,[b,c]}", "[a,b]/x", "{a}/x",
-                        "{a}//etc/x", "~x*"):
+                        "{a}//etc/x", "~x*", "src{a,}/x", "{a,}b.py"):
             # relative dotdot alternatives resolve against the SESSION
             # cwd (as in the hook) — run from inside the frozen root
             prev = os.getcwd()
