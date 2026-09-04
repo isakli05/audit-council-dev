@@ -684,26 +684,19 @@ def check_tool_call(tool: str, tool_input: dict[str, Any],
                     reason = _classify_path(head, os.getcwd(), frozen,
                                             allowed)
             if reason is None and pattern:
-                # R6-final4: EMPTY brace alternatives ("{a,}", "{,}",
-                # "{a,,b}") expand away (bash/glob: one branch is the
-                # empty string), making the post-"}" suffix PATTERN-INITIAL
-                # in that branch: "{a,}/etc/x" → "/etc/x", "{a,}/*" → "/*".
-                # When an empty alternative exists AND nothing precedes the
-                # first "{", classify the suffix after the LAST "}" as a
-                # root if it starts with "/" or "~" (a literal prefix like
-                # "src{a,}/x" keeps every branch relative).
-                if re.search(r"\{,|,,|,\}", pattern):
-                    first_brace = pattern.find("{")
-                    last_brace = pattern.rfind("}")
-                    if first_brace != -1 and last_brace != -1 \
-                            and pattern[:first_brace].strip("/") == "" \
-                            and last_brace + 1 < len(pattern) \
-                            and pattern[last_brace + 1] in "/~":
-                        tail = pattern[last_brace + 1:]
-                        head = re.split(r"[*?\[\]{},]", tail, 1)[0] \
-                            or tail[:1]
-                        reason = _classify_path(head, os.getcwd(), frozen,
-                                                allowed)
+                # R6-final4/5: EMPTY brace alternatives ("{a,}", "{,}",
+                # "{a,,b}") expand away, so the content following that
+                # group's "}" is PATTERN-INITIAL in the empty branch —
+                # "{a,}/etc/x" → "/etc/x", "{a,}/*{s,d}" → "/*s". When an
+                # empty alternative exists AND nothing precedes the first
+                # "{", every post-"}" chunk is given alternative-start
+                # semantics (no separator lstrip; bare "/" or "~" is a
+                # root). A literal prefix ("src{a,}/x") keeps every branch
+                # relative and is unaffected.
+                empty_initial = bool(
+                    re.search(r"\{,|,,|,\}", pattern)
+                    and pattern.find("{") != -1
+                    and pattern[:pattern.find("{")].strip("/") == "")
             if reason is None and pattern:
                 prev_meta = None  # metachar preceding the current chunk
                 for token in re.split(r"([*?\[\]{},])", pattern):
@@ -715,10 +708,12 @@ def check_tool_call(tool: str, tool_input: dict[str, Any],
                     chunk = token
                     compact = chunk.replace("\\", "/")
                     root_alt = False
-                    if prev_meta in (None, "{", ","):
-                        # a COMPLETE ALTERNATIVE that is only separators
-                        # ("/", "//") or exactly "~" roots the expansion —
-                        # it recombines with any following chunk
+                    if prev_meta in (None, "{", ",") or \
+                            (empty_initial and prev_meta == "}"):
+                        # a COMPLETE ALTERNATIVE (or pattern-initial
+                        # content after an empty alternative) that is only
+                        # separators ("/", "//") or exactly "~" roots the
+                        # expansion — it recombines with any following chunk
                         if compact and compact.strip("/") == "":
                             root_alt = True
                         elif compact == "~":

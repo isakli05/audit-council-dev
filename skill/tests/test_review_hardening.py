@@ -718,7 +718,14 @@ class TestRound6Hardening(unittest.TestCase):
                         # R6-final4: empty-alternative recombination
                         "{a,}/etc/x", "{,a}/etc/x", "{,}/etc/x",
                         "{a,b,}/etc/x", "{a,,b}/etc/x", "{a,}/*",
-                        "{x,{a,}}/etc", "{,}/*"):
+                        "{x,{a,}}/etc", "{,}/*", "{a,}~/x", "{a,}~*",
+                        # R6-final5: trailing brace groups after empty
+                        # alternatives recombine into roots
+                        "{a,}/etc/*{s,d}", "{a,}/*{q,w}",
+                        "{a,}/etc/*{q}z", "{,}/etc/*{s}", "{a,}{b}/etc",
+                        "{,}/*{a,b}",
+                        # verifier-accepted fail-closed shapes (round 5)
+                        "{,a}{b,c}/etc", "{a,/etc", "{,/etc"):
             ok, reason = path_guard.check_tool_call(
                 "Glob", {"pattern": pattern}, self.root, [])
             self.assertFalse(ok,
