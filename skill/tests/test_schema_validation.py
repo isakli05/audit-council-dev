@@ -18,7 +18,7 @@ import validate_artifact  # noqa: E402
 
 SCHEMAS_DIR = Path(__file__).resolve().parent.parent / "schemas"
 SCHEMA_NAMES = sorted(p.name for p in SCHEMAS_DIR.glob("*.json"))
-assert len(SCHEMA_NAMES) == 12, SCHEMA_NAMES  # v2: + env-binding, environment-record, evidence-record, public-contract
+assert len(SCHEMA_NAMES) == 13, SCHEMA_NAMES  # v2: + env-binding, environment-record, evidence-record, public-contract, specialist-review
 
 _KNOWN_TYPES = {"object", "array", "string", "integer", "number",
                 "boolean", "null"}
@@ -291,6 +291,36 @@ def public_contract_doc():
     return copy.deepcopy(audit_council.PUBLIC_CONTRACT)
 
 
+def specialist_review_doc():
+    return {
+        "schema_version": 2,
+        "domain": "security-trust",
+        "reviewer": "SPECIALIST-security-trust",
+        "coverage": [{"area": "session token verification", "covered": True,
+                      "note": "inspected middleware paths"}],
+        "candidate_findings": [{
+            "id": "OPUS-001", "origin": "OPUS-001",
+            "title": "Unsigned session cookie accepted by auth middleware",
+            "category": "security", "severity": "HIGH",
+            "confidence": "MEDIUM",
+            "claim": "verify_session accepts cookies without a signature "
+                     "check",
+            "status": "PROVISIONAL",
+            "evidence": [{"kind": "OBSERVED_FACT", "path": "src/auth.py",
+                          "symbol": "verify_session",
+                          "line_ranges": [{"start": 40, "end": 52}],
+                          "description": "no signature verification call"}],
+            "counter_evidence": [],
+            "provenance": {"discovered_by": "SPECIALIST-security-trust"},
+        }],
+        "negative_evidence": [{"kind": "SEARCH_RESULT",
+                               "description": "no secrets logged in scope"}],
+        "unresolved_questions": ["rotation enforced cluster-wide?"],
+        "evidence_refs": ["ev-0123456789abcdef"],
+        "notes": "representative instance",
+    }
+
+
 BUILDERS = {
     "finding.schema.json": finding,
     "audit-contract.schema.json": contract,
@@ -303,6 +333,7 @@ BUILDERS = {
     "evidence-record.schema.json": evidence_record_doc,
     "final-findings.schema.json": final_findings,
     "public-contract.schema.json": public_contract_doc,
+    "specialist-review.schema.json": specialist_review_doc,
     "state.schema.json": state_doc,
 }
 
@@ -326,7 +357,8 @@ class TestSchemaShape(unittest.TestCase):
             "env-binding.schema.json", "environment-record.schema.json",
             "evidence-record.schema.json", "final-findings.schema.json",
             "finding.schema.json", "independent-audit.schema.json",
-            "public-contract.schema.json", "state.schema.json",
+            "public-contract.schema.json", "specialist-review.schema.json",
+            "state.schema.json",
         ])
 
 
@@ -357,7 +389,11 @@ class TestRepresentativeInstances(unittest.TestCase):
                            finding(status="MAYBE"), "enum")
         self.assertInvalid("finding.schema.json",
                            finding(provenance={"discovered_by": "SONNET"}),
-                           "enum")
+                           "pattern")  # v2: pattern, not enum (specialists)
+        self.assertValid("finding.schema.json",
+                         finding(provenance={
+                             "discovered_by":
+                                 "SPECIALIST-security-trust"}))
         self.assertInvalid("finding.schema.json",
                            finding(id="X-1", origin="X-1"), "pattern")
         self.assertInvalid("finding.schema.json",

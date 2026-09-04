@@ -1,0 +1,381 @@
+{
+  "$id": "specialist-review.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Specialist Domain Review (v2 pillar C — DEFAULT OFF)",
+  "description": "Output contract of one eval-gated domain specialist pass (AUDIT-COUNCIL-V2-ARCHITECTURE §3.4.7). Specialists are coverage and candidate-finding producers ONLY: there is deliberately NO verdict field — specialists never own a product GO/NO-GO, and final synthesis treats candidate_findings exactly like provisional findings. candidate_findings are finding-shaped duplicates of finding.schema.json with EXACTLY ONE intentional divergence: provenance.discovered_by requires SPECIALIST attribution (pattern ^SPECIALIST-[a-z-]+$) because finding.schema.json's discovered_by enum only allows OPUS|CODEX and cannot be $ref'd with this one field relaxed. Candidate id/origin therefore keep the shared ^(OPUS|CODEX)-[0-9]{3}$ shape as PROVISIONAL placeholders: the migration into the normal pipeline (lead's H-phase wiring) re-labels provenance and assigns canonical ids when candidates enter normalization + falsification. evidence_refs are evidence-store ids (ev- prefixed) the specialist actually consulted via blind_context.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "domain",
+    "reviewer",
+    "coverage",
+    "candidate_findings",
+    "negative_evidence",
+    "unresolved_questions",
+    "evidence_refs",
+    "notes"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 2
+    },
+    "domain": {
+      "enum": [
+        "security-trust",
+        "concurrency-state",
+        "authorization-multitenancy",
+        "data-integrity-migrations",
+        "api-contracts",
+        "release-supply-chain",
+        "test-eval-quality",
+        "performance-resources",
+        "frontend-accessibility"
+      ]
+    },
+    "reviewer": {
+      "type": "string",
+      "pattern": "^SPECIALIST-[a-z-]+$"
+    },
+    "coverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "area",
+          "covered",
+          "note"
+        ],
+        "properties": {
+          "area": {
+            "type": "string",
+            "minLength": 1
+          },
+          "covered": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "candidate_findings": {
+      "type": "array",
+      "items": {
+        "description": "Finding-shaped per finding.schema.json (v2: typed line_ranges, no legacy lines) with the single divergence that provenance.discovered_by must be SPECIALIST-<domain> — candidates must be attributable to their specialist. Cross-examination/adjudication provenance fields stay OPUS|CODEX-shaped and are normally absent on fresh candidates (only discovered_by is required).",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "origin",
+          "title",
+          "category",
+          "severity",
+          "confidence",
+          "claim",
+          "status",
+          "evidence",
+          "provenance"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^(OPUS|CODEX)-[0-9]{3}$"
+          },
+          "origin": {
+            "type": "string",
+            "pattern": "^(OPUS|CODEX)-[0-9]{3}$"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "category": {
+            "type": "string",
+            "minLength": 1
+          },
+          "severity": {
+            "enum": [
+              "CRITICAL",
+              "HIGH",
+              "MEDIUM",
+              "LOW",
+              "INFO"
+            ]
+          },
+          "confidence": {
+            "enum": [
+              "HIGH",
+              "MEDIUM",
+              "LOW"
+            ]
+          },
+          "claim": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "PROVISIONAL",
+              "CONFIRMED",
+              "PARTIALLY_CONFIRMED",
+              "REJECTED",
+              "UNRESOLVED"
+            ]
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "OBSERVED_FACT",
+                    "INFERENCE",
+                    "HYPOTHESIS",
+                    "REQUIREMENT_CLAIM"
+                  ]
+                },
+                "path": {
+                  "type": "string"
+                },
+                "symbol": {
+                  "type": "string"
+                },
+                "line_ranges": {
+                  "type": "array",
+                  "maxItems": 32,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "start",
+                      "end"
+                    ],
+                    "properties": {
+                      "start": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "end": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    }
+                  }
+                },
+                "requirement_ref": {
+                  "type": "string"
+                },
+                "test_ref": {
+                  "type": "string"
+                },
+                "command_ref": {
+                  "type": "string"
+                },
+                "artifact_hash": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "counter_evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "OBSERVED_FACT",
+                    "INFERENCE",
+                    "HYPOTHESIS",
+                    "REQUIREMENT_CLAIM"
+                  ]
+                },
+                "path": {
+                  "type": "string"
+                },
+                "symbol": {
+                  "type": "string"
+                },
+                "line_ranges": {
+                  "type": "array",
+                  "maxItems": 32,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "start",
+                      "end"
+                    ],
+                    "properties": {
+                      "start": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "end": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    }
+                  }
+                },
+                "requirement_ref": {
+                  "type": "string"
+                },
+                "test_ref": {
+                  "type": "string"
+                },
+                "command_ref": {
+                  "type": "string"
+                },
+                "artifact_hash": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "requirement_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "source_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reasoning_summary": {
+            "type": "string"
+          },
+          "failure_scenario": {
+            "type": "string"
+          },
+          "impact": {
+            "type": "string"
+          },
+          "root_cause": {
+            "type": "string"
+          },
+          "verification_method": {
+            "type": "string"
+          },
+          "residual_uncertainty": {
+            "type": "string"
+          },
+          "provenance": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "discovered_by"
+            ],
+            "properties": {
+              "discovered_by": {
+                "type": "string",
+                "pattern": "^SPECIALIST-[a-z-]+$"
+              },
+              "independently_confirmed_by": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "OPUS",
+                    "CODEX"
+                  ]
+                }
+              },
+              "challenged_by": {
+                "enum": [
+                  "OPUS",
+                  "CODEX",
+                  null
+                ]
+              },
+              "challenge_result": {
+                "enum": [
+                  "CONFIRMED",
+                  "PARTIALLY_CONFIRMED",
+                  "REJECTED",
+                  "INSUFFICIENT_EVIDENCE",
+                  null
+                ]
+              },
+              "adjudication_result": {
+                "enum": [
+                  "CONFIRMED",
+                  "PARTIALLY_CONFIRMED",
+                  "REJECTED",
+                  "UNRESOLVED",
+                  null
+                ]
+              },
+              "validated_by": {
+                "enum": [
+                  "OPUS",
+                  "CODEX",
+                  null
+                ]
+              }
+            }
+          },
+          "cluster_id": {
+            "type": "string",
+            "pattern": "^CLUSTER-[0-9]{3}$"
+          },
+          "late_finding": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "negative_evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "description"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "unresolved_questions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^ev-[0-9a-f]{16}$"
+      }
+    },
+    "notes": {
+      "type": "string"
+    }
+  }
+}

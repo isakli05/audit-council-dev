@@ -737,6 +737,13 @@ UI quota % is never treated as linear with tokens.
   4. Compound-command confinement validates each segment; ordinary in-root
      `&&`, pipes, and subshells MUST remain usable (false-positive
      regressions required in addition to escape denials).
+- 2026-09-04 (lead contract change, PKG-SPEC integration):
+  `finding.schema.json` `provenance.discovered_by` extended from the
+  OPUS|CODEX enum to pattern `^(OPUS|CODEX|SPECIALIST-[a-z-]+)$` —
+  additive-compatible (all v1 artifacts still validate) so specialist
+  candidates keep attribution through normalization instead of being
+  silently relabeled; DIVERSITY scoring depends on it. `validated_by`
+  stays OPUS|CODEX-only (only primary models validate late findings).
 
 ## Execution handoff
 

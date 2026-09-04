@@ -220,10 +220,8 @@
       ],
       "properties": {
         "discovered_by": {
-          "enum": [
-            "OPUS",
-            "CODEX"
-          ]
+          "type": "string",
+          "pattern": "^(OPUS|CODEX|SPECIALIST-[a-z-]+)$"
         },
         "independently_confirmed_by": {
           "type": "array",
