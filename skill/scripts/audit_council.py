@@ -130,11 +130,16 @@ def _active_runs_dir() -> str:
     return os.path.join(env_binding.cache_root(), "active-runs")
 
 
-def _register_active_run(run_id: str, run_dir: str) -> None:
+def _register_active_run(run_id: str, run_dir: str,
+                         pinned_digest: str | None = None) -> None:
     d = _active_runs_dir()
     os.makedirs(d, exist_ok=True)
-    atomic_write_bytes(os.path.join(d, run_id),
-                       os.path.abspath(run_dir).encode("utf-8"))
+    # R3-N3: line 2 pins the binding digest OUTSIDE the frozen root so a
+    # confined session cannot rewrite the hook's policy source
+    payload = os.path.abspath(run_dir)
+    if pinned_digest:
+        payload += "\n" + pinned_digest
+    atomic_write_bytes(os.path.join(d, run_id), payload.encode("utf-8"))
 
 
 def _unregister_active_run(run_id: str) -> None:
@@ -459,8 +464,10 @@ def cmd_init_run(args: argparse.Namespace) -> int:
     if brief_source == "inline":
         state_store.record_checksum(run_dir, brief)
 
-    # register the active run for the path-guard PreToolUse hook (A0.4)
-    _register_active_run(run_id, run_dir)
+    # register the active run for the path-guard PreToolUse hook (A0.4),
+    # pinning the binding digest in the out-of-root registry (R3-N3)
+    _register_active_run(run_id, run_dir,
+                         pinned_digest=binding["binding_digest"])
 
     print(run_dir)
     return EXIT_OK
@@ -953,7 +960,11 @@ def cmd_resume_check(args: argparse.Namespace) -> int:
                    "error": f"INVALID_AUDIT_ENVIRONMENT:{exc.reason}: {exc}"})
             return EXIT_ENV
         if state.get("phase") != "COMPLETE":
-            _register_active_run(state["run_id"], run_dir)
+            _register_active_run(
+                state["run_id"], run_dir,
+                pinned_digest=state.get("env_binding_digest")
+                or load_json(os.path.join(run_dir, ENV_BINDING_NAME)
+                             ).get("binding_digest"))
 
     # 3. repository fingerprint
     ok, diff = repo_fingerprint.verify(

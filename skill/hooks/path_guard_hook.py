@@ -36,25 +36,37 @@ import env_binding  # noqa: E402
 import path_guard  # noqa: E402
 
 
-def _active_run_dirs(cache: str) -> list[str]:
-    """Run dir paths registered under <cache>/active-runs/<run-id> files."""
+def _active_runs(cache: str) -> list[tuple[str, str]]:
+    """(run_dir, pinned_binding_digest) registered under
+    <cache>/active-runs/<run-id>. The registry lives OUTSIDE the frozen
+    root — a confined session cannot rewrite the pin (R3-N3)."""
     active = os.path.join(cache, "active-runs")
     if not os.path.isdir(active):
         return []
-    runs: list[str] = []
+    runs: list[tuple[str, str]] = []
     for name in sorted(os.listdir(active)):
         entry = os.path.join(active, name)
         if not os.path.isfile(entry):
             continue
         try:
             with open(entry, "r", encoding="utf-8") as fh:
-                runs.append(fh.read().strip())
+                lines = fh.read().strip().splitlines()
         except OSError:
-            runs.append("")  # unreadable registration: fail closed
+            runs.append(("", ""))  # unreadable registration: fail closed
+            continue
+        run_dir = lines[0].strip() if lines else ""
+        pinned = lines[1].strip() if len(lines) > 1 else ""
+        runs.append((run_dir, pinned))
     return runs
 
 
-def _load_binding(run_dir: str) -> dict[str, Any]:
+def _active_run_dirs(cache: str) -> list[str]:
+    """Run-dir-only view (back-compat for tests)."""
+    return [run_dir for run_dir, _ in _active_runs(cache)]
+
+
+def _load_binding(run_dir: str,
+                  pinned_digest: str | None = None) -> dict[str, Any]:
     if not run_dir or not os.path.isdir(run_dir):
         raise env_binding.EnvironmentBindingError(
             "ACTIVE_RUN_UNREADABLE", {"run_dir": run_dir or "<empty>"})
@@ -71,6 +83,15 @@ def _load_binding(run_dir: str) -> dict[str, Any]:
     if env_binding.digest(binding) != binding.get("binding_digest"):
         raise env_binding.EnvironmentBindingError("BINDING_DIGEST_MISMATCH",
                                                   {"path": path})
+    # R3-N3: the registry-pinned digest anchors the policy source — an
+    # in-root rewrite of the binding (even with a regenerated self-digest)
+    # no longer widens the hook's allowlist
+    if pinned_digest and binding.get("binding_digest") != pinned_digest:
+        raise env_binding.EnvironmentBindingError(
+            "BINDING_DIGEST_MISMATCH",
+            {"path": path,
+             "detail": "binding no longer matches the digest pinned in the "
+                       "out-of-root active-run registry"})
     if not isinstance(binding.get("repo_root_realpath"), str) \
             or not isinstance(binding.get("allowed_disposable_roots"), list):
         raise env_binding.EnvironmentBindingError("BINDING_UNREADABLE",
@@ -87,12 +108,12 @@ def process(doc: Any) -> tuple[int, str | None]:
     if not isinstance(tool, str) or not isinstance(tool_input, dict):
         return 2, ("malformed hook input: tool_name (str) and tool_input "
                    "(object) are required")
-    runs = _active_run_dirs(env_binding.cache_root())
+    runs = _active_runs(env_binding.cache_root())
     if not runs:
         return 0, None  # no active audit run: zero impact
     try:
-        for run_dir in runs:
-            binding = _load_binding(run_dir)
+        for run_dir, pinned in runs:
+            binding = _load_binding(run_dir, pinned_digest=pinned)
             ok, reason = path_guard.check_tool_call(
                 tool, tool_input, binding["repo_root_realpath"],
                 binding["allowed_disposable_roots"])

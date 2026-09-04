@@ -866,7 +866,7 @@ def _build_negative_controls(dir_: str) -> None:
         _write(dir_, name, content)
     _write(dir_, "README.md",
            "# clean-svc\n "
-           "suspicious-looking but correct patterns (eval fixture).\n")
+           "common defensive idioms (eval fixture).\n")
     _commit(dir_, "feat: clean service")
 
 

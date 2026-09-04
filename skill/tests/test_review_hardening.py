@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 PYTHON = "python3"
@@ -380,6 +381,100 @@ class TestRound2Hardening(unittest.TestCase):
         git(repo, "add", "-A")
         git(repo, "commit", "-q", "-m", "c")
         brief = os.path.join(self.base, f"{label}.md")
+        with open(brief, "w") as fh:
+            fh.write("# b\n")
+        proc = subprocess.run(
+            [PYTHON, AUDIT_COUNCIL, "init-run", "--repo", repo,
+             "--brief", brief], capture_output=True, check=False,
+            env=dict(os.environ))
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        return [l.strip() for l in proc.stdout.decode().splitlines()
+                if "audit-output/audit-council/" in l][0]
+
+
+class TestRound3Hardening(unittest.TestCase):
+    """R3 findings: N1 (harness-dir write denial), N2 (bare-symlink
+    operands), N3 (registry-pinned binding digest)."""
+
+    def setUp(self):
+        self.base = tempfile.mkdtemp(prefix="r3-", dir=str(FIXTURES))
+        self.root = path_guard.canonicalize(os.path.join(self.base, "root"))
+        os.makedirs(os.path.join(self.root, "src"))
+        self.outside = path_guard.canonicalize(
+            os.path.join(self.base, "outside"))
+        os.makedirs(self.outside)
+
+    def tearDown(self):
+        shutil.rmtree(self.base, ignore_errors=True)
+
+    def _scan(self, cmd):
+        return path_guard.scan_bash_command(cmd, self.root, self.root, [])
+
+    def test_n1_write_to_harness_denied_read_still_allowed(self):
+        hooks = path_guard._HARNESS_DIRS[1]
+        scripts = path_guard._HARNESS_DIRS[0]
+        guard = os.path.join(hooks, "path_guard_hook.py")
+        self.assertTrue(self._scan(f"echo x > {guard}"),
+                        "R3-N1: overwrite of the guard must be denied")
+        self.assertTrue(self._scan(f"tee {guard} < f"),
+                        "R3-N1: tee into harness must be denied")
+        self.assertTrue(self._scan(f"cp f {scripts}/evil.py"),
+                        "R3-N1: cp into scripts must be denied")
+        # reads/exec of harness operands stay allowed
+        self.assertEqual(self._scan(
+            f"/usr/bin/python3 {scripts}/audit_council.py --help"), [])
+
+    def test_n2_bare_symlink_operand_denied(self):
+        victim = os.path.join(self.outside, "victim.txt")
+        with open(victim, "w") as fh:
+            fh.write("secret\n")
+        pw = os.path.join(self.root, "pw")
+        os.symlink(victim, pw)
+        self.assertEqual(self._scan("cat pw"), ["SYMLINK_ESCAPE"],
+                         "R3-N2: bare symlink read escape must be denied")
+        self.assertIn("SYMLINK_ESCAPE",
+                      self._scan("echo pwned > pw"),
+                      "R3-N2: bare symlink write escape must be denied")
+
+    def test_n3_registry_pin_anchors_hook_policy(self):
+        sys.path.insert(0, str(Path(SCRIPTS).parent / "hooks"))
+        try:
+            import path_guard_hook as hook
+        finally:
+            pass
+        run_dir = self._make_run_with_pin()
+        # in-root binding rewrite with a REGENERATED self-digest: the
+        # out-of-root registry pin must catch it
+        binding_path = os.path.join(run_dir, "01-environment-binding.json")
+        binding = json.load(open(binding_path))
+        binding["allowed_disposable_roots"] = ["/"]
+        sys.path.insert(0, str(SCRIPTS))
+        import env_binding
+        binding["binding_digest"] = env_binding.digest(binding)
+        with open(binding_path, "w") as fh:
+            json.dump(binding, fh)
+        reg = os.path.join(os.environ["AUDIT_COUNCIL_CACHE_HOME"],
+                           "active-runs")
+        # hook process sees the mismatch and denies everything
+        doc = {"tool_name": "Read", "tool_input": {"file_path": "/etc/passwd"}}
+        rc, reason = hook.process(doc)
+        self.assertEqual(rc, 2,
+                         "R3-N3: rewritten binding must fail the hook closed")
+        self.assertEqual(reason, "BINDING_DIGEST_MISMATCH")
+
+    def _make_run_with_pin(self):
+        os.environ["AUDIT_COUNCIL_CACHE_HOME"] = os.path.join(
+            self.base, "cache")
+        repo = os.path.join(self.base, "arepo")
+        os.makedirs(repo)
+        git(repo, "init", "-q", "-b", "main")
+        git(repo, "config", "user.email", "t@e.com")
+        git(repo, "config", "user.name", "t")
+        with open(os.path.join(repo, "a.py"), "w") as fh:
+            fh.write("1\n")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-q", "-m", "c")
+        brief = os.path.join(self.base, "ab.md")
         with open(brief, "w") as fh:
             fh.write("# b\n")
         proc = subprocess.run(

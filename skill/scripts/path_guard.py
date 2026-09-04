@@ -77,6 +77,11 @@ for _cand in (sys.executable, "/usr/bin/python3", "/bin/sh", "/bin/bash",
             _INTERPRETER_PATHS.add(os.path.realpath(os.path.abspath(_cand)))
     except (OSError, ValueError):
         continue
+# R3-N1: harness dirs/interpreters are READ/EXEC operands only — WRITE
+# intent toward them is confinement self-destruction and is denied
+_WRITE_TARGET_HEADS = {"tee", "cp", "mv", "dd", "rsync", "install",
+                       "truncate", "shred"}
+_REDIRECTION_TARGET_RE = re.compile(r"(?:\d)?>>?\s*([^\s;|&)]+)")
 
 
 # ---------------------------------------------------------------------------
@@ -485,6 +490,47 @@ def _scan_segment(segment: str, cur_cwd: str, prev_cwd: str,
                         allowed_roots)
 
     reasons: list[str] = []
+    # R3-N1: write intent toward the harness itself (redirection targets,
+    # tee/cp/mv/... destinations) is denied — overwriting the guard or the
+    # scripts it enforces would disable confinement permanently
+    write_targets: list[str] = []
+    for m in _REDIRECTION_TARGET_RE.finditer(segment):
+        write_targets.append(m.group(1))
+    if tokens[0] in _WRITE_TARGET_HEADS:
+        operands = [t for t in tokens[1:] if not t.startswith("-")]
+        if operands:
+            if tokens[0] == "tee":
+                write_targets.extend(operands)
+            else:
+                write_targets.append(operands[-1])  # destination
+    for wt in write_targets:
+        w_resolved = os.path.realpath(
+            os.path.join(cur_cwd, wt) if not os.path.isabs(wt) else wt)
+        if any(_within(w_resolved, d) for d in _HARNESS_DIRS) \
+                or w_resolved in _INTERPRETER_PATHS:
+            reasons.append("PATH_ESCAPE_ATTEMPT")
+
+    # R3-N2: slash-free operands can still BE escapes — a repo-planted
+    # single-component symlink (pw -> /outside/victim). Classify every bare
+    # non-flag token that exists as a symlink from cwd.
+    allowed_all = [frozen_root, *allowed_roots]
+    for token in tokens:
+        if token.startswith("-") or token in (">>", ">", "|", "&&", "||",
+                                              ";", "&"):
+            continue
+        joined = os.path.join(cur_cwd, token) \
+            if not os.path.isabs(token) else token
+        try:
+            if os.path.islink(joined):
+                target = os.path.realpath(joined)
+                if not any(_within(target, r) for r in allowed_all) \
+                        and not any(_within(target, d)
+                                    for d in _HARNESS_DIRS) \
+                        and target not in _INTERPRETER_PATHS:
+                    reasons.append("SYMLINK_ESCAPE")
+        except OSError:
+            continue
+
     # H.4 review F1: interpreter payloads are COMMANDS, not inert arguments —
     # `bash -c 'cat /etc/passwd'` must scan the payload as a command. Same
     # for eval; wrappers (env/nohup/xargs/...) prefix another command, which

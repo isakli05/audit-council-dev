@@ -135,7 +135,9 @@ class TestBindingLifecycle(EnvLifecycleBase):
         # the active-run registry file carries the run dir path
         reg = os.path.join(self.cache_root, "active-runs",
                            self.active_run_files()[0])
-        self.assertEqual(open(reg).read().strip(), run_dir)
+        lines = open(reg).read().strip().splitlines()
+        self.assertEqual(lines[0], run_dir)
+        self.assertEqual(lines[1], binding["binding_digest"])
         # binding is checksummed
         mismatches = state_store.verify_all(run_dir)
         self.assertEqual(mismatches, [])
