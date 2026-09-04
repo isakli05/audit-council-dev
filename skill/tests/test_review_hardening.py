@@ -313,6 +313,9 @@ class TestRound2Hardening(unittest.TestCase):
 
     def setUp(self):
         self.base = tempfile.mkdtemp(prefix="r2-", dir=str(FIXTURES))
+        # R6: never leak active-run registrations into the real user cache
+        os.environ["AUDIT_COUNCIL_CACHE_HOME"] = os.path.join(
+            self.base, "cache")
         self.root = path_guard.canonicalize(
             os.path.join(self.base, "root"))
         os.makedirs(os.path.join(self.root, "src", "pkg"))
@@ -321,6 +324,7 @@ class TestRound2Hardening(unittest.TestCase):
         os.makedirs(self.outside)
 
     def tearDown(self):
+        os.environ.pop("AUDIT_COUNCIL_CACHE_HOME", None)
         shutil.rmtree(self.base, ignore_errors=True)
 
     def _scan(self, cmd):
@@ -405,6 +409,7 @@ class TestRound3Hardening(unittest.TestCase):
         os.makedirs(self.outside)
 
     def tearDown(self):
+        os.environ.pop("AUDIT_COUNCIL_CACHE_HOME", None)
         shutil.rmtree(self.base, ignore_errors=True)
 
     def _scan(self, cmd):
@@ -496,6 +501,7 @@ class TestRound4Hardening(unittest.TestCase):
         os.makedirs(os.path.join(self.root, "src"))
 
     def tearDown(self):
+        os.environ.pop("AUDIT_COUNCIL_CACHE_HOME", None)
         shutil.rmtree(self.base, ignore_errors=True)
 
     def _scan(self, cmd):
@@ -676,3 +682,46 @@ class TestRound5Hardening(unittest.TestCase):
         ok, reason = path_guard.check_tool_call(
             "Glob", {"pattern": "../../*.py"}, self.root, [])
         self.assertFalse(ok)
+
+
+class TestRound6Hardening(unittest.TestCase):
+    """R6: Glob post-metachar/brace escapes + suite cache hygiene."""
+
+    def setUp(self):
+        self.base = tempfile.mkdtemp(prefix="r6-", dir=str(FIXTURES))
+        os.environ["AUDIT_COUNCIL_CACHE_HOME"] = os.path.join(
+            self.base, "cache")
+        self.root = path_guard.canonicalize(
+            os.path.join(self.base, "root"))
+        os.makedirs(os.path.join(self.root, "src"))
+
+    def tearDown(self):
+        os.environ.pop("AUDIT_COUNCIL_CACHE_HOME", None)
+        shutil.rmtree(self.base, ignore_errors=True)
+
+    def test_glob_post_metachar_and_brace_escapes_denied(self):
+        for pattern in ("a?/../../etc/*", "x[a]/../../../etc/*",
+                        "{/etc/passwd,/tmp/x}", "src/*/../../../*"):
+            ok, reason = path_guard.check_tool_call(
+                "Glob", {"pattern": pattern}, self.root, [])
+            self.assertFalse(ok,
+                             f"R6 Glob escape allowed: {pattern}")
+
+    def test_glob_benign_metachar_patterns_allowed(self):
+        for pattern in ("*", "**/*.py", "src/**/*.py", "src/*.py",
+                        "?ache", "[abc]*", ""):
+            ok, reason = path_guard.check_tool_call(
+                "Glob", {"pattern": pattern}, self.root, [])
+            self.assertTrue(ok, f"{pattern}: {reason}")
+
+    def test_suite_leaves_real_cache_clean(self):
+        # R6 sweep: after this suite the REAL user cache must hold no
+        # dead registrations (the hook would deny-all until pruned)
+        real = os.path.expanduser("~/.cache/audit-council/active-runs")
+        if not os.path.isdir(real):
+            return
+        for name in os.listdir(real):
+            with open(os.path.join(real, name)) as fh:
+                first = fh.read().strip().splitlines()[0].strip()
+            self.assertTrue(os.path.isdir(first),
+                            f"dead real-cache entry leaked: {name} -> {first}")

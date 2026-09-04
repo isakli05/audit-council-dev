@@ -323,7 +323,9 @@ def _score(name, truth, final, run_dir) -> dict[str, Any]:
         expanded = os.path.expanduser(p)
         if not os.path.isabs(expanded):
             expanded = os.path.join(repo_root, expanded)
-        return os.path.normpath(expanded)
+        # R6: realpath so in-repo symlink aliases cannot evade the
+        # protected-control metric
+        return os.path.realpath(os.path.normpath(expanded))
 
     protected = {_norm(p) for p in protected}
     protected_hits = [f["claim"] for f in primary

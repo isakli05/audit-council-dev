@@ -100,6 +100,7 @@ def build_sandbox_argv(codex_argv: list, repo_root: str, run_dir: str,
     tool_dirs = _toolchain_roots(codex_argv[0])
     for root in tool_dirs:
         argv += ["--ro-bind", root, root]
+    argv += ["--tmpfs", "/tmp"]
     covered = ["/usr", "/etc", "/lib", "/lib64", "/lib32", *tool_dirs]
     tool_file = _tool_file(codex_argv[0])
     if tool_file:
@@ -107,9 +108,9 @@ def build_sandbox_argv(codex_argv: list, repo_root: str, run_dir: str,
         if not any(real_tf == c or real_tf.startswith(c + os.sep)
                    for c in covered if os.path.isdir(c)):
             # only bind files the standard/dir binds do not already cover
-            # (mounting onto a symlink destination would fail anyway)
+            # (mounting onto a symlink destination would fail anyway); kept
+            # AFTER --tmpfs /tmp so a tool file under /tmp is not shadowed
             argv += ["--ro-bind", tool_file, tool_file]
-    argv += ["--tmpfs", "/tmp"]
     argv += ["--ro-bind", repo_root, repo_root]
     # the run dir sits inside the repo (audit-output/...) and must be the
     # ONE writable subtree of the repository

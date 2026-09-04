@@ -659,15 +659,28 @@ def check_tool_call(tool: str, tool_input: dict[str, Any],
             if not isinstance(path, str) or not path:
                 return (False, "PATH_ESCAPE_ATTEMPT")
             reason = _classify_path(path, os.getcwd(), frozen, allowed)
-        # R5 NEW-4: Glob patterns can carry their own path prefix
-        # ("/etc/*", "../*.py") — classify the literal leading portion
+        # R5 NEW-4 / R6: Glob patterns can carry their own path prefixes —
+        # and escapes may appear AFTER the first metacharacter
+        # ("a?/../../etc/*") or inside brace alternatives. Classify EVERY
+        # literal chunk between metacharacters: any chunk that is
+        # absolute, ~-rooted, or contains a ".." component is a denial.
         if tool == "Glob" and reason is None:
             pattern = tool_input.get("pattern")
             if isinstance(pattern, str) and pattern:
-                prefix = re.split(r"[*?\[{]", pattern, 1)[0] or pattern
-                if _looks_like_path(prefix):
-                    reason = _classify_path(prefix, os.getcwd(), frozen,
+                for chunk in re.split(r"[*?\[\]{}]", pattern):
+                    if not chunk:
+                        continue
+                    compact = chunk.replace("\\", "/")
+                    dotdot = ".." in compact.split("/")
+                    absolute = compact.startswith("/") \
+                        and compact.strip("/") != ""
+                    tilde = compact.startswith("~") and compact != "~"
+                    if dotdot or absolute or tilde:
+                        cr = _classify_path(chunk, os.getcwd(), frozen,
                                             allowed)
+                        if cr:
+                            reason = cr
+                            break
         return (True, None) if reason is None else (False, reason)
 
     if tool == "Bash":

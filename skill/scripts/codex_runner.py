@@ -416,8 +416,12 @@ def cmd_start(args) -> int:
                 "allowed_disposable_roots") or []
         except (ValueError, OSError):
             _allowed_roots = []
-    argv_exec, sandbox_active = codex_sandbox.wrap_codex_argv(
-        argv, repo_root, run_dir, _allowed_roots)
+    try:
+        argv_exec, sandbox_active = codex_sandbox.wrap_codex_argv(
+            argv, repo_root, run_dir, _allowed_roots)
+    except RuntimeError as exc:
+        print("error: %s" % exc, file=sys.stderr)
+        return 3
 
     attempt_number = 1 + sum(
         1 for j in state.get("codex", {}).get("jobs", [])
@@ -1001,8 +1005,12 @@ def cmd_repair(args) -> int:
         except (ValueError, OSError):
             _allowed_roots = []
     _repo_root = state.get("repo_root") or detect_repo_root(run_dir)
-    argv_exec, sandbox_active = codex_sandbox.wrap_codex_argv(
-        base_argv, _repo_root, run_dir, _allowed_roots)
+    try:
+        argv_exec, sandbox_active = codex_sandbox.wrap_codex_argv(
+            base_argv, _repo_root, run_dir, _allowed_roots)
+    except RuntimeError as exc:
+        print("error: %s" % exc, file=sys.stderr)
+        return 3
     new_job = launch(run_dir, phase, argv_exec,
                      repair_prompt, out_path, job["schema_path"], session_id, job_id,
                      {"repair_of": job["job_id"], "repair": True,
