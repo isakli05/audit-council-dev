@@ -149,8 +149,9 @@ def state_path(run_dir: str | os.PathLike[str]) -> str:
 
 
 def new_state(run_id: str, repo_root: str,
-              repo_fingerprint_sha256: str) -> dict[str, Any]:
-    return {
+              repo_fingerprint_sha256: str,
+              env_binding_digest: str | None = None) -> dict[str, Any]:
+    state = {
         "schema_version": SCHEMA_VERSION,
         "run_id": run_id,
         "phase": "CREATED",
@@ -172,6 +173,9 @@ def new_state(run_id: str, repo_root: str,
         "failure_reason": None,
         "adjudication_skipped": False,
     }
+    if env_binding_digest is not None:
+        state["env_binding_digest"] = env_binding_digest
+    return state
 
 
 def sanity_check_state(state: Any) -> None:

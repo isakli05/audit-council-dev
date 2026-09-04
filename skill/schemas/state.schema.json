@@ -48,7 +48,8 @@
         "PARTIAL_CODEX_FAILURE",
         "PARTIAL_CLAUDE_INTERRUPTION",
         "STALE_REPOSITORY",
-        "INVALID_AUDIT_INPUT"
+        "INVALID_AUDIT_INPUT",
+        "INVALID_AUDIT_ENVIRONMENT"
       ]
     },
     "created_at": {
@@ -62,6 +63,9 @@
       }
     },
     "repo_fingerprint_sha256": {
+      "type": "string"
+    },
+    "env_binding_digest": {
       "type": "string"
     },
     "repo_root": {

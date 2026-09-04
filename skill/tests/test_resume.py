@@ -198,6 +198,10 @@ class TestTamperDetected(unittest.TestCase):
         self.repo = make_repo(self._tmp.name)
         self.run_dir = init_run(self.repo, self._tmp.name)
         doc = contract()
+        binding = json.load(open(os.path.join(
+            self.run_dir, "01-environment-binding.json")))
+        doc["target_repository"]["root"] = binding["repo_root_realpath"]
+        doc["target_repository"]["head_sha"] = binding["head_sha"]
         doc["target_repository"]["fingerprint_sha256"] = \
             json.load(open(os.path.join(
                 self.run_dir, "state.json")))["repo_fingerprint_sha256"]

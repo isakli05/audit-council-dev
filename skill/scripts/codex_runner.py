@@ -212,14 +212,32 @@ def compose_argv(codex_bin: str, phase: str, repo_root: str, schema_path: str,
 
 
 def detect_repo_root(run_dir: str) -> str:
-    cur = os.path.abspath(run_dir)
-    while True:
-        if os.path.isdir(os.path.join(cur, ".git")):
-            return cur
-        parent = os.path.dirname(cur)
-        if parent == cur:
-            raise SystemExit("cannot detect repo root from %s; set repo_root in state.json" % run_dir)
-        cur = parent
+    """Worktree-aware repository discovery via git plumbing ONLY (v2 A0.5/
+    A0.6): `git rev-parse --show-toplevel`. Never sniffs for a .git directory
+    — a linked/detached worktree keeps a .git FILE, which defeated the old
+    directory walk."""
+    import env_binding
+    try:
+        return env_binding.repo_root_from(run_dir)
+    except env_binding.EnvironmentBindingError as exc:
+        raise SystemExit("cannot detect repo root from %s: %s"
+                         % (run_dir, exc.reason))
+
+
+def _env_gate_errors(run_dir: str) -> list:
+    """A0.2/A0.6: refuse to LAUNCH codex when the audit environment is
+    inconsistent — zero model calls on environment failure. v1-era runs
+    without a binding file are ungated (migration path)."""
+    path = os.path.join(run_dir, "01-environment-binding.json")
+    if not os.path.isfile(path):
+        return []
+    import env_binding
+    try:
+        env_binding.assert_consistent(read_json(path))
+    except env_binding.EnvironmentBindingError as exc:
+        return ["INVALID_AUDIT_ENVIRONMENT:%s: refusing to launch codex: %s"
+                % (exc.reason, exc)]
+    return []
 
 
 # ---------------------------------------------------------------------------
@@ -327,6 +345,10 @@ def cmd_start(args) -> int:
     phase = args.phase
     state = load_state(run_dir)
     governor_check(state, phase)  # SystemExit(3-ish msg) on violation; mapped below
+    env_errors = _env_gate_errors(run_dir)
+    if env_errors:
+        print(env_errors[0], file=sys.stderr)
+        return 3
 
     prompt_path = args.prompt or os.path.join(
         run_dir, "prompts", "%s.md" % PHASE_PROMPT_NAME[phase]

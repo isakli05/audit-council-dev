@@ -68,10 +68,14 @@ class Fixture(unittest.TestCase):
         return run_dir
 
     def freeze_contract(self, run_dir, fingerprint=FROZEN):
+        # v2 A0.6: contract root/head must match the frozen environment
+        # binding (placeholder values are now rejected)
+        head = json.load(open(os.path.join(
+            run_dir, "01-environment-binding.json")))["head_sha"]
         contract = {
             "objective": "o", "scope": ["a.txt"], "exclusions": [],
             "authoritative_sources": ["brief.md"],
-            "target_repository": {"root": self.repo, "head_sha": "x" * 40,
+            "target_repository": {"root": self.repo, "head_sha": head,
                                   "fingerprint_sha256": fingerprint},
             "severity_definitions": {k: k for k in
                                      ("CRITICAL", "HIGH", "MEDIUM", "LOW",

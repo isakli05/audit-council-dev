@@ -10,12 +10,14 @@ import argparse
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
+import env_binding
 import repo_fingerprint
 import state_store
 import validate_artifact
@@ -73,6 +75,19 @@ CODEX_EXEC_REQUIRED_FLAGS = ("--model", "--sandbox", "--json",
                              "--output-schema", "--output-last-message",
                              "-C", "-c")
 
+# v2 (A0.6): environment trust layer --------------------------------------
+ENV_BINDING_NAME = "01-environment-binding.json"
+EXIT_ENV = 10
+# phases that authorize frontier-model inference: the environment gate must
+# pass immediately BEFORE any of these may advance or launch
+INFERENCE_PHASES = {
+    "OPUS_INDEPENDENT_COMPLETE",
+    "CODEX_INDEPENDENT_COMPLETE",
+    "OPUS_CROSS_EXAM_COMPLETE",
+    "CODEX_CROSS_EXAM_COMPLETE",
+    "ADJUDICATION_COMPLETE",
+}
+
 INSTRUCTION_FILE_NAMES = ("CLAUDE.md", "AGENTS.md")
 README_GLOB = "README*"
 
@@ -83,6 +98,77 @@ def _emit(doc: Any) -> None:
 
 def _fail(msg: str) -> None:
     _emit({"ok": False, "error": msg})
+
+
+# ---------------------------------------------------------------------------
+# environment binding gate (v2 A0.2/A0.6)
+# ---------------------------------------------------------------------------
+def parse_brief_target(text: str) -> dict | None:
+    """Extract the explicit brief target metadata block — the ONLY brief text
+    that ever becomes execution authority. A fenced ```json block shaped
+    {"target": {"repository_root": ..., "expected_head": ...}}. All other
+    brief prose — including absolute paths — is inert evidence text."""
+    for m in re.finditer(r"```json\s*(\{.*?\})\s*```", text, re.DOTALL):
+        try:
+            doc = json.loads(m.group(1))
+        except ValueError:
+            continue
+        if isinstance(doc, dict) and isinstance(doc.get("target"), dict):
+            t = doc["target"]
+            root = t.get("repository_root")
+            head = t.get("expected_head")
+            return {
+                "declared_repository_root":
+                    root if isinstance(root, str) else None,
+                "declared_expected_head":
+                    head if isinstance(head, str) else None,
+            }
+    return None
+
+
+def _active_runs_dir() -> str:
+    return os.path.join(env_binding.cache_root(), "active-runs")
+
+
+def _register_active_run(run_id: str, run_dir: str) -> None:
+    d = _active_runs_dir()
+    os.makedirs(d, exist_ok=True)
+    atomic_write_bytes(os.path.join(d, run_id),
+                       os.path.abspath(run_dir).encode("utf-8"))
+
+
+def _unregister_active_run(run_id: str) -> None:
+    try:
+        os.unlink(os.path.join(_active_runs_dir(), run_id))
+    except OSError:
+        pass
+
+
+def _env_gate_errors(run_dir: str) -> list[str]:
+    """A0.2 consistency gate: empty list = environment consistent. A v1-era
+    run without a binding file is ungated (migration path)."""
+    path = os.path.join(run_dir, ENV_BINDING_NAME)
+    if not os.path.isfile(path):
+        return []
+    try:
+        binding = load_json(path)
+    except (json.JSONDecodeError, OSError) as exc:
+        return [f"INVALID_AUDIT_ENVIRONMENT:BINDING_UNREADABLE: {exc}"]
+    try:
+        env_binding.assert_consistent(binding)
+    except env_binding.EnvironmentBindingError as exc:
+        return [f"INVALID_AUDIT_ENVIRONMENT:{exc.reason}: {exc}"]
+    return []
+
+
+def _env_fail(run_dir: str, errors: list[str]) -> int:
+    try:
+        state_store.set_completeness(
+            run_dir, "INVALID_AUDIT_ENVIRONMENT", failure_reason=errors[0])
+    except StateError:
+        pass
+    _fail(errors[0])
+    return EXIT_ENV
 
 
 # ---------------------------------------------------------------------------
@@ -301,6 +387,21 @@ def cmd_init_run(args: argparse.Namespace) -> int:
         brief = os.path.abspath(args.brief)
         brief_sha = sha256_file(brief)
 
+    # v2 A0.1/A0.6: freeze the environment binding BEFORE any inference can
+    # happen. The ONLY brief text with execution authority is the explicit
+    # ```json target block; all prose (including absolute paths) is inert.
+    try:
+        with open(brief, "rb") as fh:
+            brief_text = fh.read().decode("utf-8", "replace")
+    except OSError:
+        brief_text = ""
+    try:
+        binding = env_binding.capture(repo, run_id, brief,
+                                      parse_brief_target(brief_text), [])
+    except env_binding.EnvironmentBindingError as exc:
+        _fail(f"INVALID_AUDIT_ENVIRONMENT:{exc.reason}: {exc}")
+        return EXIT_FAIL
+
     manifest = {
         "schema_version": 1,
         "run_id": run_id,
@@ -327,17 +428,23 @@ def cmd_init_run(args: argparse.Namespace) -> int:
     atomic_write_json(os.path.join(run_dir, state_store.REPO_STATE_NAME),
                       repo_state)
 
+    atomic_write_json(os.path.join(run_dir, ENV_BINDING_NAME), binding)
+
     state = state_store.new_state(
-        run_id, repo, fingerprint["fingerprint_sha256"])
+        run_id, repo, fingerprint["fingerprint_sha256"],
+        env_binding_digest=binding["binding_digest"])
     atomic_write_json(os.path.join(run_dir, state_store.STATE_NAME), state)
 
     open(os.path.join(run_dir, state_store.CHECKSUMS_NAME), "a").close()
     for name in (state_store.MANIFEST_NAME, state_store.REPO_STATE_NAME,
-                 state_store.STATE_NAME):
+                 ENV_BINDING_NAME, state_store.STATE_NAME):
         state_store.record_checksum(run_dir,
                                     os.path.join(run_dir, name))
     if brief_source == "inline":
         state_store.record_checksum(run_dir, brief)
+
+    # register the active run for the path-guard PreToolUse hook (A0.4)
+    _register_active_run(run_id, run_dir)
 
     print(run_dir)
     return EXIT_OK
@@ -392,6 +499,8 @@ def cmd_freeze_contract(args: argparse.Namespace) -> int:
     if not errors:
         errors = _fingerprint_mismatches(
             run_dir, state_store.CONTRACT_NAME, load_json(contract))
+    if not errors:
+        errors = _contract_target_mismatches(run_dir, load_json(contract))
     if errors:
         _fail(f"contract invalid against audit-contract.schema.json: {errors}")
         return EXIT_FAIL
@@ -443,6 +552,32 @@ def _read_stdin_artifact(run_dir: str, name: str) -> str:
     return dest
 
 
+def _contract_target_mismatches(run_dir: str, contract: dict) -> list[str]:
+    """A0.2: the contract's declared target must resolve to the frozen audit
+    environment (root by realpath, head exactly)."""
+    path = os.path.join(run_dir, ENV_BINDING_NAME)
+    if not os.path.isfile(path) or not isinstance(contract, dict):
+        return []
+    try:
+        binding = load_json(path)
+    except (json.JSONDecodeError, OSError):
+        return []
+    target = contract.get("target_repository") or {}
+    root = target.get("root")
+    if isinstance(root, str) and os.path.realpath(root) != \
+            binding.get("repo_root_realpath"):
+        return [f"INVALID_AUDIT_ENVIRONMENT:BRIEF_ROOT_MISMATCH: contract "
+                f"target_repository.root {root!r} does not resolve to the "
+                f"frozen audit root "
+                f"{binding.get('repo_root_realpath')!r}"]
+    head = target.get("head_sha")
+    if isinstance(head, str) and head != binding.get("head_sha"):
+        return [f"INVALID_AUDIT_ENVIRONMENT:BRIEF_HEAD_MISMATCH: contract "
+                f"target_repository.head_sha {head!r} != frozen "
+                f"{binding.get('head_sha')!r}"]
+    return []
+
+
 def _fingerprint_mismatches(run_dir: str, name: str, doc: dict) -> list[str]:
     """Semantic repository-identity invariant: any canonical artifact that
     claims a repository fingerprint must match the frozen run fingerprint.
@@ -475,6 +610,13 @@ def cmd_advance(args: argparse.Namespace) -> int:
     if target not in PHASE_ARTIFACT:
         _fail(f"unknown target phase {target!r}")
         return EXIT_FAIL
+    # A0.2 gate BEFORE anything else (before stdin is even consumed): an
+    # inconsistent environment refuses inference with zero staging side
+    # effects. Never yields a product verdict.
+    if target in INFERENCE_PHASES:
+        env_errors = _env_gate_errors(run_dir)
+        if env_errors:
+            return _env_fail(run_dir, env_errors)
     if args.artifact == "-" or getattr(args, "stdin", False):
         # content piped on stdin; filename derives from the target phase
         try:
@@ -565,6 +707,21 @@ def cmd_advance(args: argparse.Namespace) -> int:
     _emit({"ok": True, "phase": new_state["phase"],
            "adjudication_skipped": new_state.get("adjudication_skipped",
                                                  False)})
+    return EXIT_OK
+
+
+# ---------------------------------------------------------------------------
+# verify-env (v2 A0.6)
+# ---------------------------------------------------------------------------
+def cmd_verify_env(args: argparse.Namespace) -> int:
+    """A0.2 consistency gate: binding digest + brief root/HEAD + live
+    environment. Exit 0 ok / 10 INVALID_AUDIT_ENVIRONMENT (never a product
+    verdict; zero model calls happen through this gate)."""
+    run_dir = os.path.abspath(args.run)
+    errors = _env_gate_errors(run_dir)
+    if errors:
+        return _env_fail(run_dir, errors)
+    _emit({"ok": True})
     return EXIT_OK
 
 
@@ -680,6 +837,27 @@ def cmd_resume_check(args: argparse.Namespace) -> int:
         _emit({"ok": False, "stage": "checksums", "mismatches": mismatches})
         return EXIT_CHECKSUM
 
+    # 2.5 environment binding (v2 A0.6): gate + identical reconstruction;
+    # re-register the active run so the path-guard hook protects a resumed
+    # session
+    env_binding_status = None
+    if os.path.isfile(os.path.join(run_dir, ENV_BINDING_NAME)):
+        env_errors = _env_gate_errors(run_dir)
+        if env_errors:
+            _emit({"ok": False, "stage": "environment-binding",
+                   "error": env_errors[0],
+                   "completeness_state": "INVALID_AUDIT_ENVIRONMENT"})
+            return EXIT_ENV
+        try:
+            env_binding.reconstruct(run_dir)
+            env_binding_status = "ok"
+        except env_binding.EnvironmentBindingError as exc:
+            _emit({"ok": False, "stage": "environment-binding",
+                   "error": f"INVALID_AUDIT_ENVIRONMENT:{exc.reason}: {exc}"})
+            return EXIT_ENV
+        if state.get("phase") != "COMPLETE":
+            _register_active_run(state["run_id"], run_dir)
+
     # 3. repository fingerprint
     ok, diff = repo_fingerprint.verify(
         state.get("repo_root") or os.path.dirname(
@@ -724,8 +902,11 @@ def cmd_resume_check(args: argparse.Namespace) -> int:
 
     # earliest incomplete phase: the current phase's artifact, if present and
     # valid, completes it (advance idempotently); else it is the resume point.
+    # The environment gate applies here too: no auto-advance of an inference
+    # phase while the environment is inconsistent.
     earliest = state["phase"]
-    if not problems and earliest != "COMPLETE":
+    if not problems and earliest != "COMPLETE" \
+            and not _env_gate_errors(run_dir):
         name = _artifact_for_phase(earliest)
         if name:
             path = os.path.join(run_dir, name)
@@ -751,6 +932,7 @@ def cmd_resume_check(args: argparse.Namespace) -> int:
         "codex_session_id": state.get("codex", {}).get("session_id"),
         "phase_attempts": state.get("phase_attempts", {}),
         "completeness_state": state.get("completeness_state"),
+        "environment_binding": env_binding_status,
     })
     if not problems:
         return EXIT_OK
@@ -848,6 +1030,8 @@ def cmd_finalize(args: argparse.Namespace) -> int:
     state_store.set_completeness(
         run_dir, args.completeness,
         failure_reason=args.failure_reason or None)
+    # a closed run no longer constrains the path-guard hook (A0.4)
+    _unregister_active_run(state["run_id"])
     _emit({"ok": True, "phase": "COMPLETE",
            "completeness_state": args.completeness})
     return EXIT_OK
@@ -892,6 +1076,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--stdin", action="store_true",
                    help="read content from stdin (with '--artifact -')")
     p.set_defaults(func=cmd_advance)
+
+    p = sub.add_parser("verify-env")
+    p.add_argument("--run", required=True)
+    p.set_defaults(func=cmd_verify_env)
 
     p = sub.add_parser("verify-repo")
     p.add_argument("--run", required=True)

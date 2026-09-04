@@ -362,6 +362,11 @@ class TestLedgerAdvanceIntegration(unittest.TestCase):
         from test_schema_validation import contract
         fp = self._run_fingerprint()
         c = contract()
+        # v2 A0.6: contract root/head must match the frozen binding
+        binding = json.load(open(os.path.join(
+            self.run_dir, "01-environment-binding.json")))
+        c["target_repository"]["root"] = binding["repo_root_realpath"]
+        c["target_repository"]["head_sha"] = binding["head_sha"]
         c["target_repository"]["fingerprint_sha256"] = fp
         opus = independent_audit()
         opus["repository_fingerprint_sha256"] = fp

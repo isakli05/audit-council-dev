@@ -137,17 +137,40 @@ def _git_facts(repo_root: str) -> dict[str, Any]:
 
 
 def _repo_fingerprint_digest(repo_root: str) -> str:
-    """v1 fingerprint digest algorithm, applied time-independently.
+    """v1 fingerprint digest algorithm, applied time-independently and
+    audit-output-stably.
 
     `repo_fingerprint.capture` includes its `captured_at` timestamp inside
     the v1 digest; the binding identity must not depend on wall-clock time
     (pre-freeze clarification 1), so the digest here is computed over the
     fingerprint document minus `captured_at` — same canonical-JSON sha256
     algorithm, same content fields.
+
+    The binding identity must ALSO be stable while the audit itself writes
+    its own artifacts: v1's material-change rule excludes `audit-output/`
+    (stateStore EXCLUDED_PREFIX), so the digest normalizes the fingerprint
+    document the same way — porcelain lines and inventory entries under
+    `audit-output/` are dropped before hashing. Without this, creating the
+    run directory after capture would flip the binding digest and every
+    later gate call would misreport WORKTREE_IDENTITY_CHANGED.
     """
     doc = repo_fingerprint.capture(repo_root)
+    excluded = repo_fingerprint.EXCLUDED_PREFIX
+    kept = [line for line in doc.get("porcelain", "").splitlines()
+            if line and not line[3:].strip('"').startswith(excluded)]
+    porcelain = "\n".join(kept) + ("\n" if kept else "")
+    tracked = {path: meta for path, meta in
+               doc.get("tracked_inventory", {}).items()
+               if not path.startswith(excluded)}
+    untracked = {path: size for path, size in
+                 doc.get("untracked_inventory", {}).items()
+                 if not path.startswith(excluded)}
     body = {k: v for k, v in doc.items()
-            if k not in ("fingerprint_sha256", "captured_at")}
+            if k not in ("fingerprint_sha256", "captured_at",
+                         "tool_versions")}
+    body["porcelain"] = porcelain
+    body["tracked_inventory"] = tracked
+    body["untracked_inventory"] = untracked
     return sha256_bytes(repo_fingerprint.canonical_json(body).encode("utf-8"))
 
 
