@@ -396,13 +396,35 @@ def cmd_start(args) -> int:
     out_path = os.path.join(run_dir, "logs",
                             "%s.%s.final.json" % (phase, job_id))
     argv = compose_argv(codex_bin, phase, repo_root, schema_path, out_path, session_id)
+    # A0 confinement spike (docs/A0-CODEX-CONFINEMENT.md): wrap every
+    # launch (fresh AND resume) in the bubblewrap OS boundary — repo ro,
+    # run dir rw, ~/.codex rw, toolchain+system ro, /tmp tmpfs, authorized
+    # fixture roots ro. Reads outside the bind set become OS-BLOCKED.
+    # job["codex_argv"] preserves the exact codex argv; job["argv"] is what
+    # actually executes. AC_CODEX_BWRAP=0 or missing bwrap → inactive.
+    import codex_sandbox
+    _allowed_roots = []
+    _binding_path = os.path.join(run_dir, "01-environment-binding.json")
+    if os.path.isfile(_binding_path):
+        try:
+            _allowed_roots = read_json(_binding_path).get(
+                "allowed_disposable_roots") or []
+        except (ValueError, OSError):
+            _allowed_roots = []
+    argv_exec, sandbox_active = codex_sandbox.wrap_codex_argv(
+        argv, repo_root, run_dir, _allowed_roots)
 
     attempt_number = 1 + sum(
         1 for j in state.get("codex", {}).get("jobs", [])
         if j.get("phase") == phase)
-    job = launch(run_dir, phase, argv, prompt_path, out_path, schema_path,
+    job = launch(run_dir, phase, argv_exec, prompt_path, out_path,
+                 schema_path,
                  session_id, job_id,
-                 {"attempt_number": attempt_number})
+                 {"attempt_number": attempt_number,
+                  "codex_argv": argv,  # exact codex argv (unwrapped)
+                  "sandbox": {"wrapper": "bwrap" if sandbox_active else None,
+                              "active": sandbox_active,
+                              "doc": "docs/A0-CODEX-CONFINEMENT.md"}})
     job_path = os.path.join(run_dir, "logs", "jobs", "%s.json" % job_id)
 
     # stage_counts is bumped only when the stage COMPLETES successfully (in
@@ -959,13 +981,31 @@ def cmd_repair(args) -> int:
     attempt_number = 1 + sum(
         1 for j in state.get("codex", {}).get("jobs", [])
         if j.get("phase") == phase)
-    codex_bin = job["argv"][0] if job.get("argv") else "codex"
-    new_job = launch(run_dir, phase,
-                     compose_argv(codex_bin, phase, "", job["schema_path"],
-                                  out_path, session_id),
+    # v2: job["argv"] may be the WRAPPED (bwrap) invocation; the exact
+    # codex argv lives in job["codex_argv"]. Repair re-wraps identically.
+    codex_bin = (job.get("codex_argv") or job.get("argv") or ["codex"])[0]
+    base_argv = compose_argv(codex_bin, phase, "", job["schema_path"],
+                             out_path, session_id)
+    import codex_sandbox
+    _binding_path = os.path.join(run_dir, "01-environment-binding.json")
+    _allowed_roots = []
+    if os.path.isfile(_binding_path):
+        try:
+            _allowed_roots = read_json(_binding_path).get(
+                "allowed_disposable_roots") or []
+        except (ValueError, OSError):
+            _allowed_roots = []
+    _repo_root = state.get("repo_root") or detect_repo_root(run_dir)
+    argv_exec, sandbox_active = codex_sandbox.wrap_codex_argv(
+        base_argv, _repo_root, run_dir, _allowed_roots)
+    new_job = launch(run_dir, phase, argv_exec,
                      repair_prompt, out_path, job["schema_path"], session_id, job_id,
                      {"repair_of": job["job_id"], "repair": True,
-                      "attempt_number": attempt_number})
+                      "attempt_number": attempt_number,
+                      "codex_argv": base_argv,
+                      "sandbox": {"wrapper": "bwrap" if sandbox_active else None,
+                                  "active": sandbox_active,
+                                  "doc": "docs/A0-CODEX-CONFINEMENT.md"}})
     job_path = os.path.join(run_dir, "logs", "jobs", "%s.json" % job_id)
 
     # same stage: no stage_counts bump; mark original stage entry as repaired

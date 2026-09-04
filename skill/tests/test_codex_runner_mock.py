@@ -320,7 +320,10 @@ class TestClassification(Harness):
 class TestResume(Harness):
     def test_m_explicit_session_resume(self):
         job_path = self.start(phase="cross_examination", session="SESS-42")
-        argv = self.job_json(job_path)["argv"]
+        job = self.job_json(job_path)
+        # v2: argv may be the bwrap-wrapped invocation; the exact codex
+        # argv (what the assertions are about) is preserved separately
+        argv = job.get("codex_argv") or job["argv"]
         self.assertEqual(argv[1:4], ["exec", "resume", "SESS-42"])
         self.assertNotIn("--last", argv)
         self.assertNotIn("--sandbox", argv)
