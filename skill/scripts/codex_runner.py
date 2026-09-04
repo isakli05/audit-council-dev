@@ -241,26 +241,15 @@ def _env_gate_errors(run_dir: str) -> list:
 
 
 # ---------------------------------------------------------------------------
-# budget governor
+# budget governor (v2 pillar E: configurable via budgets.py; v1 defaults)
 # ---------------------------------------------------------------------------
 
-def governor_check(state: dict, phase: str) -> None:
-    counts = state.get("codex", {}).get("stage_counts", {})
-    per = counts.get(phase, 0)
-    total = sum(counts.get(k, 0) for k in ("independent", "cross_examination", "adjudication"))
-    if per >= 1:
-        raise SystemExit("budget governor: stage %s already completed successfully "
-                         "(max 1 successful run per phase; completed stages are "
-                         "never repeated)" % phase)
-    if total >= 3:
-        raise SystemExit("budget governor: total codex stages already used (max 3)")
-    # stage_counts counts SUCCESSFUL stages only; quota/auth failures may be
-    # retried on resume, bounded by a hard attempts cap per phase
-    attempts = sum(1 for j in state.get("codex", {}).get("jobs", [])
-                   if j.get("phase") == phase)
-    if attempts >= 3:
-        raise SystemExit("budget governor: stage %s already attempted %d times "
-                         "(quota/failure retry cap reached)" % (phase, attempts))
+def governor_check(state: dict, phase: str, run_dir: str | None = None) -> None:
+    import budgets
+    try:
+        budgets.check(phase, budgets.load(run_dir), state)
+    except budgets.BudgetExceeded as exc:
+        raise SystemExit(str(exc))
 
 
 def bump_stage(state: dict, phase: str) -> dict:
@@ -344,7 +333,7 @@ def cmd_start(args) -> int:
     run_dir = os.path.abspath(args.run)
     phase = args.phase
     state = load_state(run_dir)
-    governor_check(state, phase)  # SystemExit(3-ish msg) on violation; mapped below
+    governor_check(state, phase, run_dir)  # SystemExit(3-ish msg) on violation; mapped below
     env_errors = _env_gate_errors(run_dir)
     if env_errors:
         print(env_errors[0], file=sys.stderr)
@@ -543,6 +532,22 @@ def _record_usage(job: dict, parsed=None) -> None:
     job["usage_unknown"] = not has_usage
 
 
+def _finalize_elapsed(job: dict) -> None:
+    """Compute elapsed ONCE for ANY terminal classification (v2 pillar E:
+    every terminal attempt with started_at and completed_at has a stable
+    elapsed). Null ONLY with a documented clock-data reason; repeated waits
+    can never inflate it."""
+    if job.get("elapsed_sec") is not None:
+        return
+    mono = job.get("started_at_monotonic")
+    if mono is None:
+        job["elapsed_sec"] = None
+        job["elapsed_unknown_reason"] = "monotonic_start_missing"
+        return
+    job["elapsed_sec"] = round(
+        max(0.0, time.monotonic() - float(mono)), 3)
+
+
 def rebuild_metrics(run_dir: str) -> dict:
     """Rebuild 99-run-metrics.json from the persisted per-attempt job
     records in logs/jobs/. Naturally idempotent (derived state, dedup by
@@ -614,10 +619,21 @@ def rebuild_metrics(run_dir: str) -> dict:
     metrics = {
         "invocations": invocations,
         "aggregates": agg,
+        "budget_omissions": _load_budget_omissions(run_dir),
         "note": "rebuilt from logs/jobs/*.json; usage null = unknown",
     }
     atomic_write_json(os.path.join(run_dir, "99-run-metrics.json"), metrics)
     return metrics
+
+
+def _load_budget_omissions(run_dir: str) -> list[dict]:
+    """Explicit budget-driven omissions (v2 pillar E); re-derived with the
+    metrics so the record is idempotent and restart-reconstructible."""
+    try:
+        import budgets
+        return budgets.load_omissions(run_dir)
+    except Exception:
+        return []
 
 
 def _update_state_after_wait(run_dir: str, job: dict, session_id) -> None:
@@ -652,6 +668,7 @@ def classify_and_finalize(run_dir: str, job: dict, exit_code) -> tuple:
         job["status"] = status
         job["exit_code"] = exit_code
         job["completed_at"] = utc_now()
+        _finalize_elapsed(job)  # every terminal attempt has stable elapsed
         job["artifact_status"] = "NOT_PRODUCED"
         _record_usage(job)  # a paid attempt's usage must never vanish
         atomic_write_json(os.path.join(run_dir, "logs", "jobs", "%s.json" % job["job_id"]), job)
@@ -738,23 +755,18 @@ def classify_and_finalize(run_dir: str, job: dict, exit_code) -> tuple:
         if session_id:
             job["session_id"] = session_id
         job["completed_at"] = utc_now()
+        _finalize_elapsed(job)  # invalid output still consumed wall time
         atomic_write_json(os.path.join(run_dir, "logs", "jobs", "%s.json" % job["job_id"]), job)
         rebuild_metrics(run_dir)
         _update_state_after_wait(run_dir, job, session_id or None)
         return "INVALID_OUTPUT", 6
 
     session_id, turns, tokens, degraded = parse_jsonl_metrics(job["stdout_path"])
-    # compute elapsed ONCE (repeated waits must not inflate it)
-    elapsed = job.get("elapsed_sec")
-    if elapsed is None:
-        elapsed = round(max(0.0, time.monotonic() -
-                            job.get("started_at_monotonic",
-                                    time.monotonic())), 3)
+    _finalize_elapsed(job)  # computed once; repeated waits cannot inflate it
     job["status"] = "COMPLETE"
     job["exit_code"] = exit_code
     job["session_id"] = session_id
     job["completed_at"] = utc_now()
-    job["elapsed_sec"] = elapsed
     job["artifact_status"] = artifact_status
     job["successful_stage_counted"] = True  # via _update_state_after_wait
     _record_usage(job, (turns, tokens, degraded))
@@ -873,6 +885,7 @@ def cmd_cancel(args) -> int:
             pass
     job["status"] = "CANCELLED"
     job["completed_at"] = utc_now()
+    _finalize_elapsed(job)  # a cancelled attempt still consumed wall time
     _record_usage(job)  # a cancelled attempt may still have consumed a turn
     atomic_write_json(os.path.join(job["run_dir"], "logs", "jobs",
                                    "%s.json" % job["job_id"]), job)
