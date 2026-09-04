@@ -1,0 +1,126 @@
+{
+  "$id": "env-binding.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Audit Environment Binding",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "binding_version",
+    "binding_digest",
+    "frozen_at",
+    "repo_root_realpath",
+    "git_toplevel_realpath",
+    "git_dir_realpath",
+    "git_common_dir_realpath",
+    "head_sha",
+    "detached_head",
+    "worktree_identity",
+    "source_repository_identity",
+    "brief_sha256",
+    "brief_target",
+    "expected_head",
+    "allowed_disposable_roots",
+    "repo_fingerprint_sha256"
+  ],
+  "properties": {
+    "binding_version": {
+      "const": 2
+    },
+    "binding_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "frozen_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "repo_root_realpath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "git_toplevel_realpath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "git_dir_realpath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "git_common_dir_realpath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "head_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "detached_head": {
+      "type": "boolean"
+    },
+    "worktree_identity": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "source_repository_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "common_dir_realpath",
+        "remote_url"
+      ],
+      "properties": {
+        "common_dir_realpath": {
+          "type": "string",
+          "minLength": 1
+        },
+        "remote_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "brief_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "brief_target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "declared_repository_root",
+        "declared_expected_head"
+      ],
+      "properties": {
+        "declared_repository_root": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "declared_expected_head": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "expected_head": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "allowed_disposable_roots": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "repo_fingerprint_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}
