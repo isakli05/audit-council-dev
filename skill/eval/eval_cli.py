@@ -52,6 +52,12 @@ def main(argv: list[str] | None = None) -> int:
                          indent=2, sort_keys=True))
         return 0
 
+    if cmd == "tier2-score" and len(rest) == 1:
+        from eval import tier2_scoring
+        print(json.dumps(tier2_scoring.tier2_score(rest[0]),
+                         indent=2, sort_keys=True))
+        return 0
+
     if cmd == "tier3" and len(rest) >= 1:
         seed = rest[0]
         if "--i-have-operator-approval" not in rest:
