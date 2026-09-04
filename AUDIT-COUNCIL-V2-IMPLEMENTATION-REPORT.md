@@ -1,0 +1,131 @@
+# Audit Council v2.0 — Implementation Report
+
+Date: 2026-09-04. Program lead: ZCode/GLM-5.3 session (this worktree).
+Baseline: v1.0.3 (tag `v1.0.3-baseline`, 160 tests). Final state:
+**523 tests, OK (~64 s)**; `eval tier1` overall READY, ENVIRONMENT 1.0
+(27/27), HARNESS 523/523. Zero real model calls were made for any of this
+work; Benchmark 001 and the Fifth audit were never re-run and never
+modified (read-only evidence; tier-3 replay of them is approval-gated code
+that has NOT been executed).
+
+## Commits (local only; no remote, no push)
+
+    1a90237 baseline (v1.0.3 + Phase 0 artifacts)        372feaf h4 round-4 fixes
+    cdbd4c8 PKG-A0    eafcf7b PKG-SCHEMA                 3f277a5 h4 round-3 fixes
+    b23b030 A0.6 wiring                                  1810137 h4 round-2 fixes
+    be98dd1 PKG-TELE  1b28442 PKG-ENV + PKG-EVID         04dbb9d h4 round-1 fixes
+    a63f1de PKG-PUB + PKG-EVAL   296a003 PKG-SPEC
+    3324632 PKG-INT (H.1–H.3)
+
+## Execution model (MAO)
+
+Lead reconstructed architecture and froze contracts (Phase 0 docs), then
+delegated bounded packages to fresh sub-agents with exclusive write sets:
+PKG-A0 (113 tests), PKG-SCHEMA (34), PKG-ENV (48), PKG-EVID (44), PKG-PUB
+(14), PKG-EVAL (27), PKG-SPEC (36). PKG-TELE, A0.6 lifecycle wiring, and
+PKG-INT were implemented by the lead (tightly coupled shared files). The
+lead ran every integration checkpoint (full suite after each wave), fixed
+all cross-package seams, and committed all work. Four independent
+adversarial verification rounds were dispatched to fresh agents (H.4).
+
+## What was built (pillar → deliverables)
+
+- **A0**: `scripts/env_binding.py` (AuditEnvironmentBinding per
+  ARCHITECTURE §3.4.1; digest excludes `binding_digest`+`frozen_at`),
+  `scripts/path_guard.py` (canonicalize/containment/compound-command
+  segmentation), `hooks/path_guard_hook.py` (PreToolUse deny-before-exec,
+  registry-pinned), `schemas/env-binding.schema.json`; gate wired into
+  `init-run` (capture+register), `advance` (refuses inference phases),
+  `freeze-contract` (root/head authority), `verify-env` CLI,
+  `resume-check` (reconstruct+re-register), `codex_runner start` (zero
+  launches on env failure); `state.env_binding_digest` pins the binding;
+  worktree-aware `repo_root_from` (git plumbing only; the legacy
+  `.git`-directory sniffing is gone).
+- **G**: typed `line_ranges` in all 5 finding-bearing schemas (8 inline
+  locations), `scripts/evidence_migration.py` (no comma parsing, ever),
+  reversed-range gate rejection, v1 in-memory reader scoped to v1-era
+  runs, on-disk bytes never rewritten; the Fifth run's exact
+  `"184-185, 240-273"` payload now validates end-to-end (wire→canonical).
+- **E**: `_finalize_elapsed` on every terminal classification (QUOTA/
+  AUTH/FAILED/INVALID_OUTPUT/CANCELLED/COMPLETE), `scripts/budgets.py`
+  (v1-identical defaults + specialist caps + `record_omission`),
+  `budget_omissions` re-derived into metrics idempotently; repair now
+  consumes governor attempts and refuses COMPLETE jobs.
+- **B**: `scripts/evidence_store.py` (EvidenceRecord, content addressing,
+  visibility classes across the independence barrier, FRESH_REQUIRED
+  never served, finding-shaped payload rejection, access log),
+  `schemas/evidence-record.schema.json`.
+- **A1/A2**: `scripts/environment_manager.py` (AUTO/CURRENT/RELEASE/
+  HISTORICAL, detached worktrees, allow/deny-listed evidence staging,
+  archive-before-remove with atomic swap, git-only worktree removal,
+  dry-run-default cleanup), `scripts/artifact_layout.py`,
+  `schemas/environment-record.schema.json`, `MIGRATION-RETENTION-
+  RECOMMENDATION.md` (doc only — nothing reorganized).
+- **C**: `scripts/specialists.py` (pre-frozen activation BEFORE first-pass
+  completion, model-found-bug reasons rejected, blind context scrubbing,
+  budget integration), `schemas/specialist-review.schema.json` (no verdict
+  field anywhere), `prompts/specialist-domain-review.md`. DEFAULT OFF —
+  zero lifecycle imports; `discovered_by` extended to
+  `SPECIALIST-<domain>` (additive pattern; changelog recorded).
+- **D**: `eval/scoring.py` (six dimensions; ENVIRONMENT hard-gated at
+  100%; novel-finding truth rule — model agreement is never truth),
+  `eval/tier1_harness.py`, `eval/tier2_fixtures.py` (10 seeded fixtures
+  with sealed ground truth outside auditor context; telltales stripped),
+  `eval/tier3_replay.py` (approval-gated, zero-access refusal),
+  `eval/eval_cli.py`.
+- **F**: `PUBLIC-CONTRACT.md`, `schemas/public-contract.schema.json`,
+  `audit_council.py describe --json` (protocol_version 2.0) with drift
+  tests (completeness enum, taxonomy, budgets mirror, no internals leak).
+- **H**: explicit `phase_skips` (`advance --skip PHASE='reason'`; the
+  state machine refuses silent passes over artifact phases),
+  `INVALID_AUDIT_ENVIRONMENT` completeness state, SKILL.md/protocols/
+  README v2 guidance, migration-compat tests, finalize checksum gate.
+
+## Independent adversarial review (H.4) — 4 rounds
+
+Round 1 (FAIL): 2 HIGH (path-guard interpreter/flag smuggling; tier-2
+ground truth embedded in fixture source) + 6 MEDIUM (resume-check vs
+skips; repair governor bypass; v1-fallback over-acceptance; env gate
+fail-open on binding deletion; unkeyed integrity; phantom attempt bump).
+All fixed in 04dbb9d + regression tests.
+
+Round 2 (FAIL): all 8 confirmed RESOLVED; new: HIGH availability
+regression (relative multi-component paths denied), HIGH hook self-DoS
+(skill CLI blocked), MEDIUM encoded payloads (documented), bare `$VAR`/`~`
+gap, binding substitution, tier-2 residual telltales. Fixed in 1810137.
+
+Round 3 (FAIL): round-2 items resolved; new: HIGH write-access to the
+guard machinery itself, HIGH repo-planted bare-symlink operands, MEDIUM
+unanchored hook policy source. Fixed in 3f277a5.
+
+Round 4 (FAIL): bare-symlink fix RESOLVED, registry pin RESOLVED;
+write-variant family partially bypassed (quoted/dd of=/-t/editors/rm/mv/
+ln/-c payloads) + HIGH bootstrap hole (forged state → finalize disarms
+hook) + hook crash-open. Fixed in 372feaf: mutating tools may never name
+harness paths; interpreter `-c` payloads may never contain harness
+strings (the harness CLI's file-based invocation stays allowed); finalize
+requires checksum integrity before unregistering; the hook fails closed
+(with a stdlib-only fallback) whenever its guard modules are damaged and a
+run is active.
+
+**Verification status: 4 adversarial rounds, every finding resolved with
+regressions (tests/test_review_hardening.py, 22 tests). The round-4 fixes
+have NOT had a fifth independent confirmation — that re-verification is
+recommended as the first step of release qualification.** The residual
+escape classes that remain are inherent to a no-inference lexical layer
+and are documented in AUDIT-COUNCIL-V2-KNOWN-LIMITATIONS.md.
+
+## Explicit answers
+
+- Did any project/source file get modified outside the dev tree? **NO**
+  (verified: `skill/`, `~/.claude/skills/audit-council/`, and both
+  historical run trees untouched; only `/home/isa/audit-council-dev/**`
+  and `/tmp/audit-council-review-*` written).
+- Real Claude/Codex calls during implementation? **ZERO** (budget
+  unchanged; no smoke A needed — the wire path is proven deterministically
+  with the real Fifth payload).
+- Installed skill updated? **NO** — installation is the operator-gated
+  release-qualification step (H.5) and has NOT run.
+- Historical runs rerun? **NO.**
+- Final deterministic gates: full suite **523/523 OK**; `eval tier1`
+  **READY** with ENVIRONMENT 1.0.
