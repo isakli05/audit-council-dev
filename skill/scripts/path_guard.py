@@ -662,15 +662,20 @@ def check_tool_call(tool: str, tool_input: dict[str, Any],
         # R5 NEW-4 / R6: Glob patterns can carry their own path prefixes —
         # escapes may appear AFTER the first metacharacter
         # ("a?/../../etc/*"), inside NON-INITIAL brace alternatives
-        # ("{a,/etc/x}"), or as a pattern-initial bare root ("/*", "//").
+        # ("{a,/etc/x}"), as a pattern-initial bare root ("/*", "//"), or
+        # as a SEPARATOR-ONLY/bare-tilde alternative that recombines with
+        # the post-"}" chunk into a root ("{a,/}/etc/x" → "//etc/x").
         # A chunk that FOLLOWS a wildcard metachar starts with a path
         # SEPARATOR ("**/x" → "/x"), not an absolute root — strip it. A
         # chunk that begins the pattern or follows "{" / "," starts a
-        # COMPLETE ALTERNATIVE and is tested as-is. ".." components are
-        # always escapes regardless of position.
+        # COMPLETE ALTERNATIVE and is tested as-is; an alternative that is
+        # ONLY separators or exactly "~" IS a root and is denied. ".."
+        # components are always escapes regardless of position.
         if tool == "Glob" and reason is None:
             pattern = tool_input.get("pattern")
-            if isinstance(pattern, str) and pattern:
+            if not isinstance(pattern, str):
+                pattern = ""  # absent/malformed pattern: nothing to check
+            if pattern:
                 # pattern-INITIAL root: "/*" and "//" enumerate / even
                 # though their first literal chunk is bare separators
                 if pattern.startswith("/") or pattern.startswith("~"):
@@ -688,7 +693,16 @@ def check_tool_call(tool: str, tool_input: dict[str, Any],
                         continue
                     chunk = token
                     compact = chunk.replace("\\", "/")
-                    if prev_meta not in (None, "{", ","):
+                    root_alt = False
+                    if prev_meta in (None, "{", ","):
+                        # a COMPLETE ALTERNATIVE that is only separators
+                        # ("/", "//") or exactly "~" roots the expansion —
+                        # it recombines with any following chunk
+                        if compact and compact.strip("/") == "":
+                            root_alt = True
+                        elif compact == "~":
+                            root_alt = True
+                    else:
                         # mid-pattern after a wildcard: leading '/' is a
                         # separator, not an absolute root
                         compact = compact.lstrip("/")
@@ -698,10 +712,11 @@ def check_tool_call(tool: str, tool_input: dict[str, Any],
                     absolute = compact.startswith("/") \
                         and compact.strip("/") != ""
                     tilde = compact.startswith("~") and compact != "~"
-                    if dotdot or absolute or tilde:
-                        cr = _classify_path(chunk if absolute or tilde
-                                            else compact, os.getcwd(),
-                                            frozen, allowed)
+                    if dotdot or absolute or tilde or root_alt:
+                        cr = _classify_path(
+                            "~" if compact == "~" else
+                            (chunk if absolute or tilde else compact),
+                            os.getcwd(), frozen, allowed)
                         if cr:
                             reason = cr
                             break

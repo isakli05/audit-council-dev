@@ -709,7 +709,12 @@ class TestRound6Hardening(unittest.TestCase):
                         "{a,/etc/x}", "{ok,/etc/passwd}", "{a,b,/etc/x}",
                         "*/{a,/etc/x}", "x/{a,/etc/x}", "{a,/etc/x},b",
                         "{a,~/x}", "{a,..}/*", "{docs,..}/*", "{a,../..}",
-                        "{a,.}/{..,x}", "/*", "//", '/*/"'):
+                        "{a,.}/{..,x}", "/*", "//", '/*/"',
+                        # R6-final3: root-alternative recombination
+                        "{a,/}/etc/x", "{/,a}/etc/x", "{a,//}/etc/x",
+                        "{a,~}/etc/x", "{~,a}/x", "{/,/}/y",
+                        "{a,{b,/etc/x}}", "{x{a,b},/etc/y}",
+                        "{a,{b,{c,/tmp/z}}}"):
             ok, reason = path_guard.check_tool_call(
                 "Glob", {"pattern": pattern}, self.root, [])
             self.assertFalse(ok,
@@ -722,9 +727,18 @@ class TestRound6Hardening(unittest.TestCase):
                         "?ache", "[abc]*", "", "**/x", "*/x", "src/*/x",
                         "?/x", "[ab]/x", "a?/b/c.py", "mod?/util.py",
                         "a*/b", "**/test_*.py", "docs/**/*.{md,txt}",
-                        "{a,b}.py", "src/{x,y}/*.py", "*//etc/x"):
-            ok, reason = path_guard.check_tool_call(
-                "Glob", {"pattern": pattern}, self.root, [])
+                        "{a,b}.py", "src/{x,y}/*.py", "*//etc/x",
+                        "{a,b/..}", "{a,[b,c]}", "[a,b]/x", "{a}/x",
+                        "{a}//etc/x", "~x*"):
+            # relative dotdot alternatives resolve against the SESSION
+            # cwd (as in the hook) — run from inside the frozen root
+            prev = os.getcwd()
+            os.chdir(self.root)
+            try:
+                ok, reason = path_guard.check_tool_call(
+                    "Glob", {"pattern": pattern}, self.root, [])
+            finally:
+                os.chdir(prev)
             self.assertTrue(ok, f"{pattern}: {reason}")
 
     def test_suite_leaves_real_cache_clean(self):
