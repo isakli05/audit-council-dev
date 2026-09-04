@@ -703,7 +703,13 @@ class TestRound6Hardening(unittest.TestCase):
         for pattern in ("a?/../../etc/*", "x[a]/../../../etc/*",
                         "{/etc/passwd,/tmp/x}", "src/*/../../../*",
                         "*/..", "?/..", "x?/../y", "//etc/*", "~/*",
-                        "~/a{/etc/x}", "{a,{/etc/x}}"):
+                        "~/a{/etc/x}", "{a,{/etc/x}}",
+                        # R6-final: non-initial brace alternatives and
+                        # pattern-initial bare roots
+                        "{a,/etc/x}", "{ok,/etc/passwd}", "{a,b,/etc/x}",
+                        "*/{a,/etc/x}", "x/{a,/etc/x}", "{a,/etc/x},b",
+                        "{a,~/x}", "{a,..}/*", "{docs,..}/*", "{a,../..}",
+                        "{a,.}/{..,x}", "/*", "//", '/*/"'):
             ok, reason = path_guard.check_tool_call(
                 "Glob", {"pattern": pattern}, self.root, [])
             self.assertFalse(ok,
@@ -715,7 +721,8 @@ class TestRound6Hardening(unittest.TestCase):
         for pattern in ("*", "**/*.py", "src/**/*.py", "src/*.py",
                         "?ache", "[abc]*", "", "**/x", "*/x", "src/*/x",
                         "?/x", "[ab]/x", "a?/b/c.py", "mod?/util.py",
-                        "a*/b", "**/test_*.py", "docs/**/*.{md,txt}"):
+                        "a*/b", "**/test_*.py", "docs/**/*.{md,txt}",
+                        "{a,b}.py", "src/{x,y}/*.py", "*//etc/x"):
             ok, reason = path_guard.check_tool_call(
                 "Glob", {"pattern": pattern}, self.root, [])
             self.assertTrue(ok, f"{pattern}: {reason}")
