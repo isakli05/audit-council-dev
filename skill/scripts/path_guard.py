@@ -77,10 +77,17 @@ for _cand in (sys.executable, "/usr/bin/python3", "/bin/sh", "/bin/bash",
             _INTERPRETER_PATHS.add(os.path.realpath(os.path.abspath(_cand)))
     except (OSError, ValueError):
         continue
-# R3-N1: harness dirs/interpreters are READ/EXEC operands only — WRITE
-# intent toward them is confinement self-destruction and is denied
+# R3-N1/R4: harness dirs/interpreters are READ/EXEC operands only. Tools
+# that can MUTATE files may never touch harness paths at all, and an
+# interpreter -c payload may never contain a harness path (write intent is
+# invisible to a lexical scanner; only the harness CLI's own file-based
+# invocation pattern is exempted).
 _WRITE_TARGET_HEADS = {"tee", "cp", "mv", "dd", "rsync", "install",
                        "truncate", "shred"}
+_MUTATING_TOOLS = _WRITE_TARGET_HEADS | {
+    "rm", "unlink", "ln", "chmod", "chown", "chgrp", "sed", "patch",
+    "ed", "ex", "awk", "gawk", "sort", "split", "csplit", "perl", "ruby",
+}
 _REDIRECTION_TARGET_RE = re.compile(r"(?:\d)?>>?\s*([^\s;|&)]+)")
 
 
@@ -495,7 +502,7 @@ def _scan_segment(segment: str, cur_cwd: str, prev_cwd: str,
     # scripts it enforces would disable confinement permanently
     write_targets: list[str] = []
     for m in _REDIRECTION_TARGET_RE.finditer(segment):
-        write_targets.append(m.group(1))
+        write_targets.append(m.group(1).strip("\"'"))
     if tokens[0] in _WRITE_TARGET_HEADS:
         operands = [t for t in tokens[1:] if not t.startswith("-")]
         if operands:
@@ -509,6 +516,20 @@ def _scan_segment(segment: str, cur_cwd: str, prev_cwd: str,
         if any(_within(w_resolved, d) for d in _HARNESS_DIRS) \
                 or w_resolved in _INTERPRETER_PATHS:
             reasons.append("PATH_ESCAPE_ATTEMPT")
+
+    # R4 N1-b..f: ANY harness path named by a MUTATING tool is denied (its
+    # flags/destinations/dd of=/-t/--target-directory are all just operands
+    # here); an interpreter -c/eval payload naming a harness path is denied
+    # too (the legit harness CLI is a file-based invocation).
+    segment_raw = segment
+    if tokens[0] in _MUTATING_TOOLS or \
+            (tokens[0] in _INTERPRETERS and any(
+                t in ("-c", "-sc") for t in tokens[1:])) or \
+            tokens[0] == "eval":
+        for d in _HARNESS_DIRS:
+            if d in segment_raw:
+                reasons.append("PATH_ESCAPE_ATTEMPT")
+                break
 
     # R3-N2: slash-free operands can still BE escapes — a repo-planted
     # single-component symlink (pw -> /outside/victim). Classify every bare

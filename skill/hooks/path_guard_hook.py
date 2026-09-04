@@ -32,8 +32,16 @@ _SCRIPTS_DIR = _HOOK_DIR.parent / "scripts"
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-import env_binding  # noqa: E402
-import path_guard  # noqa: E402
+try:
+    import env_binding  # noqa: E402
+    import path_guard  # noqa: E402
+    _GUARD_IMPORT_ERROR = None
+except Exception as _exc:  # R4: guard modules damaged/unreadable — never
+    # crash open (a bare import failure would exit 1 = NON-blocking in
+    # Claude Code hook semantics); fall back to deny-everything
+    _GUARD_IMPORT_ERROR = repr(_exc)
+    env_binding = None  # type: ignore[assignment]
+    path_guard = None  # type: ignore[assignment]
 
 
 def _active_runs(cache: str) -> list[tuple[str, str]]:
@@ -99,6 +107,16 @@ def _load_binding(run_dir: str,
     return binding
 
 
+def _cache_root_fallback() -> str:
+    """cache_root() without env_binding (pure stdlib) — used when the guard
+    modules are damaged so the no-active-run exemption still works."""
+    override = os.environ.get("AUDIT_COUNCIL_CACHE_HOME")
+    if override:
+        return os.path.expanduser(override)
+    base = os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache")
+    return os.path.join(base, "audit-council")
+
+
 def process(doc: Any) -> tuple[int, str | None]:
     """Decide one hook document. Returns (exit_code, stderr_message)."""
     if not isinstance(doc, dict):
@@ -108,9 +126,16 @@ def process(doc: Any) -> tuple[int, str | None]:
     if not isinstance(tool, str) or not isinstance(tool_input, dict):
         return 2, ("malformed hook input: tool_name (str) and tool_input "
                    "(object) are required")
-    runs = _active_runs(env_binding.cache_root())
+    cache = (env_binding.cache_root() if env_binding is not None
+             else _cache_root_fallback())
+    runs = _active_runs(cache)
     if not runs:
-        return 0, None  # no active audit run: zero impact
+        return 0, None  # no active audit run: zero impact on any session
+    if _GUARD_IMPORT_ERROR is not None or path_guard is None:
+        # an ACTIVE run exists but the guard machinery is damaged: deny
+        # everything rather than crash open (exit 1 = non-blocking)
+        return 2, ("path guard unavailable "
+                   f"({_GUARD_IMPORT_ERROR}); failing closed")
     try:
         for run_dir, pinned in runs:
             binding = _load_binding(run_dir, pinned_digest=pinned)

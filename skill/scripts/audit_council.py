@@ -1115,6 +1115,14 @@ def cmd_finalize(args: argparse.Namespace) -> int:
     if state["phase"] != "FINALIZED":
         _fail(f"finalize requires phase FINALIZED (current: {state['phase']})")
         return EXIT_FAIL
+    # R4 bootstrap hardening: unregistering the active run disarms the
+    # path-guard hook — a forged state.json must not reach that point.
+    # Checksum integrity is the gate (tampering state without recomputing
+    # the ledger fails here; full-ledger forgery is a documented residual).
+    mismatches = state_store.verify_all(run_dir)
+    if mismatches:
+        _fail(f"refusing to finalize: run integrity failures {mismatches}")
+        return EXIT_CHECKSUM
     metrics = os.path.join(run_dir, "99-run-metrics.json")
     if not os.path.isfile(metrics):
         # partial runs (e.g. quota failure before any completed Codex stage)

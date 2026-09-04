@@ -484,3 +484,109 @@ class TestRound3Hardening(unittest.TestCase):
         assert proc.returncode == 0, proc.stdout + proc.stderr
         return [l.strip() for l in proc.stdout.decode().splitlines()
                 if "audit-output/audit-council/" in l][0]
+
+
+class TestRound4Hardening(unittest.TestCase):
+    """R4 findings: N1 write-variant family, bootstrap hole (forged state →
+    finalize disarms the hook), hook crash-open."""
+
+    def setUp(self):
+        self.base = tempfile.mkdtemp(prefix="r4-", dir=str(FIXTURES))
+        self.root = path_guard.canonicalize(os.path.join(self.base, "root"))
+        os.makedirs(os.path.join(self.root, "src"))
+
+    def tearDown(self):
+        shutil.rmtree(self.base, ignore_errors=True)
+
+    def _scan(self, cmd):
+        return path_guard.scan_bash_command(cmd, self.root, self.root, [])
+
+    def test_r4_n1_write_variant_family_denied(self):
+        hooks = path_guard._HARNESS_DIRS[1]
+        scripts = path_guard._HARNESS_DIRS[0]
+        guard = os.path.join(hooks, "path_guard_hook.py")
+        attacks = [
+            f'echo x > "{scripts}/a.py"',            # quoted target (N1-a)
+            f"echo x > '{scripts}/a.py'",
+            f"dd if=f of={scripts}/pwn",             # of= form (N1-b)
+            f"cp -t {scripts}/ a",                   # -t dir (N1-c)
+            f"cp --target-directory={scripts}/ a",
+            f"sed -i s/a/b/ {guard}",                # editors (N1-d)
+            f"patch {guard} < diff.patch",
+            f"rm -rf {scripts}",                     # destruction (N1-e)
+            f"chmod 000 {guard}",
+            f"sort -o {scripts}/g f",                # sort -o
+            f"mv {scripts}/path_guard.py {self.root}/x",   # exfil (N1-f)
+            f"ln {scripts}/path_guard.py ./stolen",
+            f"python3 -c \"open('{hooks}/x','w')\"",  # -c write (N1-g)
+            f"perl -e \"open(F,'>{hooks}/y');\"",     # perl -e write
+        ]
+        for cmd in attacks:
+            self.assertTrue(self._scan(cmd),
+                            f"R4-N1 bypass: {cmd}")
+
+    def test_r4_n1_legit_harness_cli_still_allowed(self):
+        scripts = path_guard._HARNESS_DIRS[0]
+        self.assertEqual(self._scan(
+            f"/usr/bin/python3 {scripts}/audit_council.py --help"), [])
+        self.assertEqual(self._scan(f"cat {scripts}/budgets.py"), [])
+
+    def test_r4_bootstrap_forged_state_cannot_finalize(self):
+        os.environ["AUDIT_COUNCIL_CACHE_HOME"] = os.path.join(
+            self.base, "cache")
+        repo = os.path.join(self.base, "repo")
+        os.makedirs(repo)
+        git(repo, "init", "-q", "-b", "main")
+        git(repo, "config", "user.email", "t@e.com")
+        git(repo, "config", "user.name", "t")
+        with open(os.path.join(repo, "a.py"), "w") as fh:
+            fh.write("1\n")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-q", "-m", "c")
+        brief = os.path.join(self.base, "b.md")
+        with open(brief, "w") as fh:
+            fh.write("# b\n")
+        proc = subprocess.run(
+            [PYTHON, AUDIT_COUNCIL, "init-run", "--repo", repo,
+             "--brief", brief], capture_output=True, check=False,
+            env=dict(os.environ))
+        run_dir = [l.strip() for l in proc.stdout.decode().splitlines()
+                   if "audit-output/audit-council/" in l][0]
+        # forge phase=FINALIZED directly (in-root write, NO checksum fix)
+        spath = os.path.join(run_dir, "state.json")
+        state = json.load(open(spath))
+        state["phase"] = "FINALIZED"
+        with open(spath, "w") as fh:
+            json.dump(state, fh)
+        proc = subprocess.run(
+            [PYTHON, AUDIT_COUNCIL, "finalize", "--run", run_dir,
+             "--completeness", "COMPLETE"],
+            capture_output=True, check=False, env=dict(os.environ))
+        self.assertNotEqual(proc.returncode, 0,
+                            "R4 bootstrap: forged state finalized")
+        self.assertIn("integrity", proc.stdout.decode())
+
+    def test_r4_hook_fails_closed_when_guard_modules_broken(self):
+        sys.path.insert(0, str(Path(SCRIPTS).parent / "hooks"))
+        import path_guard_hook
+        os.environ["AUDIT_COUNCIL_CACHE_HOME"] = os.path.join(
+            self.base, "cache")
+        # no active run: healthy guard allows (zero session impact)
+        rc, _ = path_guard_hook.process(
+            {"tool_name": "Read", "tool_input": {"file_path": "/etc/x"}})
+        self.assertEqual(rc, 0)
+        # WITH an active run and a broken guard: deny closed
+        reg = os.path.join(self.base, "cache", "active-runs")
+        os.makedirs(reg, exist_ok=True)
+        with open(os.path.join(reg, "run1"), "w") as fh:
+            fh.write(self.root + "\n" + "0" * 64)
+        saved = path_guard_hook._GUARD_IMPORT_ERROR
+        path_guard_hook._GUARD_IMPORT_ERROR = "FileNotFoundError('x')"
+        try:
+            rc, reason = path_guard_hook.process(
+                {"tool_name": "Read", "tool_input": {"file_path": "/etc/x"}})
+            self.assertEqual(rc, 2,
+                             "R4: broken guard must fail closed, not open")
+            self.assertIn("failing closed", reason)
+        finally:
+            path_guard_hook._GUARD_IMPORT_ERROR = saved
