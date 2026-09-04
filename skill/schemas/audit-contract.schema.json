@@ -1,0 +1,142 @@
+{
+  "$id": "audit-contract.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Audit Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "objective",
+    "scope",
+    "exclusions",
+    "authoritative_sources",
+    "target_repository",
+    "severity_definitions",
+    "evidence_rules",
+    "finding_schema_ref",
+    "done_criteria"
+  ],
+  "properties": {
+    "objective": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scope": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "exclusions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "authoritative_sources": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "secondary_evidence": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "target_repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "root",
+        "head_sha",
+        "fingerprint_sha256"
+      ],
+      "properties": {
+        "root": {
+          "type": "string"
+        },
+        "head_sha": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
+        },
+        "fingerprint_sha256": {
+          "type": "string"
+        },
+        "dirty": {
+          "type": "boolean"
+        }
+      }
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "severity_definitions": {
+      "type": "object",
+      "required": [
+        "CRITICAL",
+        "HIGH",
+        "MEDIUM",
+        "LOW",
+        "INFO"
+      ],
+      "properties": {
+        "CRITICAL": {
+          "type": "string"
+        },
+        "HIGH": {
+          "type": "string"
+        },
+        "MEDIUM": {
+          "type": "string"
+        },
+        "LOW": {
+          "type": "string"
+        },
+        "INFO": {
+          "type": "string"
+        }
+      }
+    },
+    "evidence_rules": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "finding_schema_ref": {
+      "const": "schemas/finding.schema.json"
+    },
+    "ambiguity_register": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "ambiguity"
+        ],
+        "properties": {
+          "ambiguity": {
+            "type": "string"
+          },
+          "resolution_policy": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "done_criteria": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    }
+  }
+}

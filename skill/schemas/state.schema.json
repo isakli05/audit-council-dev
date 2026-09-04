@@ -1,0 +1,160 @@
+{
+  "$id": "state.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Run State",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "phase",
+    "completeness_state",
+    "created_at",
+    "timestamps",
+    "repo_fingerprint_sha256",
+    "codex",
+    "phase_attempts"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{6}$"
+    },
+    "phase": {
+      "enum": [
+        "CREATED",
+        "PREFLIGHT_COMPLETE",
+        "CONTRACT_FROZEN",
+        "OPUS_INDEPENDENT_COMPLETE",
+        "CODEX_INDEPENDENT_COMPLETE",
+        "NORMALIZED",
+        "OPUS_CROSS_EXAM_COMPLETE",
+        "CODEX_CROSS_EXAM_COMPLETE",
+        "LEDGER_COMPLETE",
+        "ADJUDICATION_COMPLETE",
+        "FINALIZED",
+        "COMPLETE"
+      ]
+    },
+    "completeness_state": {
+      "enum": [
+        "RUNNING",
+        "COMPLETE",
+        "COMPLETE_WITH_RESIDUAL_UNCERTAINTY",
+        "PARTIAL_CODEX_QUOTA",
+        "PARTIAL_CODEX_FAILURE",
+        "PARTIAL_CLAUDE_INTERRUPTION",
+        "STALE_REPOSITORY",
+        "INVALID_AUDIT_INPUT"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "timestamps": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "repo_fingerprint_sha256": {
+      "type": "string"
+    },
+    "repo_root": {
+      "type": "string"
+    },
+    "codex": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_id",
+        "jobs",
+        "stage_counts"
+      ],
+      "properties": {
+        "session_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "jobs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": [
+              "job_id",
+              "phase"
+            ],
+            "properties": {
+              "job_id": {
+                "type": "string"
+              },
+              "phase": {
+                "type": "string"
+              },
+              "pid": {
+                "type": "integer"
+              },
+              "resumed": {
+                "type": "boolean"
+              },
+              "status": {
+                "type": "string"
+              },
+              "started_at": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "stage_counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "independent",
+            "cross_examination",
+            "adjudication"
+          ],
+          "properties": {
+            "independent": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "cross_examination": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "adjudication": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        }
+      }
+    },
+    "phase_attempts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer"
+      }
+    },
+    "failure_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "adjudication_skipped": {
+      "type": "boolean"
+    }
+  }
+}

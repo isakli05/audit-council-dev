@@ -1,0 +1,135 @@
+{
+  "$id": "cross-examination.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Cross-Examination Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "examiner",
+    "examined",
+    "challenges"
+  ],
+  "properties": {
+    "examiner": {
+      "enum": [
+        "OPUS",
+        "CODEX"
+      ]
+    },
+    "examined": {
+      "enum": [
+        "OPUS",
+        "CODEX"
+      ]
+    },
+    "challenges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "target_finding_id",
+          "verdict",
+          "reasoning_summary"
+        ],
+        "properties": {
+          "target_finding_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "verdict": {
+            "enum": [
+              "CONFIRMED",
+              "PARTIALLY_CONFIRMED",
+              "REJECTED",
+              "INSUFFICIENT_EVIDENCE"
+            ]
+          },
+          "counter_evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "OBSERVED_FACT",
+                    "INFERENCE",
+                    "HYPOTHESIS",
+                    "REQUIREMENT_CLAIM"
+                  ]
+                },
+                "path": {
+                  "type": "string"
+                },
+                "symbol": {
+                  "type": "string"
+                },
+                "lines": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(-[0-9]+)?$"
+                },
+                "requirement_ref": {
+                  "type": "string"
+                },
+                "test_ref": {
+                  "type": "string"
+                },
+                "command_ref": {
+                  "type": "string"
+                },
+                "artifact_hash": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "reasoning_summary": {
+            "type": "string"
+          },
+          "severity_recalibration": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "original",
+              "revised",
+              "justification"
+            ],
+            "properties": {
+              "original": {
+                "enum": [
+                  "CRITICAL",
+                  "HIGH",
+                  "MEDIUM",
+                  "LOW",
+                  "INFO"
+                ]
+              },
+              "revised": {
+                "enum": [
+                  "CRITICAL",
+                  "HIGH",
+                  "MEDIUM",
+                  "LOW",
+                  "INFO"
+                ]
+              },
+              "justification": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "late_findings": {
+      "type": "array",
+      "items": {
+        "$ref": "finding.schema.json"
+      }
+    }
+  }
+}

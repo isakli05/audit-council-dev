@@ -1,0 +1,62 @@
+{
+  "$id": "independent-audit.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Independent Audit Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "model",
+    "repository_fingerprint_sha256",
+    "findings",
+    "audit_summary"
+  ],
+  "properties": {
+    "model": {
+      "enum": [
+        "claude-opus-5",
+        "gpt-5.6-sol"
+      ]
+    },
+    "repository_fingerprint_sha256": {
+      "type": "string",
+      "minLength": 8
+    },
+    "audit_summary": {
+      "type": "string"
+    },
+    "requirement_coverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "requirement",
+          "covered"
+        ],
+        "properties": {
+          "requirement": {
+            "type": "string"
+          },
+          "covered": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "finding.schema.json"
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

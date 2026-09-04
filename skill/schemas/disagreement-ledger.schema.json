@@ -1,0 +1,187 @@
+{
+  "$id": "disagreement-ledger.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Disagreement Ledger",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "clusters"
+  ],
+  "properties": {
+    "clusters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "cluster_id",
+          "initial_classification",
+          "status",
+          "member_finding_ids",
+          "positions"
+        ],
+        "properties": {
+          "cluster_id": {
+            "type": "string",
+            "pattern": "^CLUSTER-[0-9]{3}$"
+          },
+          "initial_classification": {
+            "enum": [
+              "CONSENSUS_CANDIDATE",
+              "OPUS_ONLY",
+              "CODEX_ONLY",
+              "CLAIM_CONFLICT",
+              "SEVERITY_CONFLICT",
+              "CAUSAL_CONFLICT"
+            ]
+          },
+          "status": {
+            "enum": [
+              "CONSENSUS",
+              "CONFIRMED_AFTER_CHALLENGE",
+              "NARROWED",
+              "REJECTED",
+              "DISPUTED",
+              "UNRESOLVED"
+            ]
+          },
+          "member_finding_ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "pattern": "^(OPUS|CODEX)-[0-9]{3}$"
+            }
+          },
+          "positions": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "opus",
+              "codex"
+            ],
+            "properties": {
+              "opus": {
+                "type": "object",
+                "additionalProperties": true,
+                "required": [
+                  "position"
+                ],
+                "properties": {
+                  "position": {
+                    "type": "string"
+                  },
+                  "severity": {
+                    "enum": [
+                      "CRITICAL",
+                      "HIGH",
+                      "MEDIUM",
+                      "LOW",
+                      "INFO"
+                    ]
+                  },
+                  "challenge_result": {
+                    "enum": [
+                      "CONFIRMED",
+                      "PARTIALLY_CONFIRMED",
+                      "REJECTED",
+                      "INSUFFICIENT_EVIDENCE",
+                      null
+                    ]
+                  }
+                }
+              },
+              "codex": {
+                "type": "object",
+                "additionalProperties": true,
+                "required": [
+                  "position"
+                ],
+                "properties": {
+                  "position": {
+                    "type": "string"
+                  },
+                  "severity": {
+                    "enum": [
+                      "CRITICAL",
+                      "HIGH",
+                      "MEDIUM",
+                      "LOW",
+                      "INFO"
+                    ]
+                  },
+                  "challenge_result": {
+                    "enum": [
+                      "CONFIRMED",
+                      "PARTIALLY_CONFIRMED",
+                      "REJECTED",
+                      "INSUFFICIENT_EVIDENCE",
+                      null
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "evidence_overlap": {
+            "type": "string"
+          },
+          "counter_evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "OBSERVED_FACT",
+                    "INFERENCE",
+                    "HYPOTHESIS",
+                    "REQUIREMENT_CLAIM"
+                  ]
+                },
+                "path": {
+                  "type": "string"
+                },
+                "symbol": {
+                  "type": "string"
+                },
+                "lines": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(-[0-9]+)?$"
+                },
+                "requirement_ref": {
+                  "type": "string"
+                },
+                "test_ref": {
+                  "type": "string"
+                },
+                "command_ref": {
+                  "type": "string"
+                },
+                "artifact_hash": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "severity_divergence": {
+            "type": "boolean"
+          },
+          "causal_divergence": {
+            "type": "boolean"
+          },
+          "adjudication_eligible": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

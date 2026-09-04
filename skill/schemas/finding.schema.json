@@ -1,0 +1,243 @@
+{
+  "$id": "finding.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Audit Finding",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "origin",
+    "title",
+    "category",
+    "severity",
+    "confidence",
+    "claim",
+    "status",
+    "evidence",
+    "provenance"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^(OPUS|CODEX)-[0-9]{3}$"
+    },
+    "origin": {
+      "type": "string",
+      "pattern": "^(OPUS|CODEX)-[0-9]{3}$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "category": {
+      "type": "string",
+      "minLength": 1
+    },
+    "severity": {
+      "enum": [
+        "CRITICAL",
+        "HIGH",
+        "MEDIUM",
+        "LOW",
+        "INFO"
+      ]
+    },
+    "confidence": {
+      "enum": [
+        "HIGH",
+        "MEDIUM",
+        "LOW"
+      ]
+    },
+    "claim": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "PROVISIONAL",
+        "CONFIRMED",
+        "PARTIALLY_CONFIRMED",
+        "REJECTED",
+        "UNRESOLVED"
+      ]
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "OBSERVED_FACT",
+              "INFERENCE",
+              "HYPOTHESIS",
+              "REQUIREMENT_CLAIM"
+            ]
+          },
+          "path": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "string",
+            "pattern": "^[0-9]+(-[0-9]+)?$"
+          },
+          "requirement_ref": {
+            "type": "string"
+          },
+          "test_ref": {
+            "type": "string"
+          },
+          "command_ref": {
+            "type": "string"
+          },
+          "artifact_hash": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "counter_evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "OBSERVED_FACT",
+              "INFERENCE",
+              "HYPOTHESIS",
+              "REQUIREMENT_CLAIM"
+            ]
+          },
+          "path": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "string",
+            "pattern": "^[0-9]+(-[0-9]+)?$"
+          },
+          "requirement_ref": {
+            "type": "string"
+          },
+          "test_ref": {
+            "type": "string"
+          },
+          "command_ref": {
+            "type": "string"
+          },
+          "artifact_hash": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "requirement_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "source_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reasoning_summary": {
+      "type": "string"
+    },
+    "failure_scenario": {
+      "type": "string"
+    },
+    "impact": {
+      "type": "string"
+    },
+    "root_cause": {
+      "type": "string"
+    },
+    "verification_method": {
+      "type": "string"
+    },
+    "residual_uncertainty": {
+      "type": "string"
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "discovered_by"
+      ],
+      "properties": {
+        "discovered_by": {
+          "enum": [
+            "OPUS",
+            "CODEX"
+          ]
+        },
+        "independently_confirmed_by": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "OPUS",
+              "CODEX"
+            ]
+          }
+        },
+        "challenged_by": {
+          "enum": [
+            "OPUS",
+            "CODEX",
+            null
+          ]
+        },
+        "challenge_result": {
+          "enum": [
+            "CONFIRMED",
+            "PARTIALLY_CONFIRMED",
+            "REJECTED",
+            "INSUFFICIENT_EVIDENCE",
+            null
+          ]
+        },
+        "adjudication_result": {
+          "enum": [
+            "CONFIRMED",
+            "PARTIALLY_CONFIRMED",
+            "REJECTED",
+            "UNRESOLVED",
+            null
+          ]
+        },
+        "validated_by": {
+          "enum": [
+            "OPUS",
+            "CODEX",
+            null
+          ]
+        }
+      }
+    },
+    "cluster_id": {
+      "type": "string",
+      "pattern": "^CLUSTER-[0-9]{3}$"
+    },
+    "late_finding": {
+      "type": "boolean"
+    }
+  }
+}

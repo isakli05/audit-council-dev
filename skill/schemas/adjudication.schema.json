@@ -1,0 +1,169 @@
+{
+  "$id": "adjudication.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Targeted Adjudication",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "rounds"
+  ],
+  "properties": {
+    "rounds": {
+      "type": "array",
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "cluster_id",
+          "evidence_packet",
+          "opus_verdict",
+          "codex_verdict",
+          "final_status",
+          "rationale"
+        ],
+        "properties": {
+          "cluster_id": {
+            "type": "string",
+            "pattern": "^CLUSTER-[0-9]{3}$"
+          },
+          "evidence_packet": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": [
+              "claim"
+            ],
+            "properties": {
+              "claim": {
+                "type": "string"
+              },
+              "requirement": {
+                "type": "string"
+              },
+              "evidence": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "OBSERVED_FACT",
+                        "INFERENCE",
+                        "HYPOTHESIS",
+                        "REQUIREMENT_CLAIM"
+                      ]
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "symbol": {
+                      "type": "string"
+                    },
+                    "lines": {
+                      "type": "string",
+                      "pattern": "^[0-9]+(-[0-9]+)?$"
+                    },
+                    "requirement_ref": {
+                      "type": "string"
+                    },
+                    "test_ref": {
+                      "type": "string"
+                    },
+                    "command_ref": {
+                      "type": "string"
+                    },
+                    "artifact_hash": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "counter_evidence": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "OBSERVED_FACT",
+                        "INFERENCE",
+                        "HYPOTHESIS",
+                        "REQUIREMENT_CLAIM"
+                      ]
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "symbol": {
+                      "type": "string"
+                    },
+                    "lines": {
+                      "type": "string",
+                      "pattern": "^[0-9]+(-[0-9]+)?$"
+                    },
+                    "requirement_ref": {
+                      "type": "string"
+                    },
+                    "test_ref": {
+                      "type": "string"
+                    },
+                    "command_ref": {
+                      "type": "string"
+                    },
+                    "artifact_hash": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "opus_position": {
+                "type": "string"
+              },
+              "codex_position": {
+                "type": "string"
+              },
+              "unresolved": {
+                "type": "string"
+              }
+            }
+          },
+          "opus_verdict": {
+            "enum": [
+              "CONFIRMED",
+              "PARTIALLY_CONFIRMED",
+              "REJECTED",
+              "UNRESOLVED"
+            ]
+          },
+          "codex_verdict": {
+            "enum": [
+              "CONFIRMED",
+              "PARTIALLY_CONFIRMED",
+              "REJECTED",
+              "UNRESOLVED"
+            ]
+          },
+          "final_status": {
+            "enum": [
+              "CONFIRMED",
+              "PARTIALLY_CONFIRMED",
+              "REJECTED",
+              "UNRESOLVED"
+            ]
+          },
+          "rationale": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
