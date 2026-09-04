@@ -26,7 +26,7 @@ path-escape-toctou, cross-tenant-access, unsafe-migration, api-drift,
 release-supply-chain, evidence-provenance-mismatch,
 structural-identity-mismatch, clean-idioms (protected negatives renamed
 from "negative-controls" to stop the name itself leaking the answer).
-Four adversarial review rounds specifically audited and cleaned the
+Six adversarial review rounds (1-4 qualification-era, 5-6 final gate) specifically audited and cleaned the
 fixtures of auditor-visible telltales ("DEFECT (seeded)", "protected
 control", "suspicious-looking", README announcements) — ground truth now
 lives only in the sealed JSONs.

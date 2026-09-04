@@ -81,7 +81,7 @@ adversarial verification rounds were dispatched to fresh agents (H.4).
   `INVALID_AUDIT_ENVIRONMENT` completeness state, SKILL.md/protocols/
   README v2 guidance, migration-compat tests, finalize checksum gate.
 
-## Independent adversarial review (H.4) — 4 rounds
+## Independent adversarial review (H.4) — rounds 1-4 of an eventual six
 
 Round 1 (FAIL): 2 HIGH (path-guard interpreter/flag smuggling; tier-2
 ground truth embedded in fixture source) + 6 MEDIUM (resume-check vs
@@ -108,10 +108,11 @@ requires checksum integrity before unregistering; the hook fails closed
 (with a stdlib-only fallback) whenever its guard modules are damaged and a
 run is active.
 
-**Verification status: 4 adversarial rounds, every finding resolved with
-regressions (tests/test_review_hardening.py, 22 tests). The round-4 fixes
-have NOT had a fifth independent confirmation — that re-verification is
-recommended as the first step of release qualification.** The residual
+**Verification status after the qualification sessions: SIX adversarial
+rounds total (rounds 5 and 6 documented in the sections below), every
+finding resolved with regressions (tests/test_review_hardening.py +
+tests/test_codex_sandbox.py). Round-6 issues were fixed and reverified by
+the same round-6 verifier.** The residual
 escape classes that remain are inherent to a no-inference lexical layer
 and are documented in AUDIT-COUNCIL-V2-KNOWN-LIMITATIONS.md.
 

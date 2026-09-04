@@ -660,22 +660,30 @@ def check_tool_call(tool: str, tool_input: dict[str, Any],
                 return (False, "PATH_ESCAPE_ATTEMPT")
             reason = _classify_path(path, os.getcwd(), frozen, allowed)
         # R5 NEW-4 / R6: Glob patterns can carry their own path prefixes —
-        # and escapes may appear AFTER the first metacharacter
-        # ("a?/../../etc/*") or inside brace alternatives. Classify EVERY
-        # literal chunk between metacharacters. A chunk that FOLLOWS a
-        # wildcard metachar starts with a path SEPARATOR ("**/x" → "/x"),
-        # not an absolute root — strip it before the absolute test. A
+        # escapes may appear AFTER the first metacharacter
+        # ("a?/../../etc/*"), inside NON-INITIAL brace alternatives
+        # ("{a,/etc/x}"), or as a pattern-initial bare root ("/*", "//").
+        # A chunk that FOLLOWS a wildcard metachar starts with a path
+        # SEPARATOR ("**/x" → "/x"), not an absolute root — strip it. A
         # chunk that begins the pattern or follows "{" / "," starts a
         # COMPLETE ALTERNATIVE and is tested as-is. ".." components are
         # always escapes regardless of position.
         if tool == "Glob" and reason is None:
             pattern = tool_input.get("pattern")
             if isinstance(pattern, str) and pattern:
+                # pattern-INITIAL root: "/*" and "//" enumerate / even
+                # though their first literal chunk is bare separators
+                if pattern.startswith("/") or pattern.startswith("~"):
+                    head = re.split(r"[*?\[\]{},]", pattern, 1)[0] \
+                        or pattern[:1]
+                    reason = _classify_path(head, os.getcwd(), frozen,
+                                            allowed)
+            if reason is None:
                 prev_meta = None  # metachar preceding the current chunk
-                for token in re.split(r"([*?\[\]{}])", pattern):
+                for token in re.split(r"([*?\[\]{},])", pattern):
                     if not token:
                         continue
-                    if len(token) == 1 and token in "*?[]{}":
+                    if len(token) == 1 and token in "*?[]{},":
                         prev_meta = token
                         continue
                     chunk = token
