@@ -199,3 +199,23 @@ ONLY (read-only; no re-audit; no new inference). Still NOT done
 (operator gates): installation (the installed ~/.claude skill is stale
 v1.0.3 WITHOUT hooks/ — shipping hooks/ is mandatory at install time),
 real-model tier-2, any new real inference.
+
+## Installation (2026-09-05, operator-approved)
+
+INSTALLATION_VERIFIED. Source: dev HEAD 579e39a (git archive — wholesale,
+no overlay). Installed: ~/.claude/skills/audit-council/ (hooks/ shipped).
+Rollback: ~/.claude/skills/audit-council.v1.0.3-rollback-20260905/
+(byte-identical to tag v1.0.3-baseline). Validations: tree identity
+(only dev-side untracked test debris differs — installed == HEAD);
+required v2 files all present; installed-copy suite 555/555 OK with
+real cache left empty; describe --json 2.0 — all seven contract checks
+(RELEASE/HISTORICAL, line_ranges, INVALID_AUDIT_ENVIRONMENT, automatic
+skill-scoped hook, bwrap confinement, ~/.codex auth residual disclosed);
+hook byte-identical + inert with no active run (rc 0) — 12 unrelated
+interactive codex processes were running (freelance-project-assessment
+cwds; zero audit-council associations) and were untouched; bwrap 0.12.0,
+codex-cli 0.153.0, ChatGPT login OK; deterministic discovery (frontmatter
+name/model/hooks + path) green; INVALID_AUDIT_INPUT fast-fail rc=1.
+No real inference; LCO/historical artifacts untouched (0 files modified
+under benchmarks; audits tree mtime-preserved). Not done (per orders):
+LCO re-audit, real-model Tier-2, historical reruns, push/publish.
