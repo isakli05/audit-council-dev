@@ -1,0 +1,96 @@
+{
+  "$id": "environment-record.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Audit Environment Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "mode",
+    "run_id",
+    "created_at",
+    "source_repo_realpath",
+    "worktree_root",
+    "worktree_detached",
+    "target_ref",
+    "binding_digest",
+    "staged_evidence",
+    "archive_root",
+    "notes"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 2
+    },
+    "mode": {
+      "enum": [
+        "CURRENT",
+        "RELEASE",
+        "HISTORICAL"
+      ]
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{6}$"
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_repo_realpath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "worktree_root": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "worktree_detached": {
+      "type": "boolean"
+    },
+    "target_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "binding_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "staged_evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "sha256",
+          "allowed"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "allowed": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "archive_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "notes": {
+      "type": "string"
+    }
+  }
+}

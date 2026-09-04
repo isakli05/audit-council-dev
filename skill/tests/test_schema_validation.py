@@ -18,7 +18,7 @@ import validate_artifact  # noqa: E402
 
 SCHEMAS_DIR = Path(__file__).resolve().parent.parent / "schemas"
 SCHEMA_NAMES = sorted(p.name for p in SCHEMAS_DIR.glob("*.json"))
-assert len(SCHEMA_NAMES) == 9, SCHEMA_NAMES  # v2: + env-binding.schema.json
+assert len(SCHEMA_NAMES) == 11, SCHEMA_NAMES  # v2: + env-binding, environment-record, evidence-record
 
 _KNOWN_TYPES = {"object", "array", "string", "integer", "number",
                 "boolean", "null"}
@@ -247,6 +247,41 @@ def env_binding_doc():
     }
 
 
+def environment_record_doc():
+    return {"schema_version": 2, "mode": "RELEASE",
+            "run_id": "20260904T000000Z-a0a0a0",
+            "created_at": "2026-09-04T00:00:00Z",
+            "source_repo_realpath":
+                "/home/isa/audit-council-dev/repro/tmp/r3-target-repo",
+            "worktree_root": "/home/isa/audit-council-dev/repro/tmp/wt",
+            "worktree_detached": True, "target_ref": "v1",
+            "binding_digest": "0" * 64,
+            "staged_evidence": [{"path": "docs/notes.md",
+                                 "sha256": "1" * 64, "allowed": True}],
+            "archive_root": "/home/isa/audit-council-dev/repro/tmp/history",
+            "notes": "representative instance"}
+
+
+def evidence_record_doc():
+    return {"schema_version": 2,
+            "evidence_id": "ev-0123456789abcdef",
+            "kind": "FILE_EXCERPT",
+            "repository_fingerprint_sha256": "2" * 64,
+            "environment_binding_digest": "0" * 64,
+            "input_digest": "3" * 64,
+            "tool": {"name": "rg", "version": "14.0"},
+            "command_or_query": "rg -n pattern src/",
+            "produced_at": "2026-09-04T00:00:00Z",
+            "freshness_policy": {"class": "CACHEABLE", "ttl_sec": 3600,
+                                 "invalidated_by": ["tracked_change"]},
+            "result_digest": "4" * 64,
+            "result_location": "evidence/objects/x.json",
+            "producer": "OPUS",
+            "visibility": "SHARED_MECHANICAL",
+            "validity_scope": "RUN",
+            "deterministic": True, "reproducible": True}
+
+
 BUILDERS = {
     "finding.schema.json": finding,
     "audit-contract.schema.json": contract,
@@ -255,6 +290,8 @@ BUILDERS = {
     "disagreement-ledger.schema.json": ledger,
     "adjudication.schema.json": adjudication,
     "env-binding.schema.json": env_binding_doc,
+    "environment-record.schema.json": environment_record_doc,
+    "evidence-record.schema.json": evidence_record_doc,
     "final-findings.schema.json": final_findings,
     "state.schema.json": state_doc,
 }
@@ -276,7 +313,8 @@ class TestSchemaShape(unittest.TestCase):
         self.assertEqual(SCHEMA_NAMES, [
             "adjudication.schema.json", "audit-contract.schema.json",
             "cross-examination.schema.json", "disagreement-ledger.schema.json",
-            "env-binding.schema.json", "final-findings.schema.json",
+            "env-binding.schema.json", "environment-record.schema.json",
+            "evidence-record.schema.json", "final-findings.schema.json",
             "finding.schema.json", "independent-audit.schema.json",
             "state.schema.json",
         ])
