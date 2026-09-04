@@ -229,10 +229,23 @@ class TestBindingLifecycle(EnvLifecycleBase):
                 "OPUS_INDEPENDENT_COMPLETE", "--artifact",
                 "10-opus-independent.json", "--stdin",
                 stdin=json.dumps(ia).encode())
-        # the ledger must exist before FINALIZED (never silently passed over)
-        self.ac("advance", "--run", run_dir, "--to", "LEDGER_COMPLETE",
-                "--artifact", "40-disagreement-ledger.json", "--stdin",
-                stdin=json.dumps({"clusters": []}).encode())
+        # the ledger must exist before FINALIZED (never silently passed
+        # over); the jump past the Codex stages carries EXPLICIT skip
+        # records (v2 H.1)
+        proc = self.ac("advance", "--run", run_dir, "--to", "LEDGER_COMPLETE",
+                       "--artifact", "40-disagreement-ledger.json", "--stdin",
+                       "--skip", "CODEX_INDEPENDENT_COMPLETE=quota: stage "
+                                "deferred (test scaffold)",
+                       "--skip", "NORMALIZED=no second-model findings to "
+                                 "normalize (test scaffold)",
+                       "--skip", "OPUS_CROSS_EXAM_COMPLETE=deferred with "
+                                 "codex stage (test scaffold)",
+                       "--skip", "CODEX_CROSS_EXAM_COMPLETE=quota: stage "
+                                 "deferred (test scaffold)",
+                       stdin=json.dumps({"clusters": []}).encode())
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        st2 = self.state(run_dir)
+        self.assertEqual(len(st2.get("phase_skips", [])), 4)
         final = {
             "completeness_state": "PARTIAL_CLAUDE_INTERRUPTION",
             "repository_fingerprint_sha256":

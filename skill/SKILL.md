@@ -18,6 +18,18 @@ target repository; the only writable location is `audit-output/audit-council/<ru
 
 ## Hard rules (always in force)
 
+- ENVIRONMENT AUTHORITY (v2): `init-run` freezes an AuditEnvironmentBinding
+  (`01-environment-binding.json`) — repo root realpath, git dirs, worktree
+  identity, HEAD, brief sha, and any explicit brief `target:` metadata
+  (`{"target": {"repository_root": ..., "expected_head": ...}}` in a fenced
+  ```json block; all other brief prose is inert). Before ANY inference phase,
+  `AC verify-env --run "$RUN"` must pass; a mismatch fails closed with
+  INVALID_AUDIT_ENVIRONMENT and ZERO model calls, and never yields a product
+  verdict. A stale absolute path in brief prose can NEVER redirect the audit.
+- EXPLICIT PHASE SKIPS (v2): the state machine refuses to pass over an
+  artifact-bearing phase silently (e.g. finalizing past a quota-deferred
+  Codex stage). Record every passed-over phase with
+  `advance --skip PHASE='reason'` — the reason is part of the run record.
 - AUDIT ONLY. Never modify source, tests, config, docs, git state. No fixes, no patches.
   Enforcement semantics: Codex repository writes are mechanically PREVENTED by its
   read-only sandbox. Claude (you) are restricted by protocol + disallowed editing tools
@@ -65,6 +77,12 @@ target repository; the only writable location is `audit-output/audit-council/<ru
 - Codex wait loops are BOUNDED: at most 20 consecutive `wait` calls (20 × 540 s ≈ 3 h)
   per Codex stage. If still RUNNING after that, treat as FAILED and follow
   protocols/failure-and-resume.md. Never issue unbounded waits.
+- Evidence efficiency (v2): cite evidence-store refs just-in-time; budgets
+  (including every budget-driven omission, recorded explicitly in metrics)
+  are governed by `budgets.py` defaults — the governor may decline optional
+  work but NEVER mandatory independent passes or fresh release gates. See
+  `PUBLIC-CONTRACT.md` / `audit_council.py describe --json` for the stable
+  public contract (protocol version 2.0).
 
 ## Startup: parse invocation
 
@@ -87,7 +105,8 @@ target repository; the only writable location is `audit-output/audit-council/<ru
 2. `AC init-run --repo <repo-root> --brief <brief>` → captures `RUN` — or, for an
    inline brief, `cat <<'BRIEF_EOF' | $AC init-run --repo <repo-root> --brief-inline`
    (the brief is materialized to `<run>/inputs/original-audit-brief.md`, checksummed,
-   and referenced by the manifest for resume). Read
+   and referenced by the manifest for resume). The run's environment binding is
+   frozen automatically (`01-environment-binding.json`). Read
    `01-repository-state.json` (fingerprint, HEAD SHA, dirty state — the dirty tree is part
    of the audited state; never clean it). NOTE: every repository fingerprint you later
    write into an artifact (contract `target_repository.fingerprint_sha256`,

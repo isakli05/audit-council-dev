@@ -120,3 +120,39 @@ fabricated.
 
 Audit outputs under `audit-output/audit-council/` in audited repositories are ordinary
 files; remove them yourself if desired.
+
+## v2.0 additions
+
+- **Environment binding (A0)**: every run freezes `01-environment-binding.json`
+  (repo root realpath, git dirs, worktree identity, HEAD, brief sha). Before
+  any model inference the binding is re-verified (`AC verify-env`); a mismatch
+  fails closed with `INVALID_AUDIT_ENVIRONMENT` and zero model calls. A brief
+  may declare its target explicitly with a fenced ```json block
+  `{"target": {"repository_root": ..., "expected_head": ...}}`; all other
+  prose paths are inert text.
+- **Optional path-guard hook (runner-enforced, one-time operator opt-in)**:
+  register a PreToolUse hook to deny out-of-root Read/Grep/Glob/Bash calls
+  before execution while an audit run is active:
+  in `~/.claude/settings.json` under `hooks.PreToolUse` (matcher
+  `Bash|Read|Grep| Glob`), command
+  `/usr/bin/python3 ~/.claude/skills/audit-council/hooks/path_guard_hook.py`.
+  With no active run the hook allows everything (zero impact on normal
+  sessions). Without the hook, confinement degrades to detection
+  (fingerprint + write-guard), recorded in the run.
+- **Typed evidence (G)**: evidence citations use `line_ranges:
+  [{"start": 184, "end": 185}, {"start": 240, "end": 273}]`; v1 artifacts
+  are read via an in-memory migration reader and never rewritten.
+- **Explicit phase skips (H)**: passing over an artifact phase (e.g.
+  finalizing past a quota-deferred Codex stage) requires
+  `advance --skip PHASE='reason'`; silent skips are refused.
+- **Telemetry 2.0 (E)**: every terminal Codex attempt records stable elapsed
+  (including INVALID_OUTPUT/QUOTA/cancel); budget omissions are explicit in
+  `99-run-metrics.json`.
+- **Specialists (C) are DEFAULT OFF** and remain off until eval evidence
+  shows net value; activation requires a pre-frozen documented reason.
+- **Public contract (F)**: `PUBLIC-CONTRACT.md` and
+  `audit_council.py describe --json` (protocol version 2.0) are the stable
+  surface for prompt-authoring agents.
+- **Eval suite (D)**: `eval/eval_cli.py tier1` runs the deterministic harness
+  + environment-integrity gate (100% required); tier-2 fixtures and the
+  approval-gated tier-3 historical replay live under `eval/`.

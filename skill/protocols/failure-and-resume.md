@@ -8,6 +8,20 @@
   prior work; nothing completed is repeated after resume.
 - Never destroy or reset user state to "recover" (no git operations, no deletions).
 
+## Environment failure (v2: INVALID_AUDIT_ENVIRONMENT)
+
+`AC verify-env` (or the automatic gate before any inference phase) fails when the
+frozen environment binding no longer matches reality: brief root/HEAD mismatch,
+worktree identity change, repo root replaced, CWD outside the frozen root, path
+escape, alternate worktree access, unauthorized /tmp, symlink escape. Rules:
+
+- ZERO model calls happen through a failed environment gate; `codex_runner start`
+  refuses (exit 3) and `advance` to any inference phase refuses.
+- An environment failure NEVER yields a product GO/NO-GO verdict — the
+  completeness state is `INVALID_AUDIT_ENVIRONMENT` and the run must be re-prepared.
+- Historical/narrative absolute paths in brief prose are inert text; only the
+  explicit fenced `target:` metadata block has authority.
+
 ## Codex wait classification (codex_runner.py wait)
 
 - exit 7 RUNNING → issue another bounded `wait --timeout 540`. Repeat while the job shows

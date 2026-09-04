@@ -49,6 +49,12 @@ PHASE_CHAIN = [
 ]
 PHASE_INDEX = {p: i for i, p in enumerate(PHASE_CHAIN)}
 ADJUDICATION_PHASE = "ADJUDICATION_COMPLETE"
+# Phases whose meaning depends on a phase artifact being checkpointed. v2
+# (pillar H): a forward transition may pass one of these over ONLY with an
+# explicit, reason-carrying phase_skips record — never by silent timestamp
+# filling (the v1 Fifth run jumped CODEX_CROSS_EXAM_COMPLETE with no 32-
+# artifact and no record of why).
+ARTIFACT_PHASES = frozenset(PHASE_CHAIN[2:-1])  # CONTRACT_FROZEN .. FINALIZED
 # The only intermediate phase that may be skipped, and only under these rules:
 #   - the run is at LEDGER_COMPLETE
 #   - the target is FINALIZED or COMPLETE
@@ -271,6 +277,22 @@ def transition(state: dict[str, Any], target: str, *,
             f"transition {cur} -> {target} would skip LEDGER_COMPLETE; "
             f"the disagreement ledger must complete first")
 
+    # v2 (pillar H): every OTHER passed-over artifact phase needs an explicit
+    # skip record carrying a reason (ADJUDICATION keeps its own dedicated
+    # adjudication_skipped rule above; COMPLETE's artifact is written by
+    # finalize itself).
+    if ti > ci + 1:
+        recorded = {s.get("skipped_phase")
+                    for s in new.get("phase_skips", [])}
+        missing = [p for p in PHASE_CHAIN[ci + 1:ti]
+                   if p != ADJUDICATION_PHASE and p != "COMPLETE"
+                   and p in ARTIFACT_PHASES and p not in recorded]
+        if missing:
+            raise StateError(
+                f"transition {cur} -> {target} would pass over "
+                f"{missing} without an explicit skip record; record each "
+                f"with `advance --skip PHASE='reason'`")
+
     new["phase"] = target
     for p in PHASE_CHAIN[ci + 1: ti + 1]:
         if p == ADJUDICATION_PHASE and skips_adjudication:
@@ -288,6 +310,29 @@ def apply_transition(run_dir: str | os.PathLike[str], target: str, *,
                      adjudication_skipped=adjudication_skipped)
     save_state(run_dir, new)
     return new
+
+
+def record_phase_skips(run_dir: str | os.PathLike[str],
+                       entries: list[dict[str, Any]]) -> None:
+    """Persist explicit skip records (validated shape) BEFORE the transition
+    that passes over those phases; the transition then admits them."""
+    state = load_state(run_dir)
+    skips = list(state.get("phase_skips", []))
+    known = {s.get("skipped_phase") for s in skips}
+    for e in entries:
+        phase = e.get("skipped_phase")
+        if phase not in PHASE_INDEX:
+            raise StateError(f"unknown skip phase {phase!r}")
+        if not isinstance(e.get("reason"), str) or not e["reason"].strip():
+            raise StateError("phase skip requires a non-empty reason")
+        if phase in known:
+            raise StateError(f"skip already recorded for {phase}")
+        skips.append({"skipped_phase": phase,
+                      "reason": e["reason"],
+                      "recorded_at": e.get("recorded_at") or utc_now_iso()})
+        known.add(phase)
+    state["phase_skips"] = skips
+    save_state(run_dir, state)
 
 
 def set_completeness(run_dir: str | os.PathLike[str], value: str,

@@ -469,8 +469,27 @@ def _validate_artifact_file(path: str, schema_name: str | None,
             errors.append("structural check failed: expected object with a "
                           "`clusters` array")
         return errors
-    return validate_artifact.validate_file(
+    errors = validate_artifact.validate_file(
         path, str(SCHEMAS_DIR / schema_name))
+    if errors:
+        # v1-compat reader (pillar H/G): a FINALIZED historical v1 artifact
+        # (legacy `lines` strings) is validated IN-MEMORY via the
+        # deterministic migration reader — the on-disk bytes are NEVER
+        # rewritten. New v2 artifacts carry no legacy keys and never hit
+        # this path.
+        try:
+            import evidence_migration
+            doc = load_json(path)
+            if evidence_migration.is_v1_artifact(doc):
+                migrated = evidence_migration.migrate_artifact(doc)
+                schema = load_json(str(SCHEMAS_DIR / schema_name))
+                if not validate_artifact.validate(
+                        migrated, schema, base_dir=SCHEMAS_DIR):
+                    return []
+        except (OSError, json.JSONDecodeError,
+                evidence_migration.MigrationError):
+            pass
+    return errors
 
 
 def cmd_freeze_contract(args: argparse.Namespace) -> int:
@@ -635,6 +654,26 @@ def cmd_advance(args: argparse.Namespace) -> int:
     except StateError as exc:
         _fail(str(exc))
         return EXIT_FAIL
+    # v2 (pillar H): explicit, reason-carrying skip records for any
+    # artifact phase this transition passes over (e.g. a partial run
+    # finalizing past a quota-deferred Codex stage). Recorded BEFORE
+    # the transition; the state machine refuses silent skips.
+    skip_entries = []
+    for raw in getattr(args, "skip", None) or []:
+        phase, sep, reason = raw.partition("=")
+        if not sep or phase not in state_store.PHASE_INDEX \
+                or not reason.strip():
+            _fail(f"invalid --skip {raw!r}: expected PHASE='reason' "
+                  f"with a known phase and a non-empty reason")
+            return EXIT_FAIL
+        skip_entries.append({"skipped_phase": phase,
+                             "reason": reason.strip()})
+    if skip_entries:
+        try:
+            state_store.record_phase_skips(run_dir, skip_entries)
+        except StateError as exc2:
+            _fail(str(exc2))
+            return EXIT_FAIL
     if target == "COMPLETE" and cur_phase != "FINALIZED":
         # closing a run requires the honest finalize path (completeness
         # state + metrics); FINALIZED must not be jumped over
@@ -1226,6 +1265,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--run", required=True)
     p.add_argument("--to", required=True, dest="to")
     p.add_argument("--artifact", required=True)
+    p.add_argument("--skip", action="append", default=None,
+                   metavar="PHASE=REASON",
+                   help="record an explicit skip for an artifact phase this "
+                        "transition passes over (repeatable; required for "
+                        "any passed-over artifact phase)")
     p.add_argument("--stdin", action="store_true",
                    help="read content from stdin (with '--artifact -')")
     p.set_defaults(func=cmd_advance)

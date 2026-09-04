@@ -159,6 +159,36 @@
     },
     "adjudication_skipped": {
       "type": "boolean"
+    },
+    "phase_skips": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["skipped_phase", "reason", "recorded_at"],
+        "properties": {
+          "skipped_phase": {
+            "enum": [
+              "CONTRACT_FROZEN",
+              "OPUS_INDEPENDENT_COMPLETE",
+              "CODEX_INDEPENDENT_COMPLETE",
+              "NORMALIZED",
+              "OPUS_CROSS_EXAM_COMPLETE",
+              "CODEX_CROSS_EXAM_COMPLETE",
+              "LEDGER_COMPLETE",
+              "ADJUDICATION_COMPLETE",
+              "FINALIZED"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recorded_at": {
+            "type": "string"
+          }
+        }
+      }
     }
   }
 }

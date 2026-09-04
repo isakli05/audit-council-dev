@@ -58,6 +58,13 @@ class TestRunId(unittest.TestCase):
 
 
 class TestTransitions(unittest.TestCase):
+    @staticmethod
+    def scaffold_skips(run_dir, *phases):
+        # v2: jumping over artifact phases requires explicit skip records
+        state_store.record_phase_skips(run_dir, [
+            {"skipped_phase": p, "reason": "test scaffold jump"}
+            for p in phases])
+
     def test_forward_chain_ok(self):
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = make_run(tmp)
@@ -87,6 +94,10 @@ class TestTransitions(unittest.TestCase):
     def test_skip_adjudication_requires_flag_and_rules(self):
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = make_run(tmp)
+            self.scaffold_skips(
+                run_dir, "CONTRACT_FROZEN", "OPUS_INDEPENDENT_COMPLETE",
+                "CODEX_INDEPENDENT_COMPLETE", "NORMALIZED",
+                "OPUS_CROSS_EXAM_COMPLETE", "CODEX_CROSS_EXAM_COMPLETE")
             state_store.apply_transition(run_dir, "LEDGER_COMPLETE")
             # skipping without the flag -> error
             with self.assertRaises(state_store.StateError):
@@ -103,6 +114,10 @@ class TestTransitions(unittest.TestCase):
     def test_skip_from_wrong_phase_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = make_run(tmp)
+            self.scaffold_skips(
+                run_dir, "CONTRACT_FROZEN", "OPUS_INDEPENDENT_COMPLETE",
+                "CODEX_INDEPENDENT_COMPLETE", "NORMALIZED",
+                "OPUS_CROSS_EXAM_COMPLETE")
             state_store.apply_transition(run_dir, "CODEX_CROSS_EXAM_COMPLETE")
             # would skip LEDGER_COMPLETE and ADJUDICATION_COMPLETE
             with self.assertRaises(state_store.StateError):
@@ -112,6 +127,10 @@ class TestTransitions(unittest.TestCase):
     def test_normal_adjudication_path_no_flag(self):
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = make_run(tmp)
+            self.scaffold_skips(
+                run_dir, "CONTRACT_FROZEN", "OPUS_INDEPENDENT_COMPLETE",
+                "CODEX_INDEPENDENT_COMPLETE", "NORMALIZED",
+                "OPUS_CROSS_EXAM_COMPLETE", "CODEX_CROSS_EXAM_COMPLETE")
             state_store.apply_transition(run_dir, "LEDGER_COMPLETE")
             state_store.apply_transition(run_dir, "ADJUDICATION_COMPLETE")
             state_store.apply_transition(run_dir, "FINALIZED")
