@@ -91,7 +91,7 @@ const { requireOwnership } = require('../domain/ownership');
 module.exports = function documents(db) {
   const router = express.Router();
 
-  // DEFECT (seeded): the detail read returns the document WITHOUT the
+
   // ownership check that every other mutating route enforces, so any
   // authenticated user can read arbitrary document ids.
   router.get('/:id', async (req, res) => {
@@ -206,10 +206,6 @@ class Checkpoint:
 ''',
 "recovery.py": '''"""Crash recovery: replay journal entries past the checkpoint.
 
-DEFECT (seeded): recover() replays every entry past the stale checkpoint
-and never consults journal.commit_index, so entries that were already
-COMMITTED before the crash are applied a second time (double-apply /
-resurrection of stale post-commit state).
 """
 def recover(journal, checkpoint, apply):
     for entry in journal.entries[checkpoint.last_applied + 1:]:
@@ -295,7 +291,6 @@ def safe_open(root, name):
 import os
 from storage import safe_open, ATTACHMENT_DIR
 
-# DEFECT (seeded): check-then-use TOCTOU. The realpath containment check
 # validates `path`, but the handler then opens the ORIGINAL `path`; a
 # symlink swapped between the two steps (or named with an embedded
 # "../" segment the basename guard does not catch) escapes the
@@ -369,8 +364,7 @@ class Cache:
         return self.backend.set("t:%s:%s" % (tenant_id, key),
                                 value, ttl)
 
-    # DEFECT (seeded): the tenant scope is dropped on read — the lookup
-    # uses the bare key, so tenant B can observe tenant A's cached value
+        # uses the bare key, so tenant B can observe tenant A's cached value
     # (and vice versa) whenever keys collide.
     def get(self, tenant_id, key):
         return self.backend.get(key)
@@ -438,9 +432,6 @@ def _truth_cross_tenant(dir_: str) -> dict:
 _MIGRATION_FILES = {
 "migrations/0014_drop_audit_log.py": '''"""Drop the legacy audit log table (one-shot maintenance migration).
 
-DEFECT (seeded): destructive DDL executed with autocommit, no pre-check
-that the archive table exists, no backup, and guarded only by a flag that
-defaults to TRUE — a failed run halfway loses data irrecoverably.
 """
 import os
 
@@ -528,7 +519,7 @@ paths:
                   items: {type: array}
                   total: {type: integer}
 """
-_API_HANDLER = '''// DEFECT (seeded): the implementation drifted from the frozen spec —
+_API_HANDLER = '''
 // route moved to /reports (spec: /v2/reports), query param renamed to
 // `limit` (spec: pageSize, required), and the response envelope uses
 // {data, count} (spec: {items, total}).
@@ -593,7 +584,6 @@ _RELEASE_SH = """#!/bin/sh
 # Release packaging (eval fixture).
 set -eu
 
-# DEFECT (seeded): the release pipeline consumes unpinned, mutable
 # supply-chain inputs — a piped-to-shell installer from an unversioned
 # URL and a floating base image tag — and the repo ships no lockfile or
 # digest pinning, so released artifacts are not reproducible.
@@ -823,7 +813,7 @@ def _truth_structural_identity(dir_: str) -> dict:
 # 10. negative-controls
 # ---------------------------------------------------------------------------
 _NEG_FILES = {
-"src/sanitize.py": '''"""Log sanitization (protected negative: suspicious-looking regex,
+"src/sanitize.py": '''"""Log sanitization
 correct by construction — the user value only ever passes through
 re.escape before being embedded, so it can never act as a pattern)."""
 import re
@@ -832,7 +822,7 @@ def sanitize_for_log(user_value):
     safe = re.escape(user_value)
     return re.sub(r"[\\x00-\\x1f]", "?", safe)
 ''',
-"src/paths.py": '''"""Path joining (protected negative: user input IS joined, but the
+"src/paths.py": '''"""Path joining
 result is normalized and containment-checked BEFORE any use, and the
 checked value is what gets opened)."""
 import os
@@ -846,7 +836,7 @@ def read_shared(user_path):
     with open(resolved) as fh:   # opens the RESOLVED, checked path
         return fh.read()
 ''',
-"src/sql.py": '''"""SQL construction (protected negative: looks concatenated but the
+"src/sql.py": '''"""SQL construction
 statement is assembled from in-repo constants only; user values stay
 parameterized)."""
 COLUMNS = ["id", "name", "created_at"]
@@ -857,7 +847,7 @@ def find_by(conn, column, value):
            + column + " = ?"
     return conn.execute(stmt, (value,)).fetchall()
 ''',
-"src/legacy.py": '''"""Historical code kept for reference (protected negative: the
+"src/legacy.py": '''"""Historical code kept for reference
 insecure call is fully commented out — dead text, not live code)."""
 
 def modern_check(token, expected):
@@ -875,7 +865,7 @@ def _build_negative_controls(dir_: str) -> None:
     for name, content in _NEG_FILES.items():
         _write(dir_, name, content)
     _write(dir_, "README.md",
-           "# clean-svc\nNo seeded defects. Several intentionally "
+           "# clean-svc\n "
            "suspicious-looking but correct patterns (eval fixture).\n")
     _commit(dir_, "feat: clean service")
 

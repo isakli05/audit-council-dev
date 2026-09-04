@@ -146,10 +146,19 @@ def _unregister_active_run(run_id: str) -> None:
 
 def _env_gate_errors(run_dir: str) -> list[str]:
     """A0.2 consistency gate: empty list = environment consistent. A v1-era
-    run without a binding file is ungated (migration path)."""
+    run (no env_binding_digest in state) is ungated (migration path). A v2
+    run whose binding file is MISSING fails closed (H.4 review F6: binding
+    deletion must not fail the gate open)."""
     path = os.path.join(run_dir, ENV_BINDING_NAME)
+    try:
+        state = state_store.load_state(run_dir)
+    except StateError as exc:
+        return [f"INVALID_AUDIT_ENVIRONMENT:BINDING_UNREADABLE: {exc}"]
     if not os.path.isfile(path):
-        return []
+        if state.get("env_binding_digest"):
+            return ["INVALID_AUDIT_ENVIRONMENT:BINDING_UNREADABLE: v2 run "
+                    "is missing its frozen environment binding file"]
+        return []  # v1-era run without a binding: gate inert
     try:
         binding = load_json(path)
     except (json.JSONDecodeError, OSError) as exc:
@@ -453,8 +462,36 @@ def cmd_init_run(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 # freeze-contract
 # ---------------------------------------------------------------------------
+def _range_order_errors(doc) -> list[str]:
+    """Gate-level canonical-ordering check (H.4 review F5): reversed
+    line_ranges (start > end) are INVALID everywhere; the schema keyword
+    subset cannot express end >= start, so the gate enforces it."""
+    errors: list[str] = []
+
+    def walk(node, path):
+        if isinstance(node, dict):
+            ranges = node.get("line_ranges")
+            if isinstance(ranges, list):
+                for i, r in enumerate(ranges):
+                    if isinstance(r, dict) \
+                            and isinstance(r.get("start"), int) \
+                            and isinstance(r.get("end"), int) \
+                            and r["start"] > r["end"]:
+                        errors.append(
+                            f"{path}line_ranges[{i}]: reversed range "
+                            f"({r['start']} > {r['end']})")
+            for k, v in node.items():
+                walk(v, f"{path}{k}.")
+        elif isinstance(node, list):
+            for i, x in enumerate(node):
+                walk(x, f"{path}[{i}].")
+    walk(doc, "")
+    return errors
+
+
 def _validate_artifact_file(path: str, schema_name: str | None,
-                            name: str | None = None) -> list[str]:
+                            name: str | None = None,
+                            run_dir: str | None = None) -> list[str]:
     if schema_name is None:
         try:
             doc = load_json(path)
@@ -471,24 +508,36 @@ def _validate_artifact_file(path: str, schema_name: str | None,
         return errors
     errors = validate_artifact.validate_file(
         path, str(SCHEMAS_DIR / schema_name))
-    if errors:
-        # v1-compat reader (pillar H/G): a FINALIZED historical v1 artifact
-        # (legacy `lines` strings) is validated IN-MEMORY via the
-        # deterministic migration reader — the on-disk bytes are NEVER
-        # rewritten. New v2 artifacts carry no legacy keys and never hit
-        # this path.
+    doc = None
+    try:
+        doc = load_json(path)
+    except (json.JSONDecodeError, OSError):
+        doc = None
+    if errors and doc is not None and run_dir is not None:
+        # v1-compat reader (pillar H/G), scoped to v1-ERA RUNS ONLY (H.4
+        # review F5): only a run predating environment bindings (no
+        # env_binding_digest in state) may present legacy `lines` artifacts;
+        # a v2 run introducing them is rejected. Validation is IN-MEMORY;
+        # on-disk bytes are NEVER rewritten.
         try:
             import evidence_migration
-            doc = load_json(path)
             if evidence_migration.is_v1_artifact(doc):
-                migrated = evidence_migration.migrate_artifact(doc)
-                schema = load_json(str(SCHEMAS_DIR / schema_name))
-                if not validate_artifact.validate(
-                        migrated, schema, base_dir=SCHEMAS_DIR):
-                    return []
+                try:
+                    state = state_store.load_state(run_dir)
+                except StateError:
+                    state = {}
+                if not state.get("env_binding_digest"):
+                    migrated = evidence_migration.migrate_artifact(doc)
+                    schema = load_json(str(SCHEMAS_DIR / schema_name))
+                    if not validate_artifact.validate(
+                            migrated, schema, base_dir=SCHEMAS_DIR):
+                        errors = []
+                        doc = migrated
         except (OSError, json.JSONDecodeError,
                 evidence_migration.MigrationError):
             pass
+    if not errors and doc is not None:
+        errors = _range_order_errors(doc)
     return errors
 
 
@@ -514,7 +563,8 @@ def cmd_freeze_contract(args: argparse.Namespace) -> int:
     if not os.path.isfile(contract):
         _fail(f"contract file not found: {contract}")
         return EXIT_FAIL
-    errors = _validate_artifact_file(contract, "audit-contract.schema.json")
+    errors = _validate_artifact_file(contract, "audit-contract.schema.json",
+                                    run_dir=run_dir)
     if not errors:
         errors = _fingerprint_mismatches(
             run_dir, state_store.CONTRACT_NAME, load_json(contract))
@@ -701,7 +751,8 @@ def cmd_advance(args: argparse.Namespace) -> int:
         _fail(f"phase {target} expects artifact {expected!r}, got {name!r}")
         return EXIT_FAIL
 
-    errors = _validate_artifact_file(artifact, schema_name, name)
+    errors = _validate_artifact_file(artifact, schema_name, name,
+                                     run_dir=run_dir)
     if not errors and name == "40-disagreement-ledger.json":
         errors = validate_artifact.check_ledger_invariants(load_json(artifact))
     if not errors and name == "90-final-findings.json":
@@ -913,13 +964,18 @@ def cmd_resume_check(args: argparse.Namespace) -> int:
                "completeness_state": "STALE_REPOSITORY"})
         return EXIT_STALE
 
-    # 4. completed artifacts exist + validate
+    # 4. completed artifacts exist + validate (H.4 review F3: phases with an
+    # explicit recorded phase_skip are legitimately artifact-less)
     problems: list[str] = []
     cur = state_store.PHASE_INDEX[state["phase"]]
+    skipped_phases = {s.get("skipped_phase")
+                      for s in state.get("phase_skips", [])}
     for phase in state_store.PHASE_CHAIN[1:cur + 1]:
         if state.get("adjudication_skipped") and phase == \
                 state_store.ADJUDICATION_PHASE:
             continue
+        if phase in skipped_phases:
+            continue  # explicitly skipped with a recorded reason
         name = _artifact_for_phase(phase)
         if name is None:  # PREFLIGHT_COMPLETE has no artifact
             continue
@@ -928,7 +984,7 @@ def cmd_resume_check(args: argparse.Namespace) -> int:
             problems.append(f"{phase}: missing artifact {name}")
             continue
         errors = _validate_artifact_file(path, ARTIFACT_SCHEMAS.get(name),
-                                          name)
+                                          name, run_dir=run_dir)
         if not errors:
             # semantic repository-identity check on completed artifacts
             try:
@@ -939,30 +995,24 @@ def cmd_resume_check(args: argparse.Namespace) -> int:
         if errors:
             problems.append(f"{phase}: {name} invalid: {errors}")
 
-    # earliest incomplete phase: the current phase's artifact, if present and
-    # valid, completes it (advance idempotently); else it is the resume point.
-    # The environment gate applies here too: no auto-advance of an inference
-    # phase while the environment is inconsistent.
+    # earliest incomplete phase: if the CURRENT phase's artifact is present
+    # and valid, that phase is effectively satisfied and the resume point is
+    # the NEXT phase. (H.4 review F8: the old block attempted a same-phase
+    # transition — always refused by the forward-only machine — and its
+    # attempt bump leaked; no transition side effects happen here.)
     earliest = state["phase"]
-    if not problems and earliest != "COMPLETE" \
-            and not _env_gate_errors(run_dir):
+    if not problems and earliest != "COMPLETE":
         name = _artifact_for_phase(earliest)
         if name:
             path = os.path.join(run_dir, name)
             if os.path.isfile(path) and not (
                     _validate_artifact_file(path, ARTIFACT_SCHEMAS.get(name),
-                                            name)
+                                            name, run_dir=run_dir)
                     or _fingerprint_mismatches(run_dir, name,
                                                load_json(path))):
-                try:
-                    state_store.bump_phase_attempt(run_dir, earliest)
-                    state_store.apply_transition(run_dir, earliest)
-                    state = state_store.load_state(run_dir)
-                    nxt = state_store.PHASE_INDEX[state["phase"]] + 1
-                    if nxt < len(state_store.PHASE_CHAIN):
-                        earliest = state_store.PHASE_CHAIN[nxt]
-                except StateError:
-                    pass
+                nxt = state_store.PHASE_INDEX[earliest] + 1
+                if nxt < len(state_store.PHASE_CHAIN):
+                    earliest = state_store.PHASE_CHAIN[nxt]
 
     _emit({
         "ok": not problems,

@@ -36,6 +36,23 @@ _ENV_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}"
                      r"|\$([A-Za-z_][A-Za-z0-9_]*)")
 # args whose following value is always treated as a path
 _PATH_ARG_FLAGS = {"-C", "--git-dir", "--work-tree", "--exec-path"}
+# H.4 review F1: joined flag forms (-C<path>, --git-dir=<path>) smuggle
+# paths past exact-token flag matching
+_JOINED_FLAG_RE = re.compile(
+    r"^(?:-C(/.+)|--(?:git-dir|work-tree|exec-path|namespace)=(.+))$")
+# absolute / ~ / dotdot path SUBSTRINGS inside any single shell word
+# (quoted payloads like "cat /etc/passwd" are one token to shlex)
+_PATH_SUBSTRING_RE = re.compile(
+    r"(/(?:[^/\s\"'\\]+/)*[^\s\"'\\]*)"
+    r"|(~/[^\s\"'\\]+)"
+    r"|((?:\.\./)+[^\s\"'\\]*)")
+# interpreters/wrappers whose argument is ITSELF a command or that merely
+# prefix another command — recursed, never trusted as inert arguments
+_INTERPRETERS = {"bash", "sh", "zsh", "dash", "ksh", "ash",
+                 "python", "python3", "python3.14", "node", "perl", "ruby",
+                 "php", "lua"}
+_WRAPPERS = {"env", "nohup", "stdbuf", "timeout", "nice", "exec",
+             "command", "xargs", "sudo"}
 
 
 # ---------------------------------------------------------------------------
@@ -84,12 +101,19 @@ def _looks_like_path(candidate: str) -> bool:
         return True
     if "/" in candidate:
         return True
+    if ".." in candidate:
+        # over-triggers on prose like "v1..v2"; harmless — classification,
+        # not shape, decides the verdict
+        return True
     return candidate in (".", "..")
 
 
 def _token_candidates(token: str) -> list[str]:
     """Path-bearing substrings of a shell word: the bare word, the value
-    side of KEY=VALUE, and redirection targets (> f, 2>> f, < f, ...)."""
+    side of KEY=VALUE, redirection targets (> f, 2>> f, < f, ...), joined
+    flag values (-C<path>, --git-dir=<path>), and — critical — every
+    absolute/~/.. PATH SUBSTRING inside the word (a quoted payload like
+    "cat /etc/passwd" is ONE token to shlex; H.4 review F1)."""
     candidates: list[str] = []
     body = token
     match = _REDIRECTION_RE.match(body)
@@ -99,7 +123,16 @@ def _token_candidates(token: str) -> list[str]:
         _, _, value = body.partition("=")
         if value:
             candidates.append(value)
+    joined = _JOINED_FLAG_RE.match(body)
+    if joined:
+        candidates.append(joined.group(1) or joined.group(2))
     candidates.append(body)
+    if "$" not in token:
+        # substring extraction is meaningless pre-expansion: $VAR-bearing
+        # tokens are classified whole (env expansion happens there); a `$`
+        # token that expands outside is still denied by whole-token check
+        candidates.extend(m.group(0) for m in
+                          _PATH_SUBSTRING_RE.finditer(token))
     return [c for c in candidates if c]
 
 
@@ -413,6 +446,24 @@ def _scan_segment(segment: str, cur_cwd: str, prev_cwd: str,
                         allowed_roots)
 
     reasons: list[str] = []
+    # H.4 review F1: interpreter payloads are COMMANDS, not inert arguments —
+    # `bash -c 'cat /etc/passwd'` must scan the payload as a command. Same
+    # for eval; wrappers (env/nohup/xargs/...) prefix another command, which
+    # the normal token scan also covers via substring extraction.
+    if tokens[0] in _INTERPRETERS or tokens[0] == "eval":
+        payload = None
+        for i, tok in enumerate(tokens[1:], start=1):
+            if tokens[0] == "eval":
+                payload = " ".join(tokens[i:])
+                break
+            if tok in ("-c", "-sc") and i + 1 < len(tokens):
+                payload = tokens[i + 1]
+                break
+        if payload:
+            sub_reasons, _, _ = _scan_segment(
+                payload, cur_cwd, prev_cwd, frozen_root, allowed_roots)
+            reasons.extend(sub_reasons)
+
     for idx, token in enumerate(tokens):
         forced = idx > 0 and tokens[idx - 1] in _PATH_ARG_FLAGS
         for candidate in _token_candidates(token):

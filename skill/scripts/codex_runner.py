@@ -227,9 +227,18 @@ def detect_repo_root(run_dir: str) -> str:
 def _env_gate_errors(run_dir: str) -> list:
     """A0.2/A0.6: refuse to LAUNCH codex when the audit environment is
     inconsistent — zero model calls on environment failure. v1-era runs
-    without a binding file are ungated (migration path)."""
+    without a binding are ungated (migration path). A v2 run whose binding
+    file is missing fails CLOSED (H.4 review F6)."""
     path = os.path.join(run_dir, "01-environment-binding.json")
     if not os.path.isfile(path):
+        try:
+            state = load_state(run_dir)
+        except Exception:
+            return ["INVALID_AUDIT_ENVIRONMENT:BINDING_UNREADABLE: "
+                    "run state unreadable"]
+        if state.get("env_binding_digest"):
+            return ["INVALID_AUDIT_ENVIRONMENT:BINDING_UNREADABLE: v2 run "
+                    "is missing its frozen environment binding file"]
         return []
     import env_binding
     try:
@@ -898,11 +907,20 @@ def cmd_cancel(args) -> int:
 def cmd_repair(args) -> int:
     """One-shot schema-repair: resume the SAME codex session with a repair
     instruction. Reuses the SAME budget stage (does not bump stage_counts);
-    allowed at most once per phase."""
+    allowed at most once per phase. H.4 review F4: repair CONSUMES an
+    attempt under the same governor caps and is refused on COMPLETE jobs —
+    it may never become a fourth paid attempt past the cap."""
     job = read_json(args.job)
     run_dir = job["run_dir"]
     phase = job["phase"]
     state = load_state(run_dir)
+
+    if job.get("status") == "COMPLETE":
+        print("error: repair is not permitted on a completed job (the "
+              "stage is already successfully counted)",
+              file=sys.stderr)
+        return 3
+    governor_check(state, phase, run_dir)
 
     for entry in state.get("codex", {}).get("jobs", []):
         if entry.get("phase") == phase and entry.get("repair_used"):

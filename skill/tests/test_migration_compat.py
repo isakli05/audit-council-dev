@@ -70,13 +70,26 @@ class TestV1ArtifactCompat(unittest.TestCase):
         assert proc.returncode == 0, proc.stdout + proc.stderr
         run_dir = [l.strip() for l in proc.stdout.decode().splitlines()
                    if "audit-output/audit-council/" in l][0]
+        # degrade to a v1-ERA run: the in-memory legacy reader is scoped to
+        # runs that predate environment bindings (H.4 review F5) — a v2 run
+        # may never introduce legacy `lines` artifacts
+        head = json.load(open(os.path.join(
+            run_dir, "01-environment-binding.json")))["head_sha"]
+        os.unlink(os.path.join(run_dir, "01-environment-binding.json"))
+        state = state_store.load_state(run_dir)
+        state.pop("env_binding_digest", None)
+        state_store.save_state(run_dir, state)
+        # drop the binding's line from the checksum ledger (simulating a
+        # run created before v2 ever wrote one)
+        cpath = os.path.join(run_dir, "checksums.sha256")
+        lines = [l for l in open(cpath).read().splitlines()
+                 if "01-environment-binding.json" not in l]
+        open(cpath, "w").write("\n".join(lines) + "\n")
         st = state_store.load_state(run_dir)
 
         c = contract()
-        binding = json.load(open(os.path.join(
-            run_dir, "01-environment-binding.json")))
         c["target_repository"] = {
-            "root": self.repo, "head_sha": binding["head_sha"],
+            "root": self.repo, "head_sha": head,
             "fingerprint_sha256": st["repo_fingerprint_sha256"],
             "branch": "main", "dirty": False,
         }
