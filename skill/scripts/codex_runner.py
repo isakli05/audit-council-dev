@@ -251,6 +251,11 @@ def _env_gate_errors(run_dir: str) -> list:
         return ["INVALID_AUDIT_ENVIRONMENT:BINDING_DIGEST_MISMATCH: "
                 "on-disk binding digest does not match the digest pinned "
                 "in state.json at freeze time"]
+    expected_root = os.path.realpath(os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.abspath(run_dir)))))
+    if binding.get("repo_root_realpath") != expected_root:
+        return ["INVALID_AUDIT_ENVIRONMENT:WORKTREE_IDENTITY_CHANGED: run "
+                "directory no longer lives inside the frozen audit root"]
     try:
         env_binding.assert_consistent(binding)
     except env_binding.EnvironmentBindingError as exc:

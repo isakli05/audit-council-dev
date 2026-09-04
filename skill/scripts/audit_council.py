@@ -175,6 +175,15 @@ def _env_gate_errors(run_dir: str) -> list[str]:
         return ["INVALID_AUDIT_ENVIRONMENT:BINDING_DIGEST_MISMATCH: on-disk "
                 "binding digest does not match the digest pinned in "
                 "state.json at freeze time"]
+    # location check: the run dir must live inside the root its binding
+    # froze (a copied/stolen run dir in an alternate same-HEAD worktree
+    # must not verify)
+    expected_root = os.path.realpath(os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.abspath(run_dir)))))
+    if binding.get("repo_root_realpath") != expected_root:
+        return ["INVALID_AUDIT_ENVIRONMENT:WORKTREE_IDENTITY_CHANGED: run "
+                "directory no longer lives inside the frozen audit root "
+                f"({binding.get('repo_root_realpath')!r})"]
     try:
         env_binding.assert_consistent(binding)
     except env_binding.EnvironmentBindingError as exc:
@@ -383,11 +392,21 @@ def cmd_init_run(args: argparse.Namespace) -> int:
             _fail(f"brief {args.brief!r} missing or empty (use --brief-inline "
                   f"to pass brief text on stdin)")
             return EXIT_FAIL
+    return _init_run_core(repo, args.brief, brief_source, inline_content)
 
+
+def _init_run_core(repo: str, brief_arg: str | None, brief_source: str,
+                   inline_content: bytes | None = None,
+                   run_id: str | None = None,
+                   quiet: bool = False) -> int:
     parent = state_store.runs_root(repo)
     os.makedirs(parent, exist_ok=True)
     existing = set(os.listdir(parent)) if os.path.isdir(parent) else set()
-    run_id = state_store.new_run_id(existing)
+    if run_id is None:
+        run_id = state_store.new_run_id(existing)
+    elif run_id in existing:
+        _fail(f"run dir already exists: {os.path.join(parent, run_id)}")
+        return EXIT_FAIL
     run_dir = os.path.join(parent, run_id)
     if os.path.exists(run_dir):  # refuse to overwrite an existing run dir
         _fail(f"run dir already exists: {run_dir}")
@@ -405,7 +424,7 @@ def cmd_init_run(args: argparse.Namespace) -> int:
         atomic_write_bytes(brief, inline_content)
         brief_sha = sha256_file(brief)
     else:
-        brief = os.path.abspath(args.brief)
+        brief = os.path.abspath(brief_arg)
         brief_sha = sha256_file(brief)
 
     # v2 A0.1/A0.6: freeze the environment binding BEFORE any inference can
@@ -469,7 +488,62 @@ def cmd_init_run(args: argparse.Namespace) -> int:
     _register_active_run(run_id, run_dir,
                          pinned_digest=binding["binding_digest"])
 
-    print(run_dir)
+    if not quiet:
+        print(run_dir)
+    return EXIT_OK
+
+
+# ---------------------------------------------------------------------------
+# prepare (v2 A1: user-facing environment preparation)
+# ---------------------------------------------------------------------------
+def cmd_prepare(args: argparse.Namespace) -> int:
+    """One command for isolated audits (operator flow: source repo -> detached
+    worktree -> frozen binding for THAT worktree -> authorized evidence ->
+    validated brief -> inference). Prints the run dir."""
+    import environment_manager as em
+    repo = os.path.abspath(args.repo)
+    if not repo_fingerprint._is_git_worktree(repo):
+        _fail(f"{repo} is not a git worktree")
+        return EXIT_FAIL
+    brief = args.brief
+    inline = bool(getattr(args, "brief_inline", False))
+    if not inline:
+        if not brief or not os.path.isfile(brief) \
+                or os.path.getsize(brief) == 0:
+            _fail(f"brief {brief!r} missing or empty (or use --brief-inline)")
+            return EXIT_FAIL
+    allow = [s.strip() for s in (args.evidence_allow or "").split(",")
+             if s.strip()] or None
+    brief_meta = {
+        "mode": args.mode or "AUTO",
+        "historical": bool(allow) or args.mode == "HISTORICAL",
+        "target_ref": args.ref,
+    }
+    try:
+        mode = em.resolve_mode({}, brief_meta)
+        run_id = state_store.new_run_id(set(os.listdir(em.env_root()))
+                                        if os.path.isdir(em.env_root())
+                                        else set())
+        record = em.prepare(mode, repo, run_id, target_ref=args.ref,
+                            evidence_allowlist=allow)
+    except em.EnvironmentManagerError as exc:
+        _fail(f"environment preparation failed: {exc}")
+        return EXIT_FAIL
+    target_root = record.get("worktree_root") or repo
+    rc = _init_run_core(target_root, brief, "inline" if inline else "file",
+                        sys.stdin.buffer.read() if inline else None,
+                        run_id=run_id, quiet=True)
+    if rc != EXIT_OK:
+        return rc
+    run_dir = os.path.join(state_store.runs_root(target_root), run_id)
+    # link the environment record into the run (provenance: which worktree,
+    # which source, what was staged)
+    atomic_write_json(os.path.join(run_dir, em.RECORD_NAME), record)
+    state_store.record_checksum(run_dir, os.path.join(run_dir, em.RECORD_NAME))
+    _emit({"ok": True, "run": run_dir, "mode": mode,
+           "worktree_root": record.get("worktree_root"),
+           "source_repository": record.get("source_repo_realpath"),
+           "staged_evidence": len(record.get("staged_evidence") or [])})
     return EXIT_OK
 
 
@@ -1147,8 +1221,29 @@ def cmd_finalize(args: argparse.Namespace) -> int:
         failure_reason=args.failure_reason or None)
     # a closed run no longer constrains the path-guard hook (A0.4)
     _unregister_active_run(state["run_id"])
+    # v2 A1/A2: an isolated run archives its artifacts BEFORE the ephemeral
+    # worktree is removed (git worktree remove only). On archive failure the
+    # worktree is KEPT (nothing is lost); the operator is told.
+    cleanup = {"archived": False, "worktree_removed": False}
+    record_path = os.path.join(run_dir, "environment-record.json")
+    worktree_root = None
+    if os.path.isfile(record_path):
+        try:
+            import environment_manager as em
+            record = load_json(record_path)
+            worktree_root = record.get("worktree_root")
+            if worktree_root:
+                em.archive_run(run_dir, worktree_root)
+                cleanup["archived"] = True
+                em.remove_worktree(worktree_root)
+                cleanup["worktree_removed"] = True
+                cleanup["archive_root"] = record.get("archive_root")
+        except Exception as exc:  # noqa: BLE001 — report, never destroy
+            cleanup["error"] = (f"worktree KEPT (artifacts preserved): "
+                                f"{exc}")
     _emit({"ok": True, "phase": "COMPLETE",
-           "completeness_state": args.completeness})
+           "completeness_state": args.completeness,
+           "environment_cleanup": cleanup})
     return EXIT_OK
 
 
@@ -1328,6 +1423,25 @@ def build_parser() -> argparse.ArgumentParser:
                    help="read the audit brief text from stdin and "
                         "materialize it as the run-owned immutable copy")
     p.set_defaults(func=cmd_init_run)
+
+    p = sub.add_parser(
+        "prepare",
+        help="prepare an isolated audit environment and create the run in "
+             "one step (RELEASE/HISTORICAL: detached worktree at --ref, "
+             "frozen binding, authorized evidence staging)")
+    p.add_argument("--repo", required=True,
+                   help="SOURCE repository (its live tree is never touched)")
+    p.add_argument("--brief", required=False)
+    p.add_argument("--brief-inline", action="store_true")
+    p.add_argument("--mode", default="AUTO",
+                   choices=["AUTO", "CURRENT", "RELEASE", "HISTORICAL"])
+    p.add_argument("--ref", default=None,
+                   help="exact commit/HEAD to audit (detached worktree)")
+    p.add_argument("--evidence-allow", default=None,
+                   metavar="PATH[,PATH...]",
+                   help="HISTORICAL: repo-relative evidence files to stage "
+                        "(deny-listed paths are always refused)")
+    p.set_defaults(func=cmd_prepare)
 
     p = sub.add_parser("freeze-contract")
     p.add_argument("--run", required=True)
