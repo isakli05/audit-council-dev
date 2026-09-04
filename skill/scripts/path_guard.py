@@ -654,11 +654,20 @@ def check_tool_call(tool: str, tool_input: dict[str, Any],
         # absent path defaults to the session cwd (in-root); when present
         # it must be confined like any other referenced path
         path = tool_input.get("path")
-        if path is None:
-            return (True, None)
-        if not isinstance(path, str) or not path:
-            return (False, "PATH_ESCAPE_ATTEMPT")
-        reason = _classify_path(path, os.getcwd(), frozen, allowed)
+        reason = None
+        if path is not None:
+            if not isinstance(path, str) or not path:
+                return (False, "PATH_ESCAPE_ATTEMPT")
+            reason = _classify_path(path, os.getcwd(), frozen, allowed)
+        # R5 NEW-4: Glob patterns can carry their own path prefix
+        # ("/etc/*", "../*.py") — classify the literal leading portion
+        if tool == "Glob" and reason is None:
+            pattern = tool_input.get("pattern")
+            if isinstance(pattern, str) and pattern:
+                prefix = re.split(r"[*?\[{]", pattern, 1)[0] or pattern
+                if _looks_like_path(prefix):
+                    reason = _classify_path(prefix, os.getcwd(), frozen,
+                                            allowed)
         return (True, None) if reason is None else (False, reason)
 
     if tool == "Bash":

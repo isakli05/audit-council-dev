@@ -590,3 +590,89 @@ class TestRound4Hardening(unittest.TestCase):
             self.assertIn("failing closed", reason)
         finally:
             path_guard_hook._GUARD_IMPORT_ERROR = saved
+
+
+class TestRound5Hardening(unittest.TestCase):
+    """R5 findings: N3 (evidence symlink escape), N1 (codex-bin scratch
+    bind), N2 (run-dir rw-bind containment), N4 (Glob pattern)."""
+
+    def setUp(self):
+        self.base = tempfile.mkdtemp(prefix="r5-", dir=str(FIXTURES))
+        self.root = path_guard.canonicalize(os.path.join(self.base, "root"))
+        os.makedirs(os.path.join(self.root, "src"))
+        self.outside = path_guard.canonicalize(
+            os.path.join(self.base, "outside"))
+        os.makedirs(self.outside)
+
+    def tearDown(self):
+        shutil.rmtree(self.base, ignore_errors=True)
+
+    def test_n3_evidence_symlink_escape_refused(self):
+        import environment_manager as em
+        with open(os.path.join(self.outside, "priv.txt"), "w") as fh:
+            fh.write("HOST-SECRET\n")
+        # the untrusted audited tree plants a symlink outward
+        os.symlink(os.path.join(self.outside, "priv.txt"),
+                   os.path.join(self.root, "innocent.md"))
+        os.makedirs(os.path.join(self.root, ".git"), exist_ok=True)
+        os.symlink(os.path.join(self.root, ".git", "config"),
+                   os.path.join(self.root, "gitlink.md"))
+        os.environ["AUDIT_COUNCIL_ENV_ROOT"] = os.path.join(
+            self.base, "envroot")
+        try:
+            with self.assertRaises(em.EnvironmentManagerError):
+                em.prepare("HISTORICAL", self.root,
+                           "20260904T000000Z-abc123",
+                           evidence_allowlist=["innocent.md"])
+            with self.assertRaises(em.EnvironmentManagerError):
+                em.prepare("HISTORICAL", self.root,
+                           "20260904T000000Z-abc124",
+                           evidence_allowlist=["gitlink.md"])
+        finally:
+            os.environ.pop("AUDIT_COUNCIL_ENV_ROOT", None)
+
+    def test_n1_scratch_codex_bin_not_bound(self):
+        scratch = os.path.join(self.base, "scratch-bin")
+        os.makedirs(scratch)
+        with open(os.path.join(scratch, "SECRET"), "w") as fh:
+            fh.write("x")
+        import codex_sandbox
+        binpath = os.path.join(scratch, "codex")
+        with open(binpath, "w") as fh:
+            fh.write("#!/usr/bin/env python3\n")
+        roots = codex_sandbox._toolchain_roots(binpath)
+        self.assertNotIn(
+            os.path.realpath(scratch),
+            [os.path.realpath(r) for r in roots],
+            "R5-N1: scratch --codex-bin dir was bound")
+        argv = codex_sandbox.build_sandbox_argv(
+            ["/usr/bin/cat", os.path.join(scratch, "SECRET")],
+            self.root, os.path.join(self.root, "run"), [])
+        # the sibling must be UNREADABLE inside the sandbox
+        proc = __import__("subprocess").run(argv, capture_output=True)
+        self.assertNotEqual(proc.returncode, 0,
+                            "R5-N1: sibling of --codex-bin readable")
+
+    def test_n2_run_dir_outside_repo_refuses_to_wrap(self):
+        import codex_sandbox
+        with self.assertRaises(RuntimeError):
+            codex_sandbox.wrap_codex_argv(
+                ["codex", "exec"], self.root, self.outside, [])
+
+    def test_n4_glob_pattern_path_checked(self):
+        ok, reason = path_guard.check_tool_call(
+            "Glob", {"pattern": "/etc/*"}, self.root, [])
+        self.assertFalse(ok, "R5-N4: Glob /etc/* allowed")
+        # relative patterns classify against the session cwd (as in the
+        # hook); run from INSIDE the frozen root
+        prev = os.getcwd()
+        os.chdir(self.root)
+        try:
+            ok, reason = path_guard.check_tool_call(
+                "Glob", {"pattern": "src/**/*.py"}, self.root, [])
+            self.assertTrue(ok, reason)
+        finally:
+            os.chdir(prev)
+        ok, reason = path_guard.check_tool_call(
+            "Glob", {"pattern": "../../*.py"}, self.root, [])
+        self.assertFalse(ok)

@@ -19,7 +19,7 @@ OS-ENFORCED-BLOCKED:
   net:  deliberately NOT unshared (subscription API must work)
 
 Opt-out: AC_CODEX_BWRAP=0 (or bwrap absent) → confinement degrades to the
-runner policy/detection posture, recorded by `status()["active"]`.
+runner policy/detection posture, recorded per job as sandbox.active=false.
 """
 from __future__ import annotations
 
@@ -36,9 +36,13 @@ def bwrap_available() -> str | None:
 
 
 def _toolchain_roots(codex_bin: str) -> list[str]:
-    """Bind-mount roots that make `codex` (often an nvm/node script)
-    executable: the binary's dir, its realpath dir, and the enclosing
-    version-style root (…/versions/<v>/…) when present."""
+    """DIRECTORY bind roots for the REAL codex toolchain only (resolved
+    via `which codex`): its bin dir, realpath dir, and an enclosing
+    version-style root (…/versions/<v>/…) when present.
+
+    R5 NEW-1: a caller-supplied --codex-bin NEVER contributes a DIRECTORY
+    bind (its siblings would become readable); a non-standard binary is
+    bound as a single FILE by _tool_file instead."""
     roots: list[str] = []
     seen: set[str] = set()
 
@@ -47,20 +51,33 @@ def _toolchain_roots(codex_bin: str) -> list[str]:
             seen.add(p)
             roots.append(p)
 
-    bin_path = shutil.which(codex_bin) or codex_bin
-    add(os.path.dirname(os.path.abspath(bin_path)))
-    try:
-        real = os.path.realpath(bin_path)
-        add(os.path.dirname(real))
-        # walk up from the real path; bind the …/versions/<v> root when the
-        # layout matches (nvm-style), which carries node + its shared libs
-        parts = Path(real).resolve().parts
-        for i, part in enumerate(parts):
-            if part == "versions" and i + 2 < len(parts):
-                add(os.path.join(*parts[:i + 2]))
-    except OSError:
-        pass
+    real = shutil.which("codex")
+    if real:
+        add(os.path.dirname(os.path.abspath(real)))
+        try:
+            rp = os.path.realpath(real)
+            add(os.path.dirname(rp))
+            from pathlib import Path
+            parts = Path(rp).resolve().parts
+            for i, part in enumerate(parts):
+                if part == "versions" and i + 2 < len(parts):
+                    add(os.path.join(*parts[:i + 2]))
+        except OSError:
+            pass
     return roots
+
+
+def _tool_file(codex_bin: str) -> str | None:
+    """A non-standard --codex-bin is bound as a single FILE (read+exec of
+    that file only — never its directory or siblings)."""
+    try:
+        real = os.path.realpath(shutil.which("codex") or "")
+    except OSError:
+        real = ""
+    bin_path = shutil.which(codex_bin) or codex_bin
+    if os.path.realpath(bin_path) == real:
+        return None  # the real toolchain (already dir-bound)
+    return bin_path if os.path.isfile(bin_path) else None
 
 
 def build_sandbox_argv(codex_argv: list, repo_root: str, run_dir: str,
@@ -83,6 +100,15 @@ def build_sandbox_argv(codex_argv: list, repo_root: str, run_dir: str,
     tool_dirs = _toolchain_roots(codex_argv[0])
     for root in tool_dirs:
         argv += ["--ro-bind", root, root]
+    covered = ["/usr", "/etc", "/lib", "/lib64", "/lib32", *tool_dirs]
+    tool_file = _tool_file(codex_argv[0])
+    if tool_file:
+        real_tf = os.path.realpath(tool_file)
+        if not any(real_tf == c or real_tf.startswith(c + os.sep)
+                   for c in covered if os.path.isdir(c)):
+            # only bind files the standard/dir binds do not already cover
+            # (mounting onto a symlink destination would fail anyway)
+            argv += ["--ro-bind", tool_file, tool_file]
     argv += ["--tmpfs", "/tmp"]
     argv += ["--ro-bind", repo_root, repo_root]
     # the run dir sits inside the repo (audit-output/...) and must be the
@@ -102,9 +128,19 @@ def build_sandbox_argv(codex_argv: list, repo_root: str, run_dir: str,
 
 def wrap_codex_argv(codex_argv: list, repo_root: str, run_dir: str,
                     allowed_roots: list[str] | None = None) -> tuple:
-    """Decision helper for the runner: returns (argv, active_flag)."""
+    """Decision helper for the runner: returns (argv, active_flag).
+    R5 NEW-2: the run dir must REALLY live under the repo root at wrap
+    time (realpath containment) — a symlinked/moved run dir must not turn
+    the rw bind into an arbitrary write grant."""
     if not bwrap_available():
         return list(codex_argv), False
+    real_run = os.path.realpath(run_dir)
+    real_repo = os.path.realpath(repo_root)
+    if real_run != real_repo and not real_run.startswith(
+            real_repo + os.sep):
+        raise RuntimeError(
+            f"refusing to launch: run dir {real_run} is not under the "
+            f"frozen repo root {real_repo}")
     return build_sandbox_argv(codex_argv, repo_root, run_dir,
                               allowed_roots), True
 

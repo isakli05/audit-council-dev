@@ -25,6 +25,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -312,8 +313,21 @@ def _score(name, truth, final, run_dir) -> dict[str, Any]:
     for m in truth.get("must_not_flag") or []:
         protected.add(m.get("path", ""))
     protected.discard("")
+    # R5 NEW-7: normalize both sides (./ prefixes, repo-relative joins)
+    # so path SPELLING cannot evade the protected-control check
+    repo_root = os.path.abspath(os.path.join(run_dir, "..", "..", ".."))
+
+    def _norm(p):
+        if not isinstance(p, str) or not p:
+            return p
+        expanded = os.path.expanduser(p)
+        if not os.path.isabs(expanded):
+            expanded = os.path.join(repo_root, expanded)
+        return os.path.normpath(expanded)
+
+    protected = {_norm(p) for p in protected}
     protected_hits = [f["claim"] for f in primary
-                      if any(e.get("path") in protected
+                      if any(_norm(e.get("path")) in protected
                              for e in f.get("evidence", []))]
     rejected_titles = {r["title"] for r in final.get("rejected_appendix",
                                                      [])}
