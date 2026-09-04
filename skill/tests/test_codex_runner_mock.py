@@ -457,7 +457,8 @@ class TestRender(unittest.TestCase):
             "category": "correctness", "severity": "HIGH", "confidence": "HIGH",
             "claim": "divide() crashes on b=0", "status": "CONFIRMED",
             "evidence": [{"kind": "OBSERVED_FACT", "path": "src/app.py",
-                          "lines": "1-2", "description": "no zero check"}],
+                          "line_ranges": [{"start": 1, "end": 2}],
+                          "description": "no zero check"}],
             "provenance": {"discovered_by": "CODEX"},
         }
         self.independent = {
@@ -521,6 +522,7 @@ class TestRender(unittest.TestCase):
         self.assertIn("CODEX-001", md)
         self.assertIn("src/app.py", md)
         self.assertIn("OBSERVED_FACT", md)
+        self.assertIn("L1-2", md)  # v2 compact line_ranges citation
 
     def test_render_ledger(self):
         md = render_report.render(self.tmp, "40-disagreement-ledger")

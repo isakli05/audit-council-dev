@@ -64,6 +64,21 @@ def _escape(text) -> str:
     return str(text if text is not None else "").replace("|", "\\|").replace("\n", " ")
 
 
+def _format_line_ranges(ranges) -> str:
+    """Compact citation text for typed line_ranges: single line -> 'L184';
+    range -> 'L184-185'; disjoint ranges -> 'L184-185, 240-273' (one L
+    prefix for the whole citation)."""
+    parts = []
+    for r in ranges or []:
+        if not isinstance(r, dict):
+            continue
+        start, end = r.get("start"), r.get("end")
+        if not isinstance(start, int) or not isinstance(end, int):
+            continue
+        parts.append("%d" % start if start == end else "%d-%d" % (start, end))
+    return "L" + ", ".join(parts) if parts else ""
+
+
 def _bullet_ev_item(ev: dict) -> str:
     bits = []
     if ev.get("kind"):
@@ -75,7 +90,10 @@ def _bullet_ev_item(ev: dict) -> str:
         loc.append(ev["symbol"])
     if loc:
         bits.append("`%s`" % ":".join(loc))
-    if ev.get("lines"):
+    if ev.get("line_ranges"):
+        bits.append("lines %s" % _format_line_ranges(ev["line_ranges"]))
+    elif ev.get("lines"):
+        # legacy v1 artifacts (read-only historical runs) still render
         bits.append("lines %s" % ev["lines"])
     for ref in ("requirement_ref", "test_ref", "command_ref"):
         if ev.get(ref):

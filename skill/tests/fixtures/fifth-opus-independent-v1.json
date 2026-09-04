@@ -1,0 +1,410 @@
+{
+  "model": "claude-opus-5",
+  "repository_fingerprint_sha256": "bf5e422e504f8e564b241d7006129481db8821ea70f585b1dd6b9c563ffda2ee",
+  "audit_summary": "Independent fifth-audit pass over the Trust Kernel Closure at f8c2b2c (branch fix/legacy-renewal-v1-trust-kernel-closure, base 0a5cee7, 21 commits — all three brief-declared values independently verified through the shared object database; the audited worktree is detached-HEAD at the same commit). Baseline integrity, coverage integrity, package/distribution content and the CI/publish workflows were checked; all mandatory local gates were re-run fresh at final HEAD after a frozen-lockfile install: build 0, lint 0, test 0 (172 files / 2437 tests, 0 skipped), test:coverage 0 (statements 92.99, branches 89, functions 96.29, lines 92.99 against thresholds 91/89/96/91, unchanged in the 21 commits, no istanbul/c8/v8 ignore directives anywhere in production source, only legitimate root/availability conditional skips), packed-install smoke PASS (pack, install, lco init, --help/--version, doctor, lco-mcp JSON-RPC handshake, offline browser clarification workspace, renew offline surface). Each of the six closure contracts was reconstructed from source rather than from the remediation reports, then attacked with fresh probes that are not replays of remediation-authored tests. Contracts 2 (ContextBundle/Evidence Identity), 3 (Immutable ResolvedPaidOperation), 4 (Structural Artifact Coherence), 5 (Zero Unmediated Trust Consumers) and 6 (Canonical Ownership and Dependency Direction) held under every falsification attempt I could construct: T3-1 containment and all range escapes refused; foreign, spliced, re-identified and post-seal-edited context record sets refused by bundle-digest recomputation; ordering, multiplicity, project, snapshot and structural epoch all participate in bundle identity; redaction verified text-idempotent over an adversarial marker-shaped corpus, so the sealed slice hash equals the bytes the prompt actually renders; post-resolution mutation of every caller-owned route object (nested extraBody arrays, provider routing, budget) left the serialized wire request and the consent digest unchanged, the wire byte cap refused before transport with zero calls, and the ledger is constructor-owned with no API to supply an external one; mixed A/B manifest/graph pairs, binding replay, hand-edited bindings, unrecorded graph sources, empty and missing manifests, and same-source-set-different-semantics all refused; trust/* has zero upward imports into cli/mcp/browser-client/server and trust/state.ts is in no import cycle under an independently written Tarjan analysis of all 146 production modules; the six canonical digest domains are mutually distinct and version-separated. ONE release-blocking defect was found, in Contract 1 (Transaction Atomicity and Recovery), and it is a defect in recovery rather than in commit: recoverTxJournal never compares the journal's base_revision against the current on-disk revision, so a journal that survives a crash in the window between the (successful, durable) revision write and its own unlink is reverse-applied by the next trusted read. A fully committed revision R+1 is then silently rolled back to R, its stores reverted to pre-commit bytes, readRevision returns success, and loadActiveState renders the result as healthy. I reproduced this end-to-end against the real kernel using the kernel's own journal, with a committed human strategy decision as the payload: strategy.json was written and the revision advanced to 2, and after the next read the revision was 1, strategy.json was gone, and the store reported store_missing — ordinary 'not yet decided' state rather than any error. This is silent loss of committed trusted state and human authority reachable by an ordinary process death, and it is the precise fault-matrix cell ('before journal cleanup') the audit brief enumerates. The same missing check makes any older journal reintroduced onto disk a replayable rollback authority. Five further non-blocking findings are recorded: a silent drop of operator-configured route headers on renewal paid routes, a text-insensitive dedup key in sealContextBundle that is unreachable from the production caller, two canonical-ownership claim inaccuracies (raw createHash for trust-bearing structural digests, and one digest domain+version reused across two different payload schemas), and an import-cycle observation outside the trust ownership domain. No evidence contradicted the remediation's consumer-bypass closure: the former eight bypass classes are closed in current source, every renewal filesystem write and paid transport construction routes through the kernel, and I found zero unmediated trust-bearing consumers.",
+  "findings": [
+    {
+      "id": "OPUS-001",
+      "origin": "OPUS-001",
+      "title": "Post-commit journal recovery silently rolls back a fully committed revision and its stores",
+      "category": "transaction-atomicity-recovery",
+      "severity": "HIGH",
+      "confidence": "HIGH",
+      "status": "PROVISIONAL",
+      "claim": "recoverTxJournal treats the mere presence of a transaction journal as proof that its committer died MID-commit, and never verifies that the journal's base_revision still matches the current on-disk revision. A journal also survives a crash AFTER a fully successful commit, in the window between the durable revision write and removeJournal's unlink. On the next trusted read the kernel integrity-verifies that journal (it is genuine, so it verifies), sees superseded !== true, and reverse-applies it: the committed revision R+1 is rolled back to R and every store in the write set is reverted to its pre-commit bytes. readRevision returns the rolled-back revision with NO error and loadActiveState renders the result as fully healthy, so a trusted reader silently observes the destruction of a completed, durable transaction.",
+      "evidence": [
+        {
+          "kind": "OBSERVED_FACT",
+          "path": "packages/spec-core/src/renew/trust/state.ts",
+          "symbol": "recoverTxJournal",
+          "lines": "864-940",
+          "description": "The recovery routine validates schema_version, entries being an array, base_revision being a number, the domainDigest integrity, and the superseded marker — and then calls rollbackJournal unconditionally. There is no comparison of journal.base_revision against readRevisionUnlocked(projectDir). readRevisionUnlocked already exists in the same module and is used for exactly this comparison inside fenceWriterLock, so the check is available but is not applied on the recovery path."
+        },
+        {
+          "kind": "OBSERVED_FACT",
+          "path": "packages/spec-core/src/renew/trust/state.ts",
+          "symbol": "applyStateMutation",
+          "lines": "506-516",
+          "description": "The commit's final steps are: fenceWriterLock, persistTrustedJson of the new revision (the transaction's durable commit point), performed += 1, then removeJournal. A process death between the revision write and removeJournal leaves a genuine, integrity-valid, non-superseded journal on disk whose base_revision is now exactly one less than the durable on-disk revision. This is the 'before journal cleanup' cell of the audit brief's own partial-commit fault matrix."
+        },
+        {
+          "kind": "OBSERVED_FACT",
+          "command_ref": "node probe4.js — real project via cmdRenewInit; the kernel's own journal is written normally and only its unlink is suppressed (trustFs.authorizedRemoveTree intercepted for the tx-journal.json path) to simulate a crash in exactly that window; then a fresh trusted read is performed",
+          "description": "Observed: commit ok, on-disk revision R+1 = 2, journal present. Next trusted read: readRevision returned ok with value 1 (NOT a refusal), on-disk revision reverted to 1, stores reverted to pre-commit bytes, journal removed, and loadActiveState returned ok with revision 1 and overlay.ok = true / parity.ok = true — i.e. the state renders as HEALTHY at the superseded revision."
+        },
+        {
+          "kind": "OBSERVED_FACT",
+          "command_ref": "node probe5.js section A — the same crash window with a committed human strategy decision as the payload",
+          "description": "Observed: the transaction committed strategy.json (rationale 'HUMAN DECISION THAT MUST NOT VANISH') and advanced the revision to 2. After the next trusted read: revision 1, strategy.json ABSENT, and loadActiveState reported strategy store_missing — which renders as ordinary 'no strategy decided yet' state, not as an error. A committed human decision is destroyed silently."
+        },
+        {
+          "kind": "OBSERVED_FACT",
+          "command_ref": "node probe2.js / probe3.js section A — a journal whose base_revision is older than the current revision, planted on disk",
+          "description": "Independently of any crash, an older journal reintroduced onto disk (backup restore, directory copy, rsync of .lco/) is accepted and reverse-applied by the same code path: revision 1 was rolled back to 0 and the overlay store was reverted to the journal's recorded old bytes, again with readRevision returning success."
+        },
+        {
+          "kind": "REQUIREMENT_CLAIM",
+          "requirement_ref": "Audit brief, CONTRACT 1 sections 1B, 1C, 1D, 1F and 1L; Audit Contract acceptance criteria for Contract 1",
+          "description": "1C requires the journal's expected revision to be 'sufficient and actually verified'. 1D requires an 'old valid journal replayed after later revision' to produce a typed refusal or deterministic safe recovery. 1F requires the invariant to hold when faulting 'before journal cleanup'. 1L forbids 'silent authority/state loss'. The release verdict rules list 'recovery can accept torn state' among the NO-GO examples."
+        }
+      ],
+      "counter_evidence": [
+        {
+          "kind": "OBSERVED_FACT",
+          "path": "packages/spec-core/src/renew/trust/state.ts",
+          "symbol": "recoverTxJournal",
+          "lines": "916-925",
+          "description": "The kernel DOES handle the adjacent case correctly: a journal marked superseded (its committer aborted after a concurrent writer committed) is refused for auto-rollback with a typed recovery_required, precisely because auto-recovery would clobber a newer commit. The defect is that the identical hazard arising from the committer's OWN successful commit is not detected, because nothing sets the superseded marker on the success path — the marker is only written on abort paths."
+        },
+        {
+          "kind": "OBSERVED_FACT",
+          "command_ref": "node probe2.js — journal substitution matrix",
+          "description": "Every other journal-authority case I tried behaves correctly and fails closed: a digest-mismatched journal is refused and retained; a forged superseded flag placed outside the integrity digest is refused; a genuinely superseded journal refuses auto-recovery and is retained; an unparseable journal is refused; recovery is idempotent across three consecutive runs; and the abort-evidence sidecar fail-closes every trusted read until manually removed. The defect is narrowly the missing base_revision-versus-current-revision comparison, not a general weakness of the journal protocol."
+        },
+        {
+          "kind": "INFERENCE",
+          "description": "The vulnerable window is small — one unlink syscall after the revision write — so the per-transaction probability is low. It is nevertheless an ordinary process-death window (SIGKILL, OOM kill, container stop, power loss), it is the exact cell the brief's fault matrix enumerates, and its consequence is silent rather than detected, which is what makes it release-blocking rather than a tolerable rare fault."
+        }
+      ],
+      "requirement_refs": [
+        "Audit brief CONTRACT 1 — 1B required state invariant",
+        "Audit brief CONTRACT 1 — 1C journal authority",
+        "Audit brief CONTRACT 1 — 1D journal substitution/replay variants",
+        "Audit brief CONTRACT 1 — 1F partial commit fault matrix (before journal cleanup)",
+        "Audit brief CONTRACT 1 — 1L fresh concurrency composition (never silent authority/state loss)",
+        "Audit brief CROSS-CONTRACT COMPOSITION G — Transaction + AuthorityGrant"
+      ],
+      "source_refs": [
+        "packages/spec-core/src/renew/trust/state.ts:864-940 (recoverTxJournal)",
+        "packages/spec-core/src/renew/trust/state.ts:506-516 (applyStateMutation commit point and journal removal)",
+        "packages/spec-core/src/renew/trust/state.ts:786-800 (rollbackJournal)",
+        "packages/spec-core/src/renew/trust/state.ts:855-862 (readRevisionUnlocked — the comparison primitive that exists but is not used here)"
+      ],
+      "failure_scenario": "A user runs 'lco renew strategy' (or any analyze/review fold, refresh, or plan freeze). The transaction commits: every store is written and the revision advances from R to R+1, durably. The process is then killed — OOM, container stop, power loss, an operator's kill -9 — in the window after the revision write and before the journal is unlinked. The user restarts and runs any renewal command. The first trusted read finds the journal, verifies its integrity (it is genuine), reverse-applies it, and reports success. The revision is back at R, strategy.json has been deleted, and 'lco renew status' shows the project as healthy with no strategy decision recorded. The user's committed decision is gone with no error, no warning, and no recovery-required state; re-running the operation is the only remedy, and nothing tells the user it is needed.",
+      "impact": "Silent loss of committed trusted state and of human authority, reachable by ordinary process death in normal supported operation. Because the resulting state is internally complete at the older revision, no downstream guard detects it: loadActiveState reports healthy, status renders truthfully-but-wrongly, and a strict-policy writer still holding the read view at revision R is now accepted — reopening the acceptance shape that Contract 1 exists to prevent. The same missing check turns any older journal that reappears on disk into a replayable authority that reverts trusted state.",
+      "root_cause": "recoverTxJournal encodes the assumption 'a journal on disk implies an unfinished commit'. That assumption is false for the interval between the revision write and the journal unlink, during which the commit has already succeeded. The journal records base_revision, and the current revision is cheaply readable via the module's own readRevisionUnlocked, so the completed-transaction case is distinguishable from the interrupted case; the distinction is simply never made. The superseded marker covers the analogous hazard only on abort paths.",
+      "verification_method": "Source reconstruction of the full transaction state machine from packages/spec-core/src/renew/trust/state.ts without reference to the remediation reports, followed by runtime reproduction against the real compiled kernel on a real project created by cmdRenewInit. The crash was injected by suppressing only the journal unlink (intercepting authorizedRemoveTree for the tx-journal.json path), so the journal under test is the kernel's own, byte-for-byte, and every other code path ran unmodified. Two payloads were used: an overlay replacement (revision rollback observed) and a human strategy decision (visible committed-data loss observed). Classified RUNTIME_VERIFIED_DEFECT.",
+      "residual_uncertainty": "I did not measure the real-world width of the window with a true SIGKILL race, so the empirical probability per transaction is unquantified; the reproduction establishes the semantics, not the frequency. I also did not determine whether an fsync of the containing directory occurs between the revision write and the unlink, which would affect how often the journal genuinely outlives the revision write on a given filesystem. Neither uncertainty affects the defect's existence or its silence.",
+      "provenance": { "discovered_by": "OPUS" }
+    },
+    {
+      "id": "OPUS-002",
+      "origin": "OPUS-002",
+      "title": "Renewal paid routes silently discard operator-configured request headers and provider identity",
+      "category": "paid-operation-configuration-fidelity",
+      "severity": "MEDIUM",
+      "confidence": "HIGH",
+      "status": "PROVISIONAL",
+      "claim": "routeFromConfig copies only gateway, baseUrl, model, maxTokens and extraBody out of the resolved OpenAiCompatibleConfig, and createPaidOperation then constructs the transport with extraHeaders hard-coded to undefined, costExtractor hard-coded to undefined, and providerKind hard-coded to 'openai-compatible'. A named profile's documented headers field (and, for OpenRouter profiles, the X-OpenRouter-Metadata header and the credits cost extractor the provider factory sets) therefore reach the wire on every NON-renewal path but are silently dropped on every renewal paid path, with no warning and no diagnostic.",
+      "evidence": [
+        {
+          "kind": "OBSERVED_FACT",
+          "path": "packages/spec-core/src/renew/trust/paid.ts",
+          "symbol": "routeFromConfig",
+          "lines": "116-136",
+          "description": "The ResolvedPaidRoute is built from args.config.gateway/baseUrl/model/maxTokens/extraBody only. config.extraHeaders, config.costExtractor and config.providerKind are never read."
+        },
+        {
+          "kind": "OBSERVED_FACT",
+          "path": "packages/spec-core/src/renew/trust/paid.ts",
+          "symbol": "createPaidOperation",
+          "lines": "235-250",
+          "description": "createOpenAiCompatibleLlm is called with providerKind: 'openai-compatible', extraHeaders: undefined and costExtractor: undefined literally, regardless of the profile's actual provider."
+        },
+        {
+          "kind": "OBSERVED_FACT",
+          "path": "packages/spec-core/src/llm/providers.ts",
+          "symbol": "toOpenRouterConfig",
+          "lines": "88-100",
+          "description": "The OpenRouter factory sets extraHeaders to { 'X-OpenRouter-Metadata': 'enabled', ...role.headers } and costExtractor to openRouterCost. toRouteLlmConfig and toGenericConfig likewise pass role.headers through as extraHeaders."
+        },
+        {
+          "kind": "OBSERVED_FACT",
+          "path": "packages/spec-core/src/config/llm-config.ts",
+          "lines": "114-116",
+          "description": "headers is a documented, schema-validated ResolvedRole field ('Extra static request headers (e.g. OpenRouter HTTP-Referer/X-Title)'), so this is a supported configuration surface rather than an internal detail."
+        },
+        {
+          "kind": "OBSERVED_FACT",
+          "command_ref": "node probe5.js section B — a named-profile route carrying extraHeaders { 'X-Route': 'alpha' } driven through createPaidOperation with a recording fetch implementation",
+          "description": "The captured request carried exactly two headers, content-type and authorization. The configured X-Route header was absent from the wire."
+        },
+        {
+          "kind": "OBSERVED_FACT",
+          "path": "packages/spec-core/src/llm/openai-compatible.ts",
+          "symbol": "extractProvenance",
+          "lines": "133-163",
+          "description": "Response provenance records config.providerKind and reads openrouter_metadata, which the gateway only returns when the X-OpenRouter-Metadata header was sent. With the header dropped and providerKind forced, renewal analysis records provider kind 'openai-compatible' and leaves upstreamProvider/fallbackObserved unknown for routes where the non-renewal path would have resolved them."
+        }
+      ],
+      "counter_evidence": [
+        {
+          "kind": "OBSERVED_FACT",
+          "command_ref": "node probe5.js section B",
+          "description": "This is NOT a Contract 3 trust violation. Because the headers are dropped from BOTH the resolved route and the transport, the consent digest still describes exactly what is transmitted: nothing extra reaches the wire, and no configurable header can change provider or gateway semantics after consent. The wire witness, the digest and the byte cap all held under post-resolution caller mutation."
+        },
+        {
+          "kind": "INFERENCE",
+          "description": "The renewal budget envelope is attempts- and wall-based, not cost-based, so dropping costExtractor loses provider-reported cost REPORTING but does not weaken any budget admission decision."
+        },
+        {
+          "kind": "INFERENCE",
+          "description": "For a gateway that merely treats such headers as observability or attribution metadata, the practical consequence is degraded provenance rather than a failed call. The impact is larger only for a deployment whose gateway requires a configured header for admission or tenant routing."
+        }
+      ],
+      "requirement_refs": [
+        "Audit brief CONTRACT 3 — 3E headers / authorization metadata",
+        "Audit brief CONTRACT 3 — 3J named routes"
+      ],
+      "source_refs": [
+        "packages/spec-core/src/renew/trust/paid.ts:116-136",
+        "packages/spec-core/src/renew/trust/paid.ts:235-250",
+        "packages/spec-core/src/llm/providers.ts:88-100",
+        "packages/spec-core/src/llm/providers.ts:178-190"
+      ],
+      "failure_scenario": "An operator configures a renewal-variant profile whose renew_recover role sets headers, for example an OpenRouter HTTP-Referer/X-Title attribution pair or a gateway tenant header required for admission. Non-renewal commands honour it. 'lco renew analyze --llm-profile <name>' silently does not: the paid request is issued without the header. Where the gateway requires it the call fails with a provider-side error that names nothing about the dropped configuration; where it is attribution-only the spend is misattributed and the analysis record stores provider kind 'openai-compatible' with an unknown upstream provider.",
+      "impact": "A documented configuration field is silently ineffective on exactly the paid path where correctness of routing and accurate spend provenance matter most, and the behaviour differs from every other LCO command with no diagnostic. Blast radius is limited to deployments that configure role headers or rely on OpenRouter provenance/cost reporting for renewal analysis; there is a workaround (the legacy env route, or gateway-side configuration).",
+      "root_cause": "ResolvedPaidRoute was designed as the minimal set of effectual fields that must be consent-bound, and header/provenance configuration was not included in that set. Because the transport is then constructed exclusively from the route, excluding a field from the route silently excludes it from the wire as well — the route is both the consent surface and the transport surface, so an omission becomes a functional drop rather than an unbound passthrough.",
+      "verification_method": "Source trace from resolveRoleConfig through routeFromConfig and createPaidOperation to the single serialization point in createOpenAiCompatibleLlm, confirmed at runtime by capturing the actual request headers with an injected fetch implementation. Classified RUNTIME_VERIFIED_DEFECT for the header drop and SOURCE_VERIFIED_DEFECT for the providerKind and costExtractor consequences.",
+      "residual_uncertainty": "Whether any real deployment configures a route-critical (as opposed to attribution-only) header for the renew_recover role is not determinable from the repository; that choice determines whether the practical effect is a failed paid call or only degraded provenance. I did not find documentation stating that renewal ignores role headers, but I did not exhaustively read every README section.",
+      "provenance": { "discovered_by": "OPUS" }
+    },
+    {
+      "id": "OPUS-003",
+      "origin": "OPUS-003",
+      "title": "sealContextBundle deduplicates slices on a key that excludes the rendered text",
+      "category": "evidence-identity",
+      "severity": "LOW",
+      "confidence": "HIGH",
+      "status": "PROVISIONAL",
+      "claim": "sealContextBundle deduplicates supplied slices on the key path|whole_file_hash|start_line|end_line, which does not include the rendered text. Two slices sharing that key but carrying different rendered text collapse into one ContextRecord whose slice_text_hash is computed from the FIRST text; the second rendering is discarded from the bundle identity while still being available to whatever renders the prompt. The kernel's guarantee that bundle identity covers the exact bytes the model saw therefore rests on a caller-side property (never supplying the same window twice with different text) rather than on the seal itself.",
+      "evidence": [
+        {
+          "kind": "OBSERVED_FACT",
+          "path": "packages/spec-core/src/renew/trust/evidence.ts",
+          "symbol": "sealContextBundle",
+          "lines": "140-165",
+          "description": "The dedup key is built as `${s.path}|${s.whole_file_hash}|${s.start_line}|${s.end_line}`; on a repeat the existing record is kept and only a missing node_id is filled in, so s.text of the later slice never contributes to slice_text_hash or to the bundle digest."
+        },
+        {
+          "kind": "OBSERVED_FACT",
+          "command_ref": "node probe1.js section P4 — two slices with an identical window and different rendered text",
+          "description": "Observed: the sealed bundle contained exactly one record, whose slice_text_hash equals sha256 of the FIRST slice's text; the second slice's rendering is absent from the bundle identity."
+        }
+      ],
+      "counter_evidence": [
+        {
+          "kind": "OBSERVED_FACT",
+          "path": "packages/spec-core/src/renew/context/context-provider.ts",
+          "symbol": "GraphContextProvider.contextFor",
+          "lines": "225-280",
+          "description": "The only production caller builds at most one window per source file (a Map keyed by n.source_file, merged by min/max), and cli/commands/renew.ts maps those items one-to-one into slices. A duplicate path+window pair with differing text is therefore not reachable from current production code, which is why this is LOW and not a contract failure."
+        },
+        {
+          "kind": "OBSERVED_FACT",
+          "command_ref": "node probe1.js sections P1 and P4",
+          "description": "Everything the contract actually depends on held: redactSecrets is text-idempotent across an adversarial marker-shaped corpus (so the sealed hash equals the bytes the prompt renders), and ordering, window decomposition, project, snapshot and structural epoch all change the bundle id."
+        }
+      ],
+      "requirement_refs": [
+        "Audit brief CONTRACT 2 — 2C ordering and multiplicity",
+        "Audit brief CONTRACT 2 — 2E exact rendered bytes"
+      ],
+      "source_refs": ["packages/spec-core/src/renew/trust/evidence.ts:140-165"],
+      "failure_scenario": "A future or alternative context provider — for example one that supplies a file window twice under different redaction or truncation policies, or that merges two scopes without re-deriving windows — hands sealContextBundle two slices with the same path and window but different rendered text. The bundle seals as if only the first rendering existed, and a citation resolved against that record certifies bytes the model may not have been shown in that form.",
+      "impact": "No reachable impact in the current build; it is a latent weakening of the 'identity covers exactly the supplied bytes' invariant that would activate silently if the context provider changes. Recording it matters because the invariant is enforced by caller discipline rather than by the seal, and nothing in the kernel signals that dependency.",
+      "root_cause": "The dedup key was chosen to identify a supplied WINDOW rather than a supplied RENDERING, which is correct only while windows and renderings are one-to-one.",
+      "verification_method": "Source inspection of the seal plus a direct runtime probe against the compiled kernel; production reachability assessed by tracing the single caller chain from GraphContextProvider.contextFor into cli/commands/renew.ts. Classified SOURCE_LEVEL_CONCERN.",
+      "provenance": { "discovered_by": "OPUS" }
+    },
+    {
+      "id": "OPUS-004",
+      "origin": "OPUS-004",
+      "title": "Trust-bearing structural digests are built with raw createHash outside the canonical digest layer",
+      "category": "canonical-digest-ownership",
+      "severity": "LOW",
+      "confidence": "HIGH",
+      "status": "PROVISIONAL",
+      "claim": "The manifest identity digest, the graph digest and the source-set digest are trust-bearing structural identities — they are what the StructuralBinding pins, what the snapshot carries, and what the freshness bracket compares — yet all three are computed with a bare createHash('sha256') over an ad-hoc JSON.stringify framing inside trust/structural.ts, rather than through sha256Content or a domain-separated domainDigest. This qualifies the closure's 'ad-hoc trust digests: 0' claim: the count of trust-bearing digests constructed outside the canonical layer is three, not zero.",
+      "evidence": [
+        {
+          "kind": "OBSERVED_FACT",
+          "path": "packages/spec-core/src/renew/trust/structural.ts",
+          "symbol": "parseGraphManifestStrict",
+          "lines": "106",
+          "description": "digest: `sha256:${createHash('sha256').update(JSON.stringify(entries), 'utf8').digest('hex')}` — the manifest identity, framed by an ad-hoc JSON.stringify of a sorted pair array."
+        },
+        {
+          "kind": "OBSERVED_FACT",
+          "path": "packages/spec-core/src/renew/trust/structural.ts",
+          "symbol": "structuralIdentity",
+          "lines": "149",
+          "description": "graphDigest is a bare createHash over the raw graph text."
+        },
+        {
+          "kind": "OBSERVED_FACT",
+          "path": "packages/spec-core/src/renew/trust/structural.ts",
+          "symbol": "sourceSetDigest",
+          "lines": "253",
+          "description": "sourceSetDigest is a bare createHash over JSON.stringify of the sorted source-file set."
+        },
+        {
+          "kind": "REQUIREMENT_CLAIM",
+          "requirement_ref": "Audit brief CONTRACT 6 — 6E ad-hoc crypto: 'no trust-bearing identity uses an undeclared ad-hoc digest outside canonical ownership'",
+          "description": "The brief explicitly asks for every trust-bearing digest to be inventoried and classified, and states the claim is not 'no raw hash anywhere' but 'no trust-bearing identity outside canonical ownership'. These three are trust-bearing by that definition."
+        }
+      ],
+      "counter_evidence": [
+        {
+          "kind": "OBSERVED_FACT",
+          "path": "packages/spec-core/src/renew/trust/structural.ts",
+          "symbol": "structuralBindingCore",
+          "lines": "233-243",
+          "description": "The binding's own integrity digest IS canonical: domainDigest('LCO:STRUCTURE', 1, ...) over the core fields including all three digests. The three raw digests are therefore consumed as named payload fields inside a domain-separated envelope, and are compared field-by-field in fixed positions, never interchanged."
+        },
+        {
+          "kind": "INFERENCE",
+          "description": "These are content digests over distinct serializations (a sorted [path, ast_hash] pair array, raw graph text, and a sorted string array), so cross-acceptance would require an actual preimage coincidence rather than a domain-confusion mistake. I found no site that compares one of them against another, and probe5 confirmed mixed A/B pairs, binding replay, tampered bindings and same-source-set-different-semantics are all refused."
+        }
+      ],
+      "requirement_refs": ["Audit brief CONTRACT 6 — 6D canonical digest domains", "Audit brief CONTRACT 6 — 6E ad-hoc crypto"],
+      "source_refs": [
+        "packages/spec-core/src/renew/trust/structural.ts:106",
+        "packages/spec-core/src/renew/trust/structural.ts:149",
+        "packages/spec-core/src/renew/trust/structural.ts:253",
+        "packages/spec-core/src/renew/trust/canonical.ts:60-86"
+      ],
+      "failure_scenario": "No exploitable failure was found. The concrete risk is maintenance-shaped: because these identities are not domain-tagged or version-tagged, a future change to the manifest entry shape or the source-set serialization silently changes the digest with no schema version to fail closed on, and a new consumer could compare a graph digest against a manifest digest without any type or domain check refusing it.",
+      "impact": "Claim accuracy and defence-in-depth rather than a reachable defect. The 'zero ad-hoc trust digests' statement should be qualified to 'zero ad-hoc trust digests outside the structural content-digest set, which are consumed inside a domain-separated binding'.",
+      "root_cause": "The canonical layer was introduced for authority-style digests (snapshot, authority, consent, context, state-tx, structure envelope), and content digests over external artifacts were left on the pre-existing raw idiom.",
+      "verification_method": "Exhaustive grep of createHash, sha256Content and domainDigest across all production source, followed by inspection of every hit to classify it as trust-bearing or not, plus a runtime check that all six declared domains and two versions produce distinct digests for identical payloads. Classified SOURCE_LEVEL_CONCERN.",
+      "provenance": { "discovered_by": "OPUS" }
+    },
+    {
+      "id": "OPUS-005",
+      "origin": "OPUS-005",
+      "title": "The LCO:PAID_CONTEXT digest domain and version are reused for two different payload schemas",
+      "category": "canonical-digest-ownership",
+      "severity": "LOW",
+      "confidence": "HIGH",
+      "status": "PROVISIONAL",
+      "claim": "domainDigest('LCO:PAID_CONTEXT', 1, ...) is used with two structurally different payloads: the sealed bundle identity, computed over bundleDigestPayload (project, snapshot, structural epoch and the ordered per-record slice facts), and the persisted analysis record's context_digest, computed over the raw ContextBundle object. Domain separation is supposed to guarantee that one domain and version denote one payload schema with one verification site; here a single domain and version denote two.",
+      "evidence": [
+        {
+          "kind": "OBSERVED_FACT",
+          "path": "packages/spec-core/src/renew/trust/evidence.ts",
+          "symbol": "sealContextBundle",
+          "lines": "165",
+          "description": "bundle_id = domainDigest('LCO:PAID_CONTEXT', 1, bundleDigestPayload(...)) — the identity resolveCitation recomputes and enforces."
+        },
+        {
+          "kind": "OBSERVED_FACT",
+          "path": "packages/spec-core/src/renew/recovery/pipeline.ts",
+          "symbol": "runRecoveryAnalysis",
+          "lines": "249",
+          "description": "context_digest: domainDigest('LCO:PAID_CONTEXT', 1, req.bundle) — the same domain and version over the ContextBundle value (items, truncated, warnings), a different schema, persisted into the analysis record."
+        },
+        {
+          "kind": "REQUIREMENT_CLAIM",
+          "requirement_ref": "Audit brief CONTRACT 6 — 6D (per digest: domain, version, canonical schema, verification site) and 6F (domain confusion)",
+          "description": "6D asks for one canonical schema and verification site per domain/version pair; 6F asks whether a digest from one domain can be accepted in another."
+        },
+        {
+          "kind": "OBSERVED_FACT",
+          "path": "packages/spec-core/src/renew/trust/canonical.ts",
+          "lines": "60-66",
+          "description": "The DigestDomain doc states each domain 'defines its own payload schema', which this second use does not satisfy."
+        }
+      ],
+      "counter_evidence": [
+        {
+          "kind": "OBSERVED_FACT",
+          "description": "The two values are never compared with each other. resolveCitation recomputes only contextBundleDigest and compares it to identity.bundle_id; context_digest is an audit-lineage field in the persisted analysis record with no verification site that could accept a bundle_id in its place. A collision would additionally require the two distinct payload shapes to canonicalize identically, which they cannot: one is an object with project_name/snapshot_id/structural/records, the other a ContextBundle with items/truncated/warnings."
+        },
+        {
+          "kind": "OBSERVED_FACT",
+          "command_ref": "node probe1.js section P5",
+          "description": "Cross-domain separation itself is sound: all six domains produce distinct digests for an identical payload, the version participates, and canonical JSON is key-order independent."
+        }
+      ],
+      "requirement_refs": ["Audit brief CONTRACT 6 — 6D canonical digest domains", "Audit brief CONTRACT 6 — 6F domain confusion"],
+      "source_refs": [
+        "packages/spec-core/src/renew/trust/evidence.ts:165",
+        "packagesting/spec-core/src/renew/recovery/pipeline.ts:249"
+      ],
+      "failure_scenario": "No reachable confusion today. The risk materialises if a future verifier is written to 'check the LCO:PAID_CONTEXT digest' without pinning which of the two schemas it means, or if context_digest is ever promoted from an audit-lineage field to an authority-bearing one, at which point the shared domain and version offer no separation between them.",
+      "impact": "Weakens the stated domain-separation invariant as a design guarantee without producing a reachable defect. It also makes the 'every domain is owned by exactly one primitive' claim inaccurate for LCO:PAID_CONTEXT.",
+      "root_cause": "The persisted context_digest was migrated off an ad-hoc sha256(JSON.stringify(...)) framing onto the canonical helper by reusing the nearest-sounding domain rather than by declaring a distinct domain or version for the analysis-record schema.",
+      "verification_method": "Exhaustive grep of domainDigest call sites across production source, inspection of each payload shape and its verification site, and a runtime check of domain and version separation. Classified SOURCE_LEVEL_CONCERN.",
+      "provenance": { "discovered_by": "OPUS" }
+    },
+    {
+      "id": "OPUS-006",
+      "origin": "OPUS-006",
+      "title": "Runtime import cycles exist outside the trust ownership domain; the renewal-side cycle is type-only",
+      "category": "dependency-direction",
+      "severity": "INFO",
+      "confidence": "HIGH",
+      "status": "PROVISIONAL",
+      "claim": "An independently written Tarjan analysis over all 146 production modules finds four strongly connected components. None involves trust/*, and trust/* has zero imports into cli, mcp, browser-client or server. The one component inside the renewal tree, renew/intel/graph-reader with renew/intel/provider, is type-only and erased at compile time. The remaining three (eval/council with llm/openai-compatible, eval/llm/http, eval/budget and eval/runner; eval/constraints with eval/score; mcp/stdio with mcp/server) carry runtime edges but lie in the eval and MCP-transport domains, outside the ownership set the closure contract governs.",
+      "evidence": [
+        {
+          "kind": "OBSERVED_FACT",
+          "command_ref": "node cycles.js src — an independently authored import-graph extractor and Tarjan SCC pass over every non-test .ts file, resolving relative static imports, dynamic import() and require()",
+          "description": "Reported: 146 modules analysed; SCCs = {eval/council, llm/openai-compatible, eval/llm/http, eval/budget, eval/runner}, {renew/intel/graph-reader, renew/intel/provider}, {eval/constraints, eval/score}, {mcp/stdio, mcp/server}; zero trust/* to cli|mcp|browser-client|server edges; no self-imports."
+        },
+        {
+          "kind": "OBSERVED_FACT",
+          "path": "packages/spec-core/src/renew/intel/graph-reader.ts",
+          "lines": "10-12",
+          "description": "The only edge from graph-reader to provider is `import type { GraphEdgeRef, GraphNodeRef }` plus an `export type` re-export — erased by the compiler, so the renewal-side cycle has no runtime existence and creates no initialization-order or ownership ambiguity."
+        },
+        {
+          "kind": "OBSERVED_FACT",
+          "description": "Enumerated trust/* imports: canonical, errors, fs (intra-kernel); renew/core/{project-record,snapshot-record,store-records}; renew/recovery/schemas; renew/intel/graph-reader; storage/{paths,revision}; eval/budget; eval/llm/adapter; llm/openai-compatible; node builtins and zod. The dependency direction is strictly downward."
+        }
+      ],
+      "counter_evidence": [
+        {
+          "kind": "OBSERVED_FACT",
+          "path": "packages/spec-core/src/eval/budget.ts",
+          "lines": "1-3",
+          "description": "eval/budget does carry one genuine value import (HTTP_MAX_ATTEMPTS_PER_COMPLETION and siblings from eval/llm/http), so that component is a real runtime cycle rather than a type artefact. It is nevertheless outside the six contracts' ownership domain, and trust/paid depends on eval/budget one-directionally with no edge back."
+        }
+      ],
+      "requirement_refs": ["Audit brief CONTRACT 6 — 6A dependency graph", "Audit brief CONTRACT 6 — 6B cycle search", "Audit brief CONTRACT 6 — 6C dynamic imports"],
+      "source_refs": ["packages/spec-core/src/renew/intel/graph-reader.ts:10-12", "packages/spec-core/src/eval/budget.ts:1-3"],
+      "impact": "No impact on Contract 6 as defined. Recorded so that the cycle inventory is explicit rather than implied by a single architecture guard that only asserts trust/state.ts is acyclic, and so that the eval-domain runtime cycle is a known, accepted condition rather than an undiscovered one.",
+      "verification_method": "Independent static import-graph construction and SCC detection, deliberately not reusing the repository's own architecture guard, followed by source inspection of each reported cycle to separate type-only from runtime edges. Classified SOURCE_VERIFIED_SAFE for the contract question.",
+      "provenance": { "discovered_by": "OPUS" }
+    }
+  ],
+  "requirement_coverage": [
+    { "requirement": "Baseline and HEAD integrity (branch, HEAD, base, merge-base, commit count, dirty tree, untracked artifacts)", "covered": true, "note": "Branch fix/legacy-renewal-v1-trust-kernel-closure resolves to f8c2b2c; base and merge-base both 0a5cee7 (identical to fix/legacy-renewal-v1-trust-kernel-remediation); commit count exactly 21; git diff --check clean; working tree carries only untracked audit-output directories. The audited worktree is detached-HEAD at the same commit, recorded in the contract's ambiguity register." },
+    { "requirement": "Contract 1 — Transaction Atomicity and Recovery", "covered": true, "note": "FAILED. Protocol independently reconstructed; journal substitution matrix, recovery idempotence, superseded protocol, abort-evidence sidecar, ownership fencing and write-set aliasing all behave correctly, but the crash-before-journal-cleanup cell silently rolls back a committed revision (OPUS-001)." },
+    { "requirement": "Contract 2 — ContextBundle / Evidence Identity", "covered": true, "note": "HELD. Schema reconstructed from source; T3-1 containment and all range escapes refused; foreign, spliced, re-identified and post-seal-edited record sets refused; ordering, multiplicity, window decomposition, project, snapshot and structural epoch all bind; redaction proven text-idempotent so the sealed hash equals the rendered bytes; source authenticity (whole_file_hash) and model-visible rendering (slice_text_hash) are correctly kept as separate identities. One LOW latent concern (OPUS-003)." },
+    { "requirement": "Contract 3 — Immutable ResolvedPaidOperation", "covered": true, "note": "HELD. Deep clone plus deep freeze verified against mutation of nested arrays, routing objects, budget and the route itself; wire witness and consent digest unchanged; ledger constructor-owned with no external-ledger API; wire byte cap refuses before transport with zero calls; CLI and MCP named routes and the legacy env route all construct through createPaidOperation with no buildRoleAdapter reconstruction. One MEDIUM configuration-fidelity defect (OPUS-002)." },
+    { "requirement": "Contract 4 — Structural Artifact Coherence", "covered": true, "note": "HELD. Binding creation gated on strict manifest, strict graph and source-set coherence; mixed A/B pairs, binding replay, hand-edited bindings, graph references to unrecorded sources, empty and missing manifests, and same-source-set-different-graph-semantics all refused; manifest supersets accepted, matching Graphify's subset semantics; requireStructuralIdentity refuses when the binding is absent." },
+    { "requirement": "Contract 5 — Zero Unmediated Trust Consumers", "covered": true, "note": "HELD, 0 unmediated. Every direct filesystem write primitive outside trust/fs.ts and storage/revision.ts lies in non-renewal surfaces (eval, clarify, check, cli init/doctor, schema export); persistTrustedJson and bumpStateRevisionTrusted have no production callers; loadActiveState is the only trusted reader; parseGraphText appears only in graph-reader and trust/structural; all three renewal paid routes construct through createPaidOperation." },
+    { "requirement": "Contract 6 — Canonical Ownership and Dependency Direction", "covered": true, "note": "HELD with two LOW claim qualifications. trust/* has zero upward imports and no trust module is in any SCC; all six digest domains are mutually and version-separated; three trust-bearing structural content digests sit outside the canonical layer (OPUS-004) and one domain/version pair carries two payload schemas (OPUS-005)." },
+    { "requirement": "Fresh mandatory local gates at final HEAD", "covered": true, "note": "build 0, lint 0, test 0 (172 files / 2437 tests / 0 skipped), test:coverage 0 (92.99 / 89 / 96.29 / 92.99 against 91 / 89 / 96 / 91), packed-install smoke PASS including lco-mcp handshake and the offline browser clarification workspace, schema-freshness clean (build left generated/ untouched), git diff --check clean." },
+    { "requirement": "Coverage integrity (thresholds, exclusions, ignore directives, skipped suites)", "covered": true, "note": "vitest.config.ts is byte-identical to the pre-remediation base; exclusions remain **/*.test.ts and the documented build-time schema generator; zero istanbul/c8/v8 ignore directives in production source; the four conditional skips are root-privilege and Graphify-availability guards and the real Graphify integration suite RAN (7 tests). Branch coverage sits exactly on its threshold, leaving no headroom." },
+    { "requirement": "Package and distribution content", "covered": true, "note": "npm pack --dry-run yields 292 entries totalling 570 KB across dist, examples, generated, README, LICENSE and package.json only. No audit-output, coverage, graphify-out, fixtures, test files, journals, bindings, archives or machine-specific paths." },
+    { "requirement": "Graphify version matrix", "covered": true, "note": "Installed 0.9.50. PyPI graphifyy releases within >=0.9.50 <0.10.0 are 0.9.50, 0.9.51, 0.9.52 and 0.9.53; newest compatible is 0.9.53, which is exactly the pin CI uses on its Node 24 leg." },
+    { "requirement": "CI / publish static audit", "covered": true, "note": "ci.yml gates spec-core on a Node 22 / Graphify 0.9.50 and Node 24 / Graphify 0.9.53 matrix, installing Graphify BEFORE tests so the integration suite runs rather than skips, then build, schema-freshness, lint, test:coverage and the packed smoke. Nothing was pushed or tagged. publish.yml was inventoried but not yet read line by line." },
+    { "requirement": "Cross-contract composition A-H", "covered": false, "note": "PARTIAL. Composition D (PaidOperation + ContextBundle) and G (Transaction + AuthorityGrant) were exercised directly — the latter is where OPUS-001's committed-authority loss was demonstrated. Compositions A, B, C, E and F were assessed from source (snapshot-carried structural digests, the post-call freshness bracket requiring the full bound triple, and the strict/additive revalidation policies) but not each driven to runtime. Completing them is the main outstanding item from this pass." },
+    { "requirement": "Test mutation sensitivity per contract", "covered": false, "note": "NOT COMPLETED in this pass beyond one decisive data point: OPUS-001 shows that no existing test covers the crash-after-commit-before-cleanup cell, since the entire 2437-test suite passes while the defect is present. A per-guard 'which test would fail if this returned success' assessment was not performed for the other contracts." },
+    { "requirement": "Prior finding re-verification (S4-H-01..04, S4-M-01/02)", "covered": false, "note": "NOT SEPARATELY COMPLETED. Contract-level evidence bears on each, but the brief asks for an explicit per-finding classification, which this pass did not produce as such." },
+    { "requirement": "Residual risk reassessment R1-R8", "covered": false, "note": "NOT COMPLETED as an explicit classification exercise. R3 (persistent evidence-sidecar write failure) was partially assessed: the sidecar fail-closes every trusted read once written, and its write is bounded-retry, so the residual is confined to a persistent write-selective fault." }
+  ],
+  "limitations": [
+    "This artifact is my independent Phase 1 pass only. It was completed before any Codex output existed and contains no cross-examination.",
+    "Coverage is exactly on its branch threshold (measured 89, threshold 89). The gate genuinely passes, so per the brief this is not a blocker, but there is zero headroom: any future change that removes a covered branch fails CI, and the reported figure is rounded, so I cannot distinguish 89.00 from a marginally higher value from the text reporter alone.",
+    "Cross-contract compositions A, B, C, E and F were reasoned from source rather than driven to runtime; only D and G were exercised dynamically.",
+    "Mutation-sensitivity analysis, the explicit S4 prior-finding classification, and the R1-R8 residual classification are incomplete in this pass and are recorded honestly as uncovered above rather than asserted.",
+    "publish.yml was inventoried but not read in full; no push, tag, publish or dry-run publish was performed, so remote CI and publish execution remain unproven by construction.",
+    "The consumer census was derived by effect class (filesystem writes, trusted state reads and mutations, paid transport construction, structural parsing, digest construction, support and ruling policy) at module granularity rather than by enumerating call sites, so my census unit is coarser than the remediation's 52/60 groupings; the finding that matters — zero unmediated consumers — is unaffected by the counting unit.",
+    "Dependency installation (pnpm install --frozen-lockfile) was required before any gate could run in this worktree; it left the lockfile and every tracked file unchanged, and the write-guard passed after every phase.",
+    "No real paid model call was made by the product under audit; all transport probes used an injected fetch implementation."
+  ]
+}

@@ -146,9 +146,27 @@
                 "symbol": {
                   "type": "string"
                 },
-                "lines": {
-                  "type": "string",
-                  "pattern": "^[0-9]+(-[0-9]+)?$"
+                "line_ranges": {
+                  "type": "array",
+                  "maxItems": 32,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "start",
+                      "end"
+                    ],
+                    "properties": {
+                      "start": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "end": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    }
+                  }
                 },
                 "requirement_ref": {
                   "type": "string"

@@ -49,10 +49,21 @@ class TestWireProjection(unittest.TestCase):
     def test_optional_string_nullable_and_required_on_wire(self):
         wire = wire_of(canon("finding.schema.json"))
         ev = wire["properties"]["evidence"]["items"]
-        self.assertEqual(ev["properties"]["lines"],
-                         {"anyOf": [{"type": "string"}, {"type": "null"}]})
-        self.assertIn("lines", ev["required"])  # strict outputs demand it
+        # v2: typed line_ranges array (minimum/maxItems dropped on the
+        # wire; canonical validation re-imposes them)
+        self.assertEqual(
+            ev["properties"]["line_ranges"],
+            {"anyOf": [
+                {"type": "array",
+                 "items": {"type": "object",
+                           "additionalProperties": False,
+                           "required": ["end", "start"],
+                           "properties": {"start": {"type": "integer"},
+                                          "end": {"type": "integer"}}}},
+                {"type": "null"}]})
+        self.assertIn("line_ranges", ev["required"])  # strict outputs demand it
         self.assertFalse(ev.get("additionalProperties", True) is not False)
+        self.assertNotIn("lines", ev["properties"])  # legacy key gone in v2
 
     def test_required_non_nullable_stays_non_nullable(self):
         wire = wire_of(canon("finding.schema.json"))
@@ -95,7 +106,8 @@ class TestWireProjection(unittest.TestCase):
 class TestWireToCanonical(unittest.TestCase):
 
     def _ev(self, **over):
-        d = {"kind": "OBSERVED_FACT", "path": "a.py", "lines": "1-2",
+        d = {"kind": "OBSERVED_FACT", "path": "a.py",
+             "line_ranges": [{"start": 1, "end": 2}],
              "description": "d"}
         d.update(over)
         return d
@@ -113,20 +125,24 @@ class TestWireToCanonical(unittest.TestCase):
                 "findings": [self._finding(evidence)]}
 
     def test_optional_null_omitted_and_canonical_passes(self):
-        doc = self._audit([self._ev(lines=None)])  # requirement-only evidence
+        doc = self._audit([self._ev(line_ranges=None)])  # requirement-only evidence
         cand, errs = normalize(doc, canon("independent-audit.schema.json"))
         self.assertEqual(errs, [])
-        self.assertNotIn("lines", cand["findings"][0]["evidence"][0])
+        self.assertNotIn("line_ranges", cand["findings"][0]["evidence"][0])
         self.assertEqual(validate(cand, "independent-audit.schema.json"), [])
 
     def test_optional_valid_non_null_value_preserved(self):
-        doc = self._audit([self._ev(lines="40-52")])
+        doc = self._audit([self._ev(line_ranges=[{"start": 40, "end": 52}])])
         cand, errs = normalize(doc, canon("independent-audit.schema.json"))
         self.assertEqual(errs, [])
-        self.assertEqual(cand["findings"][0]["evidence"][0]["lines"], "40-52")
+        self.assertEqual(cand["findings"][0]["evidence"][0]["line_ranges"],
+                         [{"start": 40, "end": 52}])
         self.assertEqual(validate(cand, "independent-audit.schema.json"), [])
 
     def test_empty_string_sentinel_fails_canonical(self):
+        # Benchmark-001 empty sentinel: still invalid in v2 — differently,
+        # the legacy `lines` key itself is rejected (zero ranges are
+        # expressed by omitting line_ranges or emitting null)
         doc = self._audit([self._ev(lines="")])
         cand, errs = normalize(doc, canon("independent-audit.schema.json"))
         self.assertEqual(errs, [])  # normalization is not the judge...
@@ -138,7 +154,7 @@ class TestWireToCanonical(unittest.TestCase):
         cand, errs = normalize(doc, canon("independent-audit.schema.json"))
         self.assertEqual(errs, [])
         errors = validate(cand, "independent-audit.schema.json")
-        self.assertTrue(any("does not match pattern" in e for e in errors),
+        self.assertTrue(any("additional property" in e for e in errors),
                         errors)
 
     def test_required_non_null_receiving_null_fails_closed(self):
@@ -189,7 +205,7 @@ class TestWireToCanonical(unittest.TestCase):
         self.assertEqual(validate(cand, "independent-audit.schema.json"), [])
 
     def test_multiple_nesting_levels(self):
-        doc = self._audit([self._ev(), self._ev(lines=None, symbol=None)])
+        doc = self._audit([self._ev(), self._ev(line_ranges=None, symbol=None)])
         doc["requirement_coverage"] = [{"requirement": "r", "covered": True,
                                         "note": None}]
         doc["limitations"] = None  # optional top-level array
@@ -197,7 +213,7 @@ class TestWireToCanonical(unittest.TestCase):
         self.assertEqual(errs, [])
         self.assertNotIn("limitations", cand)
         self.assertNotIn("note", cand["requirement_coverage"][0])
-        self.assertNotIn("lines", cand["findings"][0]["evidence"][1])
+        self.assertNotIn("line_ranges", cand["findings"][0]["evidence"][1])
         self.assertEqual(validate(cand, "independent-audit.schema.json"), [])
 
     def test_additional_properties_false_still_enforced(self):
@@ -209,7 +225,7 @@ class TestWireToCanonical(unittest.TestCase):
         self.assertTrue(validate(cand, "independent-audit.schema.json"))
 
     def test_no_defaults_invented(self):
-        doc = self._audit([self._ev(lines=None, symbol=None,
+        doc = self._audit([self._ev(line_ranges=None, symbol=None,
                                     requirement_refs=None,
                                     counter_evidence=None)])
         cand, errs = normalize(doc, canon("independent-audit.schema.json"))
@@ -220,7 +236,7 @@ class TestWireToCanonical(unittest.TestCase):
         self.assertNotIn("counter_evidence", f)
         # no fabricated "", [], {}, 0, false anywhere for the omitted keys
         dumped = json.dumps(cand)
-        self.assertNotIn('"lines": ""', dumped)
+        self.assertNotIn('"line_ranges": []', dumped)
 
     def test_wire_null_on_required_non_nullable_not_silently_removed(self):
         doc = self._audit([self._ev()])
@@ -233,20 +249,21 @@ class TestWireToCanonical(unittest.TestCase):
         crossex = {"examiner": "CODEX", "examined": "OPUS", "challenges": [
             {"target_finding_id": "OPUS-001", "verdict": "CONFIRMED",
              "counter_evidence": [{"kind": "REQUIREMENT_CLAIM",
-                                   "path": "spec.md", "lines": None,
+                                   "path": "spec.md", "line_ranges": None,
                                    "description": "requirement"}],
              "reasoning_summary": "r",
              "severity_recalibration": None}]}
         cand, errs = normalize(crossex, canon("cross-examination.schema.json"))
         self.assertEqual(errs, [])
         ch = cand["challenges"][0]
-        self.assertNotIn("lines", ch["counter_evidence"][0])
+        self.assertNotIn("line_ranges", ch["counter_evidence"][0])
         self.assertNotIn("severity_recalibration", ch)  # optional null dropped
         self.assertEqual(validate(cand, "cross-examination.schema.json"), [])
 
     def test_non_null_invalid_value_still_rejected_after_wire_drop(self):
-        # wire schema omits `pattern`; canonical validator re-imposes it
-        doc = self._audit([self._ev(lines="not-a-range")])
+        # wire schema omits `minimum`; canonical validator re-imposes it
+        # (zero start: valid on the strict wire, invalid canonically)
+        doc = self._audit([self._ev(line_ranges=[{"start": 0, "end": 3}])])
         cand, errs = normalize(doc, canon("independent-audit.schema.json"))
         self.assertEqual(errs, [])
         self.assertTrue(validate(cand, "independent-audit.schema.json"))

@@ -18,7 +18,7 @@ import validate_artifact  # noqa: E402
 
 SCHEMAS_DIR = Path(__file__).resolve().parent.parent / "schemas"
 SCHEMA_NAMES = sorted(p.name for p in SCHEMAS_DIR.glob("*.json"))
-assert len(SCHEMA_NAMES) == 8, SCHEMA_NAMES
+assert len(SCHEMA_NAMES) == 9, SCHEMA_NAMES  # v2: + env-binding.schema.json
 
 _KNOWN_TYPES = {"object", "array", "string", "integer", "number",
                 "boolean", "null"}
@@ -83,7 +83,8 @@ def finding(**over):
         "claim": "divide() does not guard against zero",
         "status": "PROVISIONAL",
         "evidence": [
-            {"kind": "OBSERVED_FACT", "path": "src/app.py", "lines": "1-2"}
+            {"kind": "OBSERVED_FACT", "path": "src/app.py",
+             "line_ranges": [{"start": 1, "end": 2}]}
         ],
         "provenance": {"discovered_by": "OPUS", "validated_by": None},
         "late_finding": False,
@@ -219,6 +220,33 @@ def state_doc():
                                  "0" * 64)
 
 
+def env_binding_doc():
+    return {
+        "binding_version": 2,
+        "binding_digest": "0" * 64,
+        "frozen_at": "2026-09-04T00:00:00Z",
+        "repo_root_realpath": "/home/isa/audit-council-dev/repro/tmp/r3-target-repo",
+        "git_toplevel_realpath": "/home/isa/audit-council-dev/repro/tmp/r3-target-repo",
+        "git_dir_realpath": "/home/isa/audit-council-dev/repro/tmp/r3-target-repo/.git",
+        "git_common_dir_realpath": "/home/isa/audit-council-dev/repro/tmp/r3-target-repo/.git",
+        "head_sha": "0" * 40,
+        "detached_head": True,
+        "worktree_identity": "1" * 64,
+        "source_repository_identity": {
+            "common_dir_realpath": "/home/isa/audit-council-dev/repro/tmp/r3-target-repo/.git",
+            "remote_url": None,
+        },
+        "brief_sha256": "2" * 64,
+        "brief_target": {
+            "declared_repository_root": None,
+            "declared_expected_head": None,
+        },
+        "expected_head": "0" * 40,
+        "allowed_disposable_roots": [],
+        "repo_fingerprint_sha256": "3" * 64,
+    }
+
+
 BUILDERS = {
     "finding.schema.json": finding,
     "audit-contract.schema.json": contract,
@@ -226,6 +254,7 @@ BUILDERS = {
     "cross-examination.schema.json": cross_examination,
     "disagreement-ledger.schema.json": ledger,
     "adjudication.schema.json": adjudication,
+    "env-binding.schema.json": env_binding_doc,
     "final-findings.schema.json": final_findings,
     "state.schema.json": state_doc,
 }
@@ -247,8 +276,9 @@ class TestSchemaShape(unittest.TestCase):
         self.assertEqual(SCHEMA_NAMES, [
             "adjudication.schema.json", "audit-contract.schema.json",
             "cross-examination.schema.json", "disagreement-ledger.schema.json",
-            "final-findings.schema.json", "finding.schema.json",
-            "independent-audit.schema.json", "state.schema.json",
+            "env-binding.schema.json", "final-findings.schema.json",
+            "finding.schema.json", "independent-audit.schema.json",
+            "state.schema.json",
         ])
 
 
@@ -286,7 +316,7 @@ class TestRepresentativeInstances(unittest.TestCase):
                            finding(evidence=[{"kind": "GUESS"}]), "enum")
         self.assertInvalid("finding.schema.json",
                            finding(evidence=[{"lines": "line one"}]),
-                           "pattern")
+                           "additional property")  # legacy key gone in v2
         self.assertInvalid("finding.schema.json",
                            {k: v for k, v in finding().items()
                             if k != "claim"}, "missing required property")
