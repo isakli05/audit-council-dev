@@ -43,9 +43,28 @@ tier-2 (budget-gated).
 ## Tier 3 — historical replay: EXECUTED (operator-authorized, this session)
 
 Run from recorded artifacts only (both historical trees READ-ONLY;
-no re-audit; no new Claude/Codex inference). Results are reported in
-the session's final gate report; scorecards persist only in the
-replay output (nothing was written into the historical dirs).
+no re-audit; no new Claude/Codex inference). Both trees verified
+byte-identical (11,179 files hashed) before and after.
+
+- **Fifth** (`20260904T081903Z-60651d`): PROCESS 1.0, HARNESS 1.0
+  (all four recorded classifications re-derived and matched — including
+  both `"184-185, 240-273"` SCHEMA_INVALIDs), DIVERSITY 1.0 (3
+  opus-only / 3 codex-only / 3 consensus; 4 CONFIRMED + 5 NARROWED),
+  ECONOMICS 1.0 (4 invocations, 2 successful stages, 11.69M input /
+  10.60M cached / 59.2k output / 22.5k reasoning tokens; usage_unknown
+  0).
+- **Benchmark 001** (`20260904T014146Z-f3384a`): PROCESS 0.8
+  (codex_independent_artifact + adjudication absent — the run's honest
+  partial state), HARNESS 0.6 (attempts_accounted + 
+  classifications_reproduce FAIL — the pre-1.0.3 telemetry gap: 5 paid
+  attempts recorded as 0 invocations; and v1 job records lack
+  per-attempt classification statuses), DIVERSITY 1.0 (7/7/3; 10
+  CONFIRMED, 6 NARROWED, 1 UNRESOLVED), ECONOMICS 1.0 (tokens
+  honestly unknown — null, never fabricated; wall 4,204 s).
+- Both replays: ENVIRONMENT not-run (v1 runs predate the A0 matrix) →
+  environment_integrity_pass false → overall NOT_READY **by design** —
+  a historical replay alone can never assert READY (the scoring rule
+  enforces this).
 
 `eval/tier3_replay.py` implements read-only replay + PROCESS/HARNESS/
 ECONOMICS/DIVERSITY scoring over the sealed runs (Benchmark 001
