@@ -10,6 +10,7 @@ facts, and independent qualification evidence. It does not issue a new release v
 | Latest committed installation verification | Source `579e39a409a1b6df58368a7b07dbdbbed5839dd9`; record commit `d0c6008d1bdef5909db31852575a0b6a0685f187` | INSTALLATION_VERIFIED, 555 installed-copy tests and hooks shipped, according to the dated implementation report |
 | v2.0.1 operational hardening | `ff3f848f6ce0169eb985f03712d603538868948b`, then `8ae33444f349ce73c1359b963722e2d16acba630` | Source and 19 Tier-4 regression methods confirm implementation; latter commit reports 574 tests. This is not a standalone release qualification certificate |
 | Installed filesystem inspection, 2026-09-05 | 84 tracked skill files exactly match `8ae33444f349ce73c1359b963722e2d16acba630:skill` | Observed byte identity, no extra non-cache files. No distinct v2.0.1 install/independent qualification record found in the repository or installed skill directory |
+| Operator clarification during Instructions optimization, 2026-09-05 | Exact external record identities not yet reconciled | Operator reports historical qualification/install evidence outside the initial publication snapshot. Evidence existence is OPERATOR_REPORTED; contents/linkage are not inspected in this pass. AUCDEV-010 is READY to reconcile/import safe references first |
 
 Current installed path: `/home/isa/.claude/skills/audit-council/`.
 Skill tree Git object: `0908c6b70e9a8eb9efeb01e5395dcb486053d4d4`.
@@ -22,10 +23,14 @@ Generated `__pycache__`/`.pyc` are excluded; they are not release source.
 The installed operational label is **v2.0.1-equivalent**, inferred from source
 identity and commit descriptions. There is no package patch-version marker or
 v2.0.1 tag; `describe --json` identifies **protocol 2.0**, which is a different fact.
-The currently installed **qualified** version/source cannot be certified from the
-available records. The latest documented installation source is the older v2.0
+The currently installed **qualified** version/source was not established from the
+initial publication's inspected records. The latest installation indexed there is v2.0
 `579e39a409a1b6df58368a7b07dbdbbed5839dd9`. Do not quietly attach its verification
-to the later source. AUCDEV-010 is blocked pending actual evidence or predecessor selection.
+to the later source. This initial indexing gap is not proof of absent qualification.
+AUCDEV-010 now seeks reconciliation of the operator's existing historical evidence;
+verified evidence can close it without a new qualification run. Keep private originals
+private and import only safe summaries/references/digests. New expensive qualification
+is a fallback only if evidence is insufficient and separately authorized.
 
 Rollback directory observed:
 `/home/isa/.claude/skills/audit-council.v1.0.3-rollback-20260905/`.

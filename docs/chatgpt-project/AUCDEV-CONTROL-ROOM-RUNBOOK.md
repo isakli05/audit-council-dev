@@ -4,12 +4,32 @@ This is a manual, human-in-the-loop development workflow for Audit Council itsel
 The fully autonomous lifecycle remains deferred. Instructions and implementation
 prompts default to English; operator discussion may be Turkish.
 
+## Mandatory live session bootstrap
+
+At the start of every new Project conversation, including messages with no state,
+and before every state-dependent implementation/audit/remediation/install decision:
+
+1. Retrieve repository metadata from connected GitHub `isakli05/audit-council-dev`;
+   resolve the live default branch and its exact full HEAD SHA.
+2. Fetch `docs/chatgpt-project/AUCDEV-CURRENT-STATE.md` and
+   `docs/chatgpt-project/AUCDEV-BACKLOG.md` from that SHA. Pin both reads to the same
+   revision; if the tip changes before the decision, refresh the context.
+3. Report **LIVE CONTEXT**: repository, branch, full HEAD, stable/installed auditor
+   and qualification state, active/current backlog item, next recorded action.
+   Mark unresolved evidence explicitly; the state file's checkpoint is not live HEAD.
+4. Only then plan; retrieve relevant current or frozen-target source/tests/contracts.
+
+Never claim live consultation without actual retrieval. If unavailable, report
+LIVE CONTEXT UNAVAILABLE and obtain/use an exact SHA with the narrow source/diff/
+evidence tied to it before an execution-critical prompt. Supplied snapshot context
+is not live state; insufficient identity/evidence blocks dependent execution.
+Memory and uploaded Sources may orient but cannot establish current facts.
+The baseline ZIP is historical, not an alternative current-state authority.
+
 ## Start a cycle
 
-Read [CURRENT-STATE](AUCDEV-CURRENT-STATE.md) and [BACKLOG](AUCDEV-BACKLOG.md).
-Retrieve current GitHub source and resolve its exact SHA; if unavailable, declare
-the limitation and obtain the narrow source/diff needed for this objective.
-The baseline ZIP is historical. Memory and implementation reports cannot certify HEAD.
+After bootstrap, use the live [CURRENT-STATE](AUCDEV-CURRENT-STATE.md) and
+[BACKLOG](AUCDEV-BACKLOG.md) to choose scope.
 Choose one READY objective; reconcile its evidence and dependencies before work starts.
 Record the operator's scope/authority and validation budget; existing approval persists.
 
@@ -26,7 +46,7 @@ Record the operator's scope/authority and validation budget; existing approval p
 | Remediation → re-audit | Old/new SHAs; diff; prior findings; held invariants; changed trust boundaries; fresh run brief | New SHA audited; old verdict not inherited |
 | Qualification → installation | Exact independently audited source; verdict/completeness; deterministic evidence; accepted residuals; operator decision; rollback identity | Qualification recorded separately from implementation |
 | Installer → control room | Qualified SHA; installed path/tree identity; hooks shipped; installed-copy validation; discovery; rollback; no historical mutation | Stable installation provenance agrees |
-| Any significant transition → records | State/backlog/report or qualification/installation update | Committed canonical records; uploaded copies refreshed as needed |
+| Any significant transition → records | State/backlog/report or qualification/installation update | Committed records fetched live; only changed durable orientation uploads refreshed |
 
 ## Bootstrap gate
 
@@ -35,8 +55,13 @@ A candidate cannot audit itself to become qualified. For example, qualified
 installed v2.0.1 audits candidate v2.0.2, then installed qualified v2.0.2 can audit
 the next candidate. Version strings are illustrative; use discovered facts.
 Byte identity establishes installed contents, not who qualified them.
-If current installed bytes lack a qualification reference, first recover that
-reference or choose a proven predecessor. Keep candidate qualification blocked.
+If repository records lack a qualification reference, do not infer qualification
+absent. First reconcile existing operator-held historical evidence; import a safe
+reference/index linking auditor, candidate SHA, verdict and installation identity.
+The operator reports such evidence exists outside the initial publication snapshot.
+Evidence reconciliation is READY (AUCDEV-010); treating the installed tree as a
+qualified predecessor still requires that evidence. Only if it is insufficient
+consider a separately authorized new audit using a proven predecessor.
 Do not reinstall, downgrade, or overwrite the installed skill just to hide the gap.
 
 The repository currently records an older verified v2.0 installation and a newer
@@ -113,7 +138,8 @@ ID/SHA stays unknown. Preserve originals privately; do not upload full run logs 
 
 ## Finish the transition
 
-Follow [update protocol](AUCDEV-PROJECT-UPDATE-PROTOCOL.md), commit the records, and
-refresh only changed curated Project Sources. Copy Project Instructions into the
-settings only when their policy changes. GitHub retrieval is preferred for live
-code; connected access must be checked in the actual ChatGPT conversation.
+Follow [update protocol](AUCDEV-PROJECT-UPDATE-PROTOCOL.md) and commit the records.
+CURRENT-STATE/BACKLOG are fetched live, with no per-cycle upload refresh. Replace
+only materially changed durable orientation uploads from the manifest. Copy Project
+Instructions into settings when policy changes; validate the exact file against
+the 7,500-character budget. There is no separate full-instructions document.

@@ -11,17 +11,26 @@ DEFERRED = future only; DONE = evidenced closure; ACCEPTED_RESIDUAL = documented
 boundary, not a claim that a defect was fixed. Priority is impact/urgency, not
 implementation order. Recommended versions are planning suggestions, not releases.
 
-Counts: **19 open** (OPEN/READY/BLOCKED; none IN_PROGRESS), **P0 0 / P1 8 / P2 11**;
-**3 DEFERRED**, **8 ACCEPTED_RESIDUAL**, **4 DONE**. Open statuses: READY 8,
-OPEN 8, BLOCKED 3. No speculative issue is promoted to P0.
+Counts: **19 open** (OPEN/READY/BLOCKED; none IN_PROGRESS), **P0 2 / P1 6 / P2 11**;
+**3 DEFERRED**, **8 ACCEPTED_RESIDUAL**, **4 DONE**. Open statuses: READY 9,
+OPEN 8, BLOCKED 2. No speculative issue is promoted to P0.
+
+Focused priority review, 2026-09-05, repository checkpoint
+`910339b661d2a18e4690a5bac95ee048e08cbae3`: only AUCDEV-001/009/010 reconsidered.
+P0 here prioritizes evidenced defects in the core independent-review/completeness
+guarantees before relying on those guarantees for a candidate release. It does not
+declare every past verdict contaminated or assign CRITICAL severity to every finding.
+No runtime work starts with this prioritization. AUCDEV-010 is READY evidence
+reconciliation: the operator confirms historical evidence outside the initial
+publication snapshot; a missing repository entry is not proof of absent qualification.
 
 ## Prioritized queue
 
 | ID | Priority | Status | Title | Suggested milestone |
 |---|---|---|---|---|
-| AUCDEV-010 | P1 | BLOCKED | Recover exact installed qualification provenance | Before next candidate audit |
-| AUCDEV-009 | P1 | READY | Reconcile executable protocol/schema instructions | v2.0.2 candidate |
-| AUCDEV-001 | P1 | READY | Mechanical blind-independence isolation | v2.0.2 design, implementation after approval |
+| AUCDEV-001 | P0 | READY | Mechanical blind-independence isolation | v2.0.2 design, implementation after approval |
+| AUCDEV-009 | P0 | READY | Reconcile executable protocol/schema instructions | v2.0.2 candidate |
+| AUCDEV-010 | P1 | READY | Reconcile existing installed qualification provenance | Before next candidate audit |
 | AUCDEV-018 | P1 | READY | Dirty-target byte-level freshness coverage | v2.0.2 candidate |
 | AUCDEV-004 | P1 | READY | Completeness and visibility provenance hardening | v2.0.2 candidate |
 | AUCDEV-002 | P1 | OPEN | Operator-authorized Evidence Ingress v2 | v2.0.2 or v2.1 after design |
@@ -43,12 +52,15 @@ OPEN 8, BLOCKED 3. No speculative issue is promoted to P0.
 
 ### AUCDEV-001 — Mechanical blind-independence isolation
 
-- Priority/status: P1 / READY.
+- Priority/status: P0 / READY.
 - Problem/evidence: `skill/scripts/codex_sandbox.py:build_sandbox_argv` binds the entire
   run directory; Opus's checkpoint already exists before Codex independence.
   `EvidenceStore._visible` is an API barrier, not raw filesystem isolation.
   The operator reports this exposure in a real v2.0.1 dual-model run; its run ID is unknown.
 - Why it matters: procedural blindness cannot substantiate a mechanical independence claim.
+  Priority raised from P1: the source-corroborated production exposure defeats a core
+  trust boundary without requiring a new speculative attack. Actual cross-pollination
+  or verdict impact still needs per-run evidence; this is not blanket historical invalidation.
 - Scope: design and then implement model-specific views: `shared/`, `private/opus/`,
   `private/codex/`, `cross-exam/`; include artifacts, logs, prompts, evidence, and resume.
   Peer artifacts become accessible only after a recorded barrier transition.
@@ -218,12 +230,15 @@ OPEN 8, BLOCKED 3. No speculative issue is promoted to P0.
 
 ### AUCDEV-009 — Reconcile executable protocol/schema instructions
 
-- Priority/status: P1 / READY.
+- Priority/status: P0 / READY.
 - Problem/evidence: evidence-policy still asks for legacy `lines`; current schemas use
   `line_ranges`. failure-and-resume includes quota-completeness and integrity-resume
   exceptions that conflict with stricter SKILL/public requirements.
 - Why it matters: these Markdown files directly instruct the installed audit agents;
   changing them is product behavior, not harmless publication cleanup.
+  Priority raised from P1: current executed instructions contradict v2 citation and
+  mandatory-stage completeness rules, risking invalid output or overstated audit
+  completion. Schema rejection limits some damage but does not resolve conflicting policy.
 - Scope: a separately authorized focused protocol correction with source/schema/tests
   reviewed together; include consistent INVALID_AUDIT_ENVIRONMENT guidance.
 - Non-goals: silently patch installed skill in this governance task; alter historical
@@ -238,25 +253,34 @@ OPEN 8, BLOCKED 3. No speculative issue is promoted to P0.
   `skill/SKILL.md`, `skill/schemas/finding.schema.json`, `skill/tests/test_schema_validation.py`.
 - Milestone: v2.0.2 candidate.
 
-### AUCDEV-010 — Recover exact installed qualification provenance
+### AUCDEV-010 — Reconcile existing installed qualification provenance
 
-- Priority/status: P1 / BLOCKED (missing independent v2.0.1 qualification/install record).
+- Priority/status: P1 / READY (reconcile existing evidence before proposing new qualification).
 - Problem/evidence: installed 84 source files match `8ae33444f349ce73c1359b963722e2d16acba630`;
   last committed INSTALLATION_VERIFIED cites `579e39a409a1b6df58368a7b07dbdbbed5839dd9`.
   Protocol version is 2.0; no explicit package patch-version marker or v2.0.1 tag exists.
+  Operator clarification (2026-09-05): historical qualification/installation evidence
+  exists outside the initial publication snapshot. Its contents/exact applicability
+  have not been inspected in this optimization pass; absence from Git is not absence
+  of qualification. READY describes evidence collection, not a qualified-auditor verdict.
 - Why it matters: the installed candidate must not certify itself as the predecessor.
-- Scope: locate or obtain actual audit/install references; record auditor/candidate SHAs,
-  completeness, verdict, operator acceptance, tree identity, and rollback provenance.
+- Scope: first locate/reconcile existing operator-held audit/install evidence; import
+  public-safe references/summaries/digests linking auditor/candidate SHAs, completeness,
+  verdict, acceptance, installed identity and rollback. Private originals stay private.
 - Non-goals: invent qualification from a commit title or byte match; overwrite installation;
   rerun an expensive qualification campaign as part of repository governance.
-- Dependencies: operator-held evidence or a separately authorized predecessor audit.
-- Acceptance: stable installed identity has traceable independent qualification; if
-  unavailable, explicitly choose a verifiable predecessor before the next candidate audit.
+- Dependencies: access to existing operator-held evidence; a new audit is a fallback
+  only after evidence insufficiency is established and the operator authorizes it.
+- Acceptance: reconcile installed identity to historical independent qualification,
+  or document the exact remaining evidence gap. Do not infer failure/absence from a
+  missing standalone file. If evidence is insufficient, choose a verifiable predecessor
+  and obtain authority before any new expensive qualification run.
 - Validation: full SHA resolution, source/installed manifest comparison, audit checksum
   and verdict inspection; append qualification history without replacing earlier entries.
 - References: `AUDIT-COUNCIL-V2-IMPLEMENTATION-REPORT.md` Installation section,
   `AUCDEV-QUALIFICATION-HISTORY.md`, `AUCDEV-CURRENT-STATE.md`.
-- Milestone: before the next candidate audit; documentation alone cannot close it.
+- Milestone: before the next candidate audit; verified historical evidence may close
+  the item without rerunning qualification. A new summary alone is not proof.
 
 ### AUCDEV-011 — Targeted re-audit compiler
 
@@ -538,7 +562,8 @@ newly authorize broader risk. Each has owner review on its trigger.
 - Problem/evidence: no repository-level README or durable project state/backlog existed.
 - Why it matters: the owner can now run bounded development/audit cycles from canonical records.
 - Scope/non-goals: curated docs, evidence queue, update/runbook/instructions; no runtime change.
-- Dependencies: operator copies settings text and refreshes Sources; live GitHub access is account-specific.
+- Dependencies: operator copies settings text; dynamic state/backlog are fetched live;
+  only changed durable orientation Sources need refresh per the current manifest.
 - Acceptance: seven requested documents exist, paths resolve, current unknowns disclosed,
   candidate self-qualification forbidden, baseline ZIP historical, autonomous lifecycle deferred.
 - Validation/references: `PROJECT-SOURCES-MANIFEST.md`, `AUCDEV-PROJECT-UPDATE-PROTOCOL.md`,
