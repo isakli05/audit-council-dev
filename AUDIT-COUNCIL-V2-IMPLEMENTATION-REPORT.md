@@ -1,5 +1,13 @@
 # Audit Council v2.0 — Implementation Report
 
+> Dated implementation history with later appendices, retained as evidence.
+> Early “not installed”, “not replayed”, “local only” and 523-test claims are
+> superseded for current-state purposes by later sections and
+> [CURRENT-STATE](docs/chatgpt-project/AUCDEV-CURRENT-STATE.md).
+> The last committed installation record cites 579e39a; current installed files
+> match newer 8ae3344. Their independent v2.0.1 qualification reference remains
+> unresolved; see [qualification history](docs/chatgpt-project/AUCDEV-QUALIFICATION-HISTORY.md).
+
 Date: 2026-09-04. Program lead: ZCode/GLM-5.3 session (this worktree).
 Baseline: v1.0.3 (tag `v1.0.3-baseline`, 160 tests). Final state:
 **523 tests, OK (~64 s)**; `eval tier1` overall READY, ENVIRONMENT 1.0

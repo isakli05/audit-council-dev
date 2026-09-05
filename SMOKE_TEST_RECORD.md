@@ -1,5 +1,9 @@
 # Audit Council — Real-Model Smoke Test Record (spec §37)
 
+> Historical 2026-09-03 smoke evidence, including its later correction. It is not
+> a qualification of current HEAD. Local fixture outputs remain unpublished;
+> see [documentation map](docs/REPOSITORY-DOCUMENTATION-MAP.md) for gitlink provenance.
+
 Date: 2026-09-03 · Fixture: `/home/isa/audit-council-dev/smoke-fixture` (2-file git repo,
 planted defect: `average([])` → ZeroDivisionError) · All tests (94) green beforehand.
 

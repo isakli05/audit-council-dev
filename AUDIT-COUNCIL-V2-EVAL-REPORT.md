@@ -1,5 +1,28 @@
 # Audit Council v2.0 — Eval Report
 
+> Historical results with a current-status addendum (2026-09-05).
+> Original scores/counts and contradictory early “not run”/pending-gate text are
+> retained below as dated evidence, not current task instructions.
+
+## Current-status addendum — 2026-09-05
+
+- Current runtime source: `8ae33444f349ce73c1359b963722e2d16acba630`.
+- Governance validation: **574 tests, OK, 94.050 s**, using
+  `python3 -m unittest discover -s tests` from `skill/`; no real model calls.
+  Existing ResourceWarning messages about unclosed files were observed; AUCDEV-019.
+- Historical 523 and 555 totals below are their respective checkpoints, not current counts.
+- Fake-model Tier 2 is wired; real-model Tier 2 is still unexecuted/budget-gated.
+- The recorded Tier-3 replay below was executed with operator approval and no new
+  inference. A new replay still needs its own authorization; it was not repeated here.
+- Tier 4 now has **19 deterministic da27c0 regression methods** in
+  `skill/tests/test_tier4_da27c0.py` (16 initial, three follow-ups). This does not
+  certify a new live end-to-end audit.
+- Six reported adversarial rounds and the v2.0 installation are already recorded;
+  old pending round-5/install text is historical. Current v2.0.1 qualification/install
+  provenance remains unresolved in [qualification history](docs/chatgpt-project/AUCDEV-QUALIFICATION-HISTORY.md).
+
+## Original recorded results
+
 Date: 2026-09-04. Command: `cd skill && /usr/bin/python3 eval/eval_cli.py tier1`.
 
 ## Tier 1 — deterministic harness eval: RUN, PASSING

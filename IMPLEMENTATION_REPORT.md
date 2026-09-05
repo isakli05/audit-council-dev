@@ -1,5 +1,10 @@
 # Audit Council — Final Implementation Report
 
+> Historical v1 delivery report. “Final”, “installed”, limitations and test counts
+> below describe that dated delivery, not current HEAD. Current dispositions:
+> [state](docs/chatgpt-project/AUCDEV-CURRENT-STATE.md) and
+> [backlog](docs/chatgpt-project/AUCDEV-BACKLOG.md).
+
 Date: 2026-09-03. Spec: `/home/isa/audit_council_skill_prompt.md` (authoritative).
 
 > **v1.0.1 hardening note (2026-09-03):** this report describes the v1.0.0 delivery.

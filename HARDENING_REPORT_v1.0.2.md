@@ -1,5 +1,8 @@
 # Audit Council — v1.0.2 Runner Robustness Hardening
 
+> Historical version-specific evidence; retained unchanged below.
+> For today's installed identity and residuals see [current state](docs/chatgpt-project/AUCDEV-CURRENT-STATE.md).
+
 Date: 2026-09-03. Scope: ONE narrowly-scoped detached-process lifecycle fix in
 `codex_runner.py::cmd_wait`. No architecture change, no new features, no real model calls.
 After this fix, Audit Council v1 is FROZEN for real-world benchmark evaluation.

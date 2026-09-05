@@ -1,4 +1,8 @@
 # Audit Council — v1.0.3 Hardening Report
+
+> Historical version-specific evidence; retained unchanged below. Remaining v1
+> limitations are dispositioned in the [current backlog](docs/chatgpt-project/AUCDEV-BACKLOG.md).
+
 ## Structured-Output Canonicalization & Telemetry Hardening
 
 Date: 2026-09-04. Scope: two production harness defects found by the first real historical

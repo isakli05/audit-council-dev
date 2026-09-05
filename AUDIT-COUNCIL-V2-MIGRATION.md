@@ -1,5 +1,33 @@
 # Audit Council v2.0 — Migration & Compatibility
 
+## Current guidance — 2026-09-05
+
+The historical plan below is retained for traceability, not as current install or
+rollback instructions. The PreToolUse hook is now automatic and skill-scoped via
+`skill/SKILL.md`; global settings registration is not required. User-facing
+`prepare --mode AUTO|CURRENT|RELEASE|HISTORICAL --repo ... --ref ...` and
+`--evidence-allow` are implemented. RELEASE/HISTORICAL stage source-contained,
+non-denylisted authorized files into run-owned staging and link the final binding.
+
+Installation from `579e39a409a1b6df58368a7b07dbdbbed5839dd9` was recorded as verified
+on 2026-09-05. Currently installed files match newer
+`8ae33444f349ce73c1359b963722e2d16acba630`; independent qualification of that newer
+installation is unresolved. See [qualification history](docs/chatgpt-project/AUCDEV-QUALIFICATION-HISTORY.md).
+
+For any future upgrade/rollback, select an exact qualified source first, preserve
+the existing installed tree, export the selected `skill/` into a separate temporary
+directory, compare its whole manifest including hooks, then perform only the
+authorized installation and installed-copy checks. Do not use the old plan's
+`git checkout ... -- skill/` against the active development tree. The observed
+v1.0.3 rollback directory is identified in qualification history; no rollback occurs here.
+Historical run bytes remain immutable; legacy conversion is in-memory only.
+
+Production worktree creation uses environment_manager's XDG_DATA default. The
+artifact_layout API retains a different XDG_CACHE default; AUCDEV-013 tracks that
+contract debt. This task migrates no runtime or historical directory.
+
+## Historical migration plan (2026-09-04; superseded where noted above)
+
 Date: 2026-09-04. Principle: finalized history is never rewritten; v2
 reads v1 everywhere through deterministic in-memory migration; new runs
 are strictly v2.

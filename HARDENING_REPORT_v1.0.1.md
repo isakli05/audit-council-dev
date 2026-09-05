@@ -1,5 +1,8 @@
 # Audit Council — v1.0.1 Hardening Report
 
+> Historical version-specific evidence; retained unchanged below.
+> For today's installed identity and residuals see [current state](docs/chatgpt-project/AUCDEV-CURRENT-STATE.md).
+
 Date: 2026-09-03. Baseline: v1.0.0 delivery (see IMPLEMENTATION_REPORT.md).
 Directive: focused hardening pass on four post-delivery review issues; no redesign,
 no new features, no large real-model runs.

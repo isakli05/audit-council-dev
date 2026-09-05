@@ -1,5 +1,11 @@
 # Audit Council — Shared Contracts (authoritative for all implementers)
 
+> Historical v1 shared contract (2026-09-03). Its authority label applies to the
+> original implementation program only. Current human contract:
+> [skill/PUBLIC-CONTRACT.md](skill/PUBLIC-CONTRACT.md); current machine behavior:
+> `skill/scripts/audit_council.py describe --json` and current source/schemas.
+> Do not use old CLI/citation examples below as current implementation instructions.
+
 Build root: `/home/isa/audit-council-dev/skill/` (installed later to `~/.claude/skills/audit-council/`).
 
 Environment facts (verified 2026-09-03):

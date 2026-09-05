@@ -1,5 +1,10 @@
 # Audit Council v2.0 — Architecture (Phase 0 Reconstruction + Target Design)
 
+> Historical Phase 0 snapshot (2026-09-04), retained as design/evidence history.
+> “Current”, “not begun”, tool versions and future work below refer to that phase.
+> Use [current architecture orientation](docs/chatgpt-project/AUCDEV-ARCHITECTURE-SUMMARY.md),
+> [current state](docs/chatgpt-project/AUCDEV-CURRENT-STATE.md), and exact source/tests for current behavior.
+
 Status: **Phase 0 complete** — this document records the reconstructed v1.0.3
 architecture, the verified evidence behind every v2 change, and the frozen shared
 contracts that all v2 workstreams must implement against. Implementation has not

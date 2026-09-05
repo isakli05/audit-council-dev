@@ -1,5 +1,10 @@
 # Audit Council v2.0 Implementation Plan
 
+> Historical implementation plan, not the active backlog or a fresh authorization
+> to execute work. Original checkboxes and workflow instructions are retained as
+> history; they do not select today's orchestration workflow. See
+> [AUCDEV-BACKLOG](../docs/chatgpt-project/AUCDEV-BACKLOG.md) for current dispositions.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Multi-agent-orchestration (MAO) is the sole orchestration authority when packages are delegated; the lead owns shared contracts, integration, verification, installation, and reports.
 
 **Goal:** Evolve Audit Council v1.0.3 into a reproducible, environment-bound,

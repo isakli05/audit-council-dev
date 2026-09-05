@@ -1,5 +1,13 @@
 # Migration & Retention Recommendation (Audit Council v2 — Pillar A2)
 
+> Status review 2026-09-05: retention/relocation remains a proposal; no historical
+> directories have been moved here. Section 4's schema-count and run-record wiring
+> tasks are implemented (13 schemas with builders; cmd_prepare links the final
+> run binding). Production creation uses environment_manager's XDG_DATA root;
+> the separate layout API's XDG_CACHE default still differs (AUCDEV-013).
+> Original proposal details remain below; current work is in
+> [AUCDEV-BACKLOG](docs/chatgpt-project/AUCDEV-BACKLOG.md), including deferred retention AUCDEV-021.
+
 Status: RECOMMENDATION ONLY. No directory has been reorganized, moved, or
 deleted. Every action listed under "Recommended operator actions" requires
 EXPLICIT operator approval before anyone executes it (program constraint:

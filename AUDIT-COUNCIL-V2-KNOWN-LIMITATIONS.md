@@ -1,5 +1,11 @@
 # Audit Council v2.0 — Known Limitations
 
+Current review: **2026-09-05**, v2.0.1-equivalent source
+`8ae33444f349ce73c1359b963722e2d16acba630`. This is the canonical limitations
+document. Numbered historical dispositions remain; items 24–30 and the correction
+to item 21 describe newly reconciled current-state gaps. See the
+[backlog](docs/chatgpt-project/AUCDEV-BACKLOG.md) for ownership and acceptance criteria.
+
 Date: 2026-09-04 (final release-qualification revision; reflects the tree
 after SIX independent adversarial verification rounds and the wired
 fake-model Tier-2 harness). Items marked INHERENT are accepted design
@@ -126,13 +132,15 @@ are concrete residuals with documented risk.
 20. Two v1 quirks retained deliberately: `advance`'s harmless dead
     `return` pair; instruction-file scanning limited to root +
     first-level dirs.
-21. RESOLVED (was: ephemeral-worktree default-root divergence between
-    environment_manager (XDG_DATA) and artifact_layout (XDG_CACHE)): all
+21. PRODUCTION CREATION ROUTE RESOLVED; API DEFAULT DEBT REMAINS:
+    environment_manager (XDG_DATA) and artifact_layout (XDG_CACHE) still
+    have different uninjected defaults in current source. All
     worktree creation flows through `environment_manager.env_root()`
     (`AUDIT_COUNCIL_ENV_ROOT`, production default XDG_DATA); the
-    artifact_layout cache-root entry remains a documented layout OPTION,
-    never used as a default — and every test injects its own root, so
-    the two never disagree in practice.
+    artifact_layout cache-root entry is still that resolver's default,
+    although it is not the production creation route. Injected tests align
+    them and do not prove default API parity. AUCDEV-013 tracks reconciliation;
+    no historical directories are relocated in this task.
 22. No existing artifact directories were migrated or reorganized;
     MIGRATION-RETENTION-RECOMMENDATION.md remains a proposal awaiting
     explicit operator approval.
@@ -149,3 +157,34 @@ are concrete residuals with documented risk.
     zero-inference sandbox preflight now gates every codex launch
     BEFORE attempt accounting. The historical da27c0 run is preserved
     read-only and is NEVER rewritten.
+
+## Current control-room review — 2026-09-05
+
+24. Mechanical blind-stage isolation is absent: the wrapper binds the whole
+    repository and run, including Opus's already-created independent artifact.
+    The protocol forbids cross-pollination, but raw file access is possible.
+    EvidenceStore API visibility is not filesystem enforcement, and the library
+    is not wired through production stages. AUCDEV-001/017. The operator reports
+    exposure in a later dual-model run; exact run ID is not available here.
+25. Operator-authorized external or denylisted audit-output ingress is not
+    supported by the current source-contained allowlist. The v2.0.1 RELEASE
+    staging fix does not implement Evidence Ingress v2. AUCDEV-002.
+26. No disposable writable mutation/falsification copy exists. The detached
+    RELEASE worktree remains an immutable authoritative target. AUCDEV-003.
+27. Completeness/state metadata does not establish mechanical independence or
+    effective raw evidence visibility. Failure protocol quota wording can conflict
+    with full-completeness semantics; v2 evidence-policy still requests legacy
+    `lines`. These executable instructions remain unchanged pending a separately
+    qualified correction. AUCDEV-004/008/009/012.
+28. Fingerprint comparison does not cover every working-tree byte: tracked
+    inventory uses index IDs and dirty-path presence; untracked inventory uses
+    names/sizes. Repeated dirty edits and same-size untracked changes can evade
+    compared fields. AUCDEV-018; clean exact-target confinement is not a proof
+    that CURRENT dirty-tree freshness is complete.
+29. Whole-program dynamic-probe/omission governance is not fully integrated;
+    equal-timestamp metrics ordering follows directory order and unreadable job
+    records are skipped. Existing successful-stage/attempt/repair caps remain.
+    AUCDEV-007. Current suite also emits unclosed-file ResourceWarnings (AUCDEV-019).
+30. Installed current bytes match 8ae3344 but the committed verified installation
+    cites 579e39a. A distinct independent v2.0.1 qualification/install reference
+    is unresolved (AUCDEV-010); passing deterministic tests is not qualification.
