@@ -55,7 +55,11 @@ Candidate dispositions:
 
 Local scanner/report provenance (temporary, not a runtime dependency):
 `/tmp/audit-council-public-safety.gGyM3v/scan.py`, `scan.jsonl`, `triage.py`.
-The final committed additions must be rechecked before push; that result is recorded below.
+The committed governance checkpoint was rescanned before push: **PASS**, 34 commits,
+813 objects, 553 blobs, 421 historical paths, 4,277,482 bytes. The six new
+credential-filename mentions are exclusion patterns in .gitignore and this report,
+not credential files. Entropy/assignment candidate counts were unchanged.
+No probable secret or clearly private data was introduced by the new documents.
 
 ## Validation
 
@@ -69,7 +73,7 @@ The final committed additions must be rechecked before push; that result is reco
   `git diff --check`: **PASS**. Checked 13 new documents and 51 relative links;
   all manifest paths exist. Backlog: 19 open (P1 8/P2 11), three deferred,
   eight accepted residuals, four bounded evidenced closures. Project Instructions
-  are 7,835 characters; architecture summary is 203 lines.
+  are 7,863 characters; architecture summary is 203 lines.
 - No installation, Audit Council qualification campaign or historical replay is
   performed. Full suite was run once; test output is not a release certificate.
 
@@ -110,7 +114,25 @@ All requested repository settings were automated; no unsupported-setting fallbac
 was needed. ChatGPT settings/Sources and account-specific GitHub connection remain
 operator UI actions, not GitHub protection failures.
 
-Commit/push and final verification are pending the final local validation gate.
+Published source checkpoint: **`ce16d284b9968a9b6e970197cd1f5e8307c35937`**,
+commit `docs: establish Audit Council Dev control room, backlog and owner governance`.
+Push used `git push --recurse-submodules=no -u origin master refs/tags/v1.0.3-baseline`.
+Remote refs read back exactly: master → that checkpoint; baseline tag →
+`1a9023714da3a223c009668569d4bfd0ece5dd22`. No other branch/tag existed to publish.
+
+Post-push GitHub branch API reports **protected: true**. The effective branch-rule
+API returns both `deletion` and `non_fast_forward` from ruleset `22343195`.
+Collaborator, PR, disabled-feature and Actions permissions were read back again.
+
+This follow-up record necessarily lives in a descendant documentation commit;
+resolve the final publication tip from `refs/heads/master` or the operator handoff.
+The final tip is rechecked before its normal push. No force push, history rewrite,
+secret removal/rewrite, collaborator invitation, runtime change or installation occurred.
+
+Git status after the source push: no parent tracked/staged changes; only the two
+pre-existing dirty gitlinks (`? smoke-fixture`, `? smoke-fixture-103`) reflecting
+their local untracked output. They were preserved and not published recursively.
+Repository readiness does not resolve AUCDEV-010's runtime qualification evidence gap.
 
 Current GitHub capability evidence: GraphQL schema exposes
 `hasPullRequestsEnabled` and `pullRequestCreationPolicy` with `COLLABORATORS_ONLY`.

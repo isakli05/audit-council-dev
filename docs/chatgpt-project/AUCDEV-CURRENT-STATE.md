@@ -8,7 +8,7 @@ Update this file at every significant implementation/audit/remediation/install t
 | Canonical local repository | `/home/isa/audit-council-dev` |
 | GitHub repository | `https://github.com/isakli05/audit-council-dev` (public, owner `isakli05`; remote `origin`) |
 | Current branch | `master` |
-| Last verified repository HEAD/checkpoint | `8ae33444f349ce73c1359b963722e2d16acba630` (runtime baseline; governance commits will be descendants) |
+| Last verified repository HEAD/checkpoint | `ce16d284b9968a9b6e970197cd1f5e8307c35937` (published governance checkpoint; this recording commit is a descendant) |
 | Live current HEAD | Resolve `refs/heads/master` from GitHub or `git rev-parse HEAD`; see SHA recording rule below |
 | Runtime source baseline | `8ae33444f349ce73c1359b963722e2d16acba630` |
 | Installed skill path | `/home/isa/.claude/skills/audit-council/` |
@@ -18,7 +18,7 @@ Update this file at every significant implementation/audit/remediation/install t
 | Currently installed qualified version/HEAD | **UNRESOLVED**: current byte identity does not establish independent qualification |
 | Latest documented verified installation | v2.0 source `579e39a409a1b6df58368a7b07dbdbbed5839dd9`, recorded in commit `d0c6008d1bdef5909db31852575a0b6a0685f187` as INSTALLATION_VERIFIED |
 | Latest completed qualification status | Historical report records six adversarial rounds/focused re-verification and 555-test installation verification; exact independent v2.0.1 qualification reference not found |
-| Current development status | Runtime unchanged; repository governance/ChatGPT documents completed; source push pending final commit checks |
+| Current development status | Runtime unchanged; repository governance/ChatGPT documents completed; GitHub source published with verified owner controls |
 | Active runtime backlog item | None; no feature program started |
 | Next runtime objective | Resolve AUCDEV-010 provenance, then choose a bounded candidate scope; do not start it in this governance task |
 | Current validation | 574 deterministic tests OK in 94.050 s; installed 84-file identity unchanged; no real model calls; final document checks in publication record |
@@ -58,10 +58,15 @@ Specialists stay default-off; fully autonomous development/audit lifecycle is DE
 
 ## Next operator action
 
-After publication, copy Project Instructions into ChatGPT settings and add the compact
+Copy Project Instructions into ChatGPT settings and add the compact
 Sources set from [manifest](PROJECT-SOURCES-MANIFEST.md). Verify live GitHub access and
 SHA in a new project conversation. Then resolve the qualification evidence gap before
 using the installed tree as a predecessor auditor. No new full ZIP upload cycle is needed.
+
+Published refs: `master` and `v1.0.3-baseline`; only owner `isakli05` has admin/write
+access. PRs are collaborator-only; Issues/Discussions/Wiki/Projects disabled;
+master deletion/non-fast-forward rules active; Actions token read-only with PR
+approval disabled. No GitHub setting is awaiting manual configuration.
 
 ## Recording discipline
 

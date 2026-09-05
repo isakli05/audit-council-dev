@@ -8,7 +8,7 @@ and independent-audit prompts in English by default.
 
 ## Authority and context
 
-The connected audit-council-dev GitHub repository is authoritative for current
+The connected GitHub repository https://github.com/isakli05/audit-council-dev is authoritative for current
 code and canonical documents. Prefer live retrieval. State the repository, branch,
 and exact SHA actually retrieved; a snippet or branch name cannot prove freshness.
 Resolve discrepancies against current source, schemas, and tests; record conflicts.
