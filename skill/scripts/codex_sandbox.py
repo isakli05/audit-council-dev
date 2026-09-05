@@ -147,9 +147,17 @@ def build_sandbox_argv(codex_argv: list, repo_root: str, run_dir: str,
     if os.path.isdir(codex_home):
         argv += ["--bind", codex_home, codex_home]
     tool_dirs = _toolchain_roots(codex_argv[0])
+    argv += ["--tmpfs", "/tmp"]
     for root in tool_dirs:
         argv += ["--ro-bind", root, root]
-    argv += ["--tmpfs", "/tmp"]
+    # v2.0.1 N2: the resolved node bin dir must be BOUND, not merely on
+    # PATH — when codex and node resolve from different trees the PATH
+    # entry would otherwise be dead and node would fall back to the
+    # broken system node
+    for bdir in _toolchain_bindirs(tool_dirs):
+        if not any(os.path.realpath(bdir) == os.path.realpath(d)
+                   for d in tool_dirs):
+            argv += ["--ro-bind-try", bdir, bdir]
     covered = ["/usr", "/etc", "/lib", "/lib64", "/lib32", *tool_dirs]
     tool_file = _tool_file(codex_argv[0])
     if tool_file:
@@ -272,10 +280,17 @@ def sandbox_preflight(repo_root: str, run_dir: str,
 
     # fresh probe fixtures (removed afterwards)
     try:
-        with open(repo_file, "w") as fh:
-            fh.write("repo-probe\n")
-        with open(probe_outside, "w") as fh:
-            fh.write("user-data-probe\n")
+        try:
+            with open(repo_file, "w") as fh:
+                fh.write("repo-probe\n")
+            with open(probe_outside, "w") as fh:
+                fh.write("user-data-probe\n")
+        except OSError as exc:
+            # v2.0.1 N1: a planted/conflicting probe path must produce a
+            # sanctioned preflight failure, never a traceback
+            return {"ok": False,
+                    "failures": ["preflight_probe_conflict"],
+                    "details": {"probe_error": repr(exc)[:120]}}
 
         try:
             p = run(["codex", "--version"])

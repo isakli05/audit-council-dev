@@ -364,3 +364,58 @@ class TestProductionArchivePreserved(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestV201VerifierFindings(unittest.TestCase):
+    """Focused-verifier N1-N3 hardening regressions."""
+
+    def setUp(self):
+        self.base = tempfile.mkdtemp(prefix="t4n-", dir=str(FIXTURES))
+        self.repo = os.path.join(self.base, "repo")
+        os.makedirs(os.path.join(self.repo, "src"))
+
+    def tearDown(self):
+        shutil.rmtree(self.base, ignore_errors=True)
+
+    def test_n1_conflicting_probe_path_fails_sanctioned(self):
+        # a planted symlink at the outside-probe secret path must not
+        # crash the preflight — it must return a sanctioned failure
+        probe = os.path.expanduser("~/.audit-council-sbx-probe-secret")
+        os.symlink("/proc/self/mem", probe)  # unwritable target
+        try:
+            result = codex_sandbox.sandbox_preflight(
+                self.repo, self.repo)
+            self.assertFalse(result["ok"])
+            self.assertIn("preflight_probe_conflict",
+                          result["failures"])
+        finally:
+            try:
+                os.unlink(probe)  # preflight's own cleanup may beat us
+            except FileNotFoundError:
+                pass
+
+    def test_n2_node_bindir_always_bound(self):
+        argv = codex_sandbox.build_sandbox_argv(
+            ["codex", "--version"], self.repo, self.repo, [])
+        node = shutil.which("node")
+        if node:
+            nb = os.path.realpath(os.path.dirname(node))
+            # the node bin dir appears as a bind (its own or via an
+            # ancestor tool dir) — never only as a PATH entry
+            bound = any(nb == os.path.realpath(a) or
+                        nb.startswith(os.path.realpath(a) + os.sep)
+                        for i, a in enumerate(argv)
+                        if i > 0 and a.startswith("/") and
+                        os.path.isdir(a) and
+                        argv[i - 1] in ("--ro-bind", "--ro-bind-try"))
+            self.assertTrue(bound, "node bin dir not bound")
+
+    def test_n3_toolchain_binds_after_tmpfs(self):
+        argv = codex_sandbox.build_sandbox_argv(
+            ["codex", "--version"], self.repo, self.repo, [])
+        tmpfs_at = argv.index("--tmpfs")
+        for i, a in enumerate(argv):
+            if a == "--ro-bind" and i > tmpfs_at:
+                break
+        else:
+            self.fail("no toolchain bind found after --tmpfs")
