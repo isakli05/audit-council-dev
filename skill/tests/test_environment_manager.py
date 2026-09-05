@@ -377,13 +377,18 @@ class TestPrepareRelease(EnvManagerBase):
         self.assertFalse(os.path.exists(os.path.join(self.env_root, RUN_B)))
         self.assertEqual(self.worktree_list(), wt_list_before)
 
-    def test_prepare_release_ignores_allowlist(self):
+    def test_prepare_release_stages_allowlist(self):
+        # da27c0 fix 3: the public contract promises RELEASE staging —
+        # the old behavior ("allow-list ignored, HISTORICAL-only") was
+        # the production defect
         rec = environment_manager.prepare(
             "RELEASE", self.repo, RUN_B, target_ref="v1",
             evidence_allowlist=["docs/notes.md"])
-        self.assertEqual(rec["staged_evidence"], [])
-        self.assertFalse(os.path.exists(os.path.join(
-            self.env_root, RUN_B, "staged-evidence")))
+        self.assertEqual([e["path"] for e in rec["staged_evidence"]],
+                         ["docs/notes.md"])
+        self.assertTrue(os.path.isfile(os.path.join(
+            self.env_root, RUN_B, "staged-evidence", "docs",
+            "notes.md")))
 
 
 class TestPrepareHistorical(EnvManagerBase):

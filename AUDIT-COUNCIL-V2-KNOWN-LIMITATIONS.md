@@ -136,3 +136,16 @@ are concrete residuals with documented risk.
 22. No existing artifact directories were migrated or reorganized;
     MIGRATION-RETENTION-RECOMMENDATION.md remains a proposal awaiting
     explicit operator approval.
+
+## v2.0.1 operational hardening (production run 20260904T222609Z-da27c0)
+
+23. The first production run exposed three bwrap execution-environment
+    defects (toolchain bound but absent from PATH → `execvp codex`
+    failure; broken system node selected → libada.so.3; dangling
+    resolv.conf symlink → DNS/model-refresh timeouts), a RELEASE
+    staging contract violation, unreadable skill-owned protocols, and a
+    record-vs-binding digest divergence. ALL FIXED in v2.0.1 with
+    Tier-4 regressions (tests/test_tier4_da27c0.py, 16 tests); a
+    zero-inference sandbox preflight now gates every codex launch
+    BEFORE attempt accounting. The historical da27c0 run is preserved
+    read-only and is NEVER rewritten.

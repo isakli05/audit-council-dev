@@ -317,15 +317,21 @@ def prepare(mode: str, source_repo: str, run_id: str,
                                           None, [])
             detached = True
             notes.append(f"{mode}: detached worktree at ref {ref}")
-            if mode == "HISTORICAL":
+            if evidence_allowlist:
+                # da27c0 fix: the public contract promises authorized
+                # evidence staging for RELEASE *and* HISTORICAL; both
+                # now stage (realpath-resolved, containment + deny-list
+                # re-applied post-resolution). Copies land in a
+                # run-owned staged-evidence dir so Opus and the
+                # bubblewrapped Codex (run dir rw) receive identical
+                # authorized evidence.
                 staged = _stage_evidence(source, run_id,
-                                         list(evidence_allowlist or []))
+                                         list(evidence_allowlist))
                 notes.append(
-                    f"HISTORICAL: staged {len(staged)} allow-listed "
+                    f"{mode}: staged {len(staged)} allow-listed "
                     f"evidence file(s); deny-list enforced")
-            elif evidence_allowlist:
-                notes.append(
-                    "RELEASE: evidence allow-list ignored (HISTORICAL-only)")
+            else:
+                notes.append(f"{mode}: no evidence allow-list given")
 
         porcelain_after = _git(source, "status", "--porcelain")
         if porcelain_after.returncode != 0 \

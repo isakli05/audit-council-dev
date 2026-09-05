@@ -110,8 +110,13 @@ historical runs are never rewritten.
 
 RELEASE/HISTORICAL prepare a detached isolated worktree at the exact
 requested HEAD, freeze the environment binding for THAT worktree, stage
-only authorized evidence, and start the run — the live source tree is
-never touched. At completion the run is archived before the ephemeral
+only authorized evidence (both modes; realpath-resolved, deny-list
+enforced) into the run-owned `staged-evidence/` dir — visible
+identically to Opus and the bubblewrapped Codex — and start the run;
+the live source tree is never touched. Every codex launch is preceded by
+a zero-inference sandbox preflight (eight probes through the exact
+production wrapper); a failing preflight stops before any model attempt
+is counted (INVALID_AUDIT_ENVIRONMENT:SANDBOX_PREFLIGHT). At completion the run is archived before the ephemeral
 worktree is removed via git.
 
 ## Runtime enforcement map

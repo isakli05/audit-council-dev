@@ -353,9 +353,65 @@ def launch(run_dir: str, phase: str, argv: list, prompt_path: str, out_path: str
     return job
 
 
+def cmd_sandbox_preflight(args) -> int:
+    """Manual entry point for the da27c0 zero-inference preflight."""
+    run_dir = os.path.abspath(args.run)
+    state = load_state(run_dir)
+    repo = state.get("repo_root") or detect_repo_root(run_dir)
+    allowed = []
+    binding_path = os.path.join(run_dir, "01-environment-binding.json")
+    if os.path.isfile(binding_path):
+        try:
+            allowed = read_json(binding_path).get(
+                "allowed_disposable_roots") or []
+        except (ValueError, OSError):
+            allowed = []
+    import codex_sandbox
+    result = codex_sandbox.sandbox_preflight(repo, run_dir, allowed)
+    print(json.dumps(result, indent=2))
+    return 0 if result["ok"] else 3
+
+
+def _sandbox_preflight_errors(run_dir: str, repo_root: str,
+                              allowed_roots: list) -> list:
+    """da27c0 hardening: zero-inference viability proof through the exact
+    production bubblewrap wrapper, BEFORE any attempt is counted or any
+    process launched. Failure = Audit Council environment/harness
+    failure (never a model attempt, never a product verdict)."""
+    import codex_sandbox
+    if not codex_sandbox.bwrap_available():
+        return []  # degraded posture (AC_CODEX_BWRAP=0/absent), recorded
+        # per job as sandbox.active=false; preflight cannot apply
+    result = codex_sandbox.sandbox_preflight(repo_root, run_dir,
+                                             allowed_roots)
+    if result["ok"]:
+        return []
+    return ["INVALID_AUDIT_ENVIRONMENT:SANDBOX_PREFLIGHT: "
+            + ", ".join(result["failures"])
+            + " — refusing to launch (no model attempt consumed); "
+              "details: " + json.dumps(result["details"])]
+
+
 def cmd_start(args) -> int:
     run_dir = os.path.abspath(args.run)
     phase = args.phase
+    # da27c0: sandbox preflight BEFORE attempt accounting (a dead
+    # execution environment must never consume a paid attempt)
+    pre_state = load_state(run_dir)
+    pre_repo = pre_state.get("repo_root") or detect_repo_root(run_dir)
+    pre_allowed = []
+    _binding_path = os.path.join(run_dir, "01-environment-binding.json")
+    if os.path.isfile(_binding_path):
+        try:
+            pre_allowed = read_json(_binding_path).get(
+                "allowed_disposable_roots") or []
+        except (ValueError, OSError):
+            pre_allowed = []
+    preflight_errors = _sandbox_preflight_errors(run_dir, pre_repo,
+                                                 pre_allowed)
+    if preflight_errors:
+        print(preflight_errors[0], file=sys.stderr)
+        return 3
     state = load_state(run_dir)
     governor_check(state, phase, run_dir)  # SystemExit(3-ish msg) on violation; mapped below
     env_errors = _env_gate_errors(run_dir)
@@ -956,6 +1012,23 @@ def cmd_repair(args) -> int:
     phase = job["phase"]
     state = load_state(run_dir)
 
+    # da27c0: identical sandbox preflight for repair — same valid
+    # execution environment as fresh/resume, before attempt accounting
+    pre_repo = state.get("repo_root") or detect_repo_root(run_dir)
+    pre_allowed = []
+    _binding_path = os.path.join(run_dir, "01-environment-binding.json")
+    if os.path.isfile(_binding_path):
+        try:
+            pre_allowed = read_json(_binding_path).get(
+                "allowed_disposable_roots") or []
+        except (ValueError, OSError):
+            pre_allowed = []
+    preflight_errors = _sandbox_preflight_errors(run_dir, pre_repo,
+                                                 pre_allowed)
+    if preflight_errors:
+        print(preflight_errors[0], file=sys.stderr)
+        return 3
+
     if job.get("status") == "COMPLETE":
         print("error: repair is not permitted on a completed job (the "
               "stage is already successfully counted)",
@@ -1053,6 +1126,12 @@ def cmd_repair(args) -> int:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="cmd", required=True)
+
+    p = sub.add_parser("sandbox-preflight")
+    p.add_argument("--run", required=True,
+                   help="zero-inference viability proof of the production "
+                        "bwrap environment (no model attempt consumed)")
+    p.set_defaults(func=cmd_sandbox_preflight)
 
     p = sub.add_parser("start")
     p.add_argument("--run", required=True)

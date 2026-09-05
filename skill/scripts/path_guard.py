@@ -69,6 +69,22 @@ _HARNESS_DIRS = [
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), sub))
     for sub in ("scripts", "hooks")
 ]
+# da27c0 fix 4: the skill's OWN read-only material — protocols, schemas,
+# prompt templates, the public contract — must be readable (Read/Grep/
+# Glob/read-only Bash) during a run; the real production run could not
+# load its own protocols. Mutation of every harness dir (these included)
+# stays mechanically denied via _MUTATING_TOOLS + write-target checks.
+_HARNESS_READONLY_DIRS = [
+    os.path.realpath(os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), sub))
+    for sub in ("protocols", "schemas", "prompts")
+] + [
+    os.path.realpath(p) for p in (
+        os.path.join(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))), name)
+        for name in ("SKILL.md", "PUBLIC-CONTRACT.md", "README.md"))
+    if os.path.isfile(p)
+]
 _INTERPRETER_PATHS = set()
 for _cand in (sys.executable, "/usr/bin/python3", "/bin/sh", "/bin/bash",
               "/usr/bin/env"):
@@ -259,7 +275,8 @@ def _classify_path(candidate: str, cwd: str, frozen_root: str,
     # path-guard hook blocks the skill's own CLI mid-run.
     if resolved_path in _INTERPRETER_PATHS:
         return None
-    roots = [frozen_root, *allowed_roots, *_HARNESS_DIRS]
+    roots = [frozen_root, *allowed_roots, *_HARNESS_DIRS,
+             *_HARNESS_READONLY_DIRS]
     if any(_within(resolved_path, r) for r in roots):
         return None
     if any(_within(lexical, r) for r in roots):
@@ -513,7 +530,8 @@ def _scan_segment(segment: str, cur_cwd: str, prev_cwd: str,
     for wt in write_targets:
         w_resolved = os.path.realpath(
             os.path.join(cur_cwd, wt) if not os.path.isabs(wt) else wt)
-        if any(_within(w_resolved, d) for d in _HARNESS_DIRS) \
+        if any(_within(w_resolved, d)
+                for d in (*_HARNESS_DIRS, *_HARNESS_READONLY_DIRS)) \
                 or w_resolved in _INTERPRETER_PATHS:
             reasons.append("PATH_ESCAPE_ATTEMPT")
 
@@ -526,7 +544,7 @@ def _scan_segment(segment: str, cur_cwd: str, prev_cwd: str,
             (tokens[0] in _INTERPRETERS and any(
                 t in ("-c", "-sc") for t in tokens[1:])) or \
             tokens[0] == "eval":
-        for d in _HARNESS_DIRS:
+        for d in (*_HARNESS_DIRS, *_HARNESS_READONLY_DIRS):
             if d in segment_raw:
                 reasons.append("PATH_ESCAPE_ATTEMPT")
                 break
@@ -546,7 +564,8 @@ def _scan_segment(segment: str, cur_cwd: str, prev_cwd: str,
                 target = os.path.realpath(joined)
                 if not any(_within(target, r) for r in allowed_all) \
                         and not any(_within(target, d)
-                                    for d in _HARNESS_DIRS) \
+                                    for d in (*_HARNESS_DIRS,
+                                             *_HARNESS_READONLY_DIRS)) \
                         and target not in _INTERPRETER_PATHS:
                     reasons.append("SYMLINK_ESCAPE")
         except OSError:

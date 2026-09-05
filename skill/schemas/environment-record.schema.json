@@ -56,6 +56,14 @@
         "null"
       ]
     },
+    "preparation_binding_digest": {
+      "type": ["string", "null"],
+      "description": "da27c0 fix 5: digest of prepare()'s own preliminary capture (preparation brief); binding_digest above is the RUN's frozen binding — the authority all three identities link to"
+    },
+    "staged_evidence_run_dir": {
+      "type": ["string", "null"],
+      "description": "run-relative dir holding the staged-evidence copies visible to both auditors (da27c0 fix 3)"
+    },
     "binding_digest": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"

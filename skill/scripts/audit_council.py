@@ -561,6 +561,28 @@ def cmd_prepare(args: argparse.Namespace) -> int:
     if rc != EXIT_OK:
         return rc
     run_dir = os.path.join(state_store.runs_root(target_root), run_id)
+    # da27c0 fix 3: copy staged evidence into the RUN-OWNED location so
+    # both Opus and the bubblewrapped Codex (run dir is its only writable
+    # repo subtree) receive identical authorized evidence
+    staged = record.get("staged_evidence") or []
+    if staged:
+        env_staged_root = em.staged_evidence_dir(run_id)
+        run_staged_root = os.path.join(run_dir, "staged-evidence")
+        for entry in staged:
+            src = os.path.join(env_staged_root, entry["path"])
+            dest = os.path.join(run_staged_root, entry["path"])
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            shutil.copyfile(src, dest)
+        record["staged_evidence_run_dir"] = "staged-evidence"
+    # da27c0 fix 5: the environment record REFERENCES the run's frozen
+    # binding — prepare() captures a preliminary binding (preparation
+    # brief) whose digest legitimately differs from the run binding
+    # (frozen with the operator's brief). The run binding is the
+    # authority; link all three identities to it and keep the
+    # preparation digest as explicit provenance.
+    run_binding = load_json(os.path.join(run_dir, ENV_BINDING_NAME))
+    record["preparation_binding_digest"] = record.get("binding_digest")
+    record["binding_digest"] = run_binding["binding_digest"]
     # link the environment record into the run (provenance: which worktree,
     # which source, what was staged)
     atomic_write_json(os.path.join(run_dir, em.RECORD_NAME), record)
@@ -1397,6 +1419,17 @@ PUBLIC_CONTRACT: dict[str, Any] = {
             "accepted residual — runner validates argv and output only"),
         "resumable": True,
         "write_scope": "audit-output/audit-council/<run-id>/ only",
+        "sandbox_preflight": (
+            "zero-inference viability proof (codex exec, intended node, "
+            "login, chatgpt.com DNS, repo read, repo-write-denied, "
+            "outside-read-denied, run-dir write) through the exact "
+            "production bubblewrap wrapper BEFORE any model attempt is "
+            "counted; failure = INVALID_AUDIT_ENVIRONMENT:SANDBOX_PREFLIGHT"),
+        "evidence_staging": (
+            "RELEASE and HISTORICAL both stage allow-listed evidence "
+            "(realpath-resolved; containment + deny-list re-applied) into "
+            "the run-owned staged-evidence/ dir, visible identically to "
+            "Opus and the bubblewrapped Codex"),
     },
     "known_limitations": [
         "without bubblewrap, codex repo-read confinement is not enforced "

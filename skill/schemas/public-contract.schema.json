@@ -178,6 +178,8 @@
         "auth",
         "claude_path_confinement",
         "codex_write_confinement",
+        "sandbox_preflight",
+        "evidence_staging",
         "codex_read_confinement",
         "resumable",
         "write_scope"
@@ -189,7 +191,9 @@
         "codex_write_confinement": {"type": "string", "minLength": 1},
         "codex_read_confinement": {"type": "string", "minLength": 1},
         "resumable": {"const": true},
-        "write_scope": {"type": "string", "minLength": 1}
+        "write_scope": {"type": "string", "minLength": 1},
+        "sandbox_preflight": {"type": "string", "minLength": 1},
+        "evidence_staging": {"type": "string", "minLength": 1}
       }
     },
     "known_limitations": {
