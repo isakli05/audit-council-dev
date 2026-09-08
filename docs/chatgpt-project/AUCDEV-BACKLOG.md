@@ -390,6 +390,65 @@ publication snapshot; a missing repository entry is not proof of absent qualific
   authority: NONE. Sol authority: NONE. Installed qualification provenance
   remains unresolved; runtime/install unchanged. This continuation does not close the original
   provenance-reconciliation scope, which remains unresolved.
+- Opus-V5 prospective-precheck continuation (2026-09-08; item remains
+  OPEN): fresh Auditor-A execution authority was granted after the canonical
+  `d2a68bec` state, and exactly ONE sealed prospective launcher attempt ran
+  against the CONTROL-ROOM-MECHANICALLY-ACCEPTED structid package: the
+  isolation wrapper failed its prospective precheck BEFORE `PRECHECK_PASS`,
+  BEFORE BubbleWrap namespace entry, and BEFORE any Claude CLI process was
+  started — classification `FAILED_AUDITOR_A_EXECUTION_PRE_CLI_LAUNCH`;
+  sealed-launcher invocations = 1; Claude Auditor-A CLI processes started =
+  0; frontier/model inference 0; provider requests 0; session NONE;
+  modelUsage ABSENT; tokens/cost NONE; substantive artifact NONE (none may
+  ever appear for this event); execution authority consumed; retry 0;
+  first-pass barrier CLOSED; Auditor-B/GPT-5.6 Sol NOT STARTED;
+  qualification NONE; verified evidence archive SHA-256
+  `82995b5a2e81c7e7db83b9684ed8063a8d65d56d7c5a0f498461ae3a994c0010`.
+  Nonblocking historical terminology residual
+  `LAUNCHER_ATTEMPT_COUNTER_MISLABELED_AS_CLI_INVOCATION`: the archive's
+  orchestrator line `cli_invocations_performed=1` actually counts the single
+  sealed-LAUNCHER attempt (authoritative process/phase evidence:
+  sealed-launcher invocations = 1; Claude Auditor-A CLI processes started =
+  0); the historical archive is NOT modified; all new records use distinct
+  counters (sealed-launcher invocations / Auditor-A CLI sessions /
+  pinned-CLI `--version` identity probes). Bounded root cause: the structid
+  isolation wrapper's prospective-mode precheck pinned the obsolete
+  STRUCTFMT trailer digest `7f098595…` while the accepted STRUCTID trailer
+  is `52bfd1a5…` (launcher and seal gate were already correctly bound); the
+  accepted predecessor matrix exercised the wrapper only in
+  `V5R_MODE=validation`, which bypasses the prospective input/trailer
+  branch. The bounded ZERO-FRONTIER prospective-precheck remediation then
+  sealed the non-overwriting successor
+  `execution-addenda/opus-v5-structid-preflight/` (authorized mechanical
+  fix: the wrapper's single prospective expected-trailer digest constant
+  updated to the exact accepted STRUCTID trailer `52bfd1a5…`, trailer
+  preserved byte-for-byte, launcher binding and prelaunch seal-gate binding
+  preserved, plus unavoidable package-root path updates; new mandatory PX
+  matrix phase PX-1..PX-10 executing the ACTUAL successor wrapper in
+  `V5R_MODE=prospective` with the exact frozen view/meta/evidence-MCP and
+  trailer, actual pinned BubbleWrap and pinned CLI identity/version
+  precheck, strictly local synthetic guard/socket infrastructure, and a
+  deterministic benign `/usr/bin/true` namespace command — eight pinned-CLI
+  `--version` mechanical identity probes counted separately, zero
+  Auditor-A CLI sessions, zero frontier calls, zero provider requests;
+  frozen prompt `755ced88…`, frozen structural validator `23d9b03f…`, and
+  all trust boundaries byte-identical; `AUTOMATIC_REPAIR=false`; the
+  accepted structid predecessor remains immutable — its bytes, seal
+  `fde6cd77…`, own record, and results never modified or reused), seal
+  `b48c74736e15985ebf3609a08dbe4ef5611ab7b8a65e937aa21a0f1dfc295820`, 147
+  manifest records (NUL-safe; verified 147/147 with 0 missing / 0
+  mismatched / 0 unmanifested trusted regular files); authoritative matrix
+  `validation-20260908T174134Z` OVERALL=PASS, `frontier_calls=0`, provider
+  request count 0, all inherited mandatory phases PASS (G-before, A-BC-S-P,
+  R5, D, E, F, G-after, J, K, NT, OA, SF, SI) plus PX 10/10 PASS; one
+  matrix execution, PASS on the first attempt, zero failed/intermediate
+  matrix attempts. Successor disposition: **CONTROL ROOM MECHANICALLY ACCEPTED**
+  (2026-09-08 post-acceptance record correction; record-only: sealed
+  bytes, seal, matrix, and candidate/runtime unchanged; no matrix rerun;
+  no reseal; no inference; no new authority). Future real Opus authority: NONE. Sol
+  authority: NONE. Installed qualification provenance remains unresolved;
+  runtime/install unchanged. This continuation does not close the original
+  provenance-reconciliation scope, which remains unresolved.
 - Milestone: before the next candidate audit; verified historical evidence may close
   the item without rerunning qualification. A new summary alone is not proof.
 
