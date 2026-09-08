@@ -342,6 +342,54 @@ publication snapshot; a missing repository entry is not proof of absent qualific
   remains unresolved; runtime/install unchanged. This continuation does not
   close the original provenance-reconciliation scope, which remains
   unresolved.
+- Opus-V5 identity-coverage continuation (2026-09-08; item remains OPEN):
+  fresh operator authority was granted after the canonical `c284ce78`
+  publication, and exactly ONE real Opus execution ran against the accepted
+  structfmt package (session `a06eb35a-212a-43d6-a918-570c5ee94070`; one
+  Claude CLI invocation; exit 0; real frontier inference completed;
+  exclusive `claude-opus-5` modelUsage with strict modelUsage PASS; frozen
+  structural validator FAIL `INVALID_FIRST_PASS: Claude CLI/model identity
+  field is incomplete` — the CLI/model identity field did not contain both
+  frozen-required tokens `claude-opus-5` and `2.1.261` while every earlier
+  frozen check passed; classification `NONCONFORMING_AUDITOR_A_FIRST_PASS`;
+  nonconforming substantive artifact preserved unread — HASH-ONLY identity
+  SHA-256 `f599a6583690ba4060343c60e48dc141467205661932c3d003cdb91d69cabe69`, 41999 bytes; execution authority consumed; retry 0;
+  no conforming Auditor-A first pass; first-pass barrier CLOSED;
+  Auditor-B/GPT-5.6 Sol NOT STARTED; qualification NONE; the accepted
+  structfmt package remained 408/408 intact with its seal unchanged;
+  verified evidence archive SHA-256 `5e68380e…`). Bounded root cause: the
+  structfmt guidance's overbroad value-free policy had not exposed the
+  validator-enforced deterministic identity requirement — a prospective
+  harness-guidance coverage defect, not a candidate or validator defect.
+  The bounded ZERO-FRONTIER structural-identity-constraint remediation then
+  sealed the non-overwriting successor `execution-addenda/opus-v5-structid/`
+  (identity-exposing trailer composed AFTER the unchanged frozen prompt
+  bytes, mechanically exposing the frozen CLI/model identity tokens
+  `claude-opus-5` and `2.1.261` and the Auditor-A identity token set;
+  machine-readable deterministic constraint inventory DC-1..DC-9 derived
+  from the frozen validator with
+  `ALL_MECHANICALLY_PREDETERMINED_VALIDATOR_CONSTRAINTS_GUIDED` coverage;
+  sealed coverage checker failing closed; SF TR-4 refined to
+  value-free-except-whitelisted-execution-identity; new mandatory SI matrix
+  phase with deterministic synthetic fixtures only; frozen prompt, frozen
+  validator, qualification contract, and strict modelUsage semantics all
+  byte-unchanged; AUTOMATIC_REPAIR=false; seal
+  `fde6cd776a4aa65d52a762be7122825f51782004d5c6e802ff9ccd9e740553fc`, 235
+  manifest records; authoritative matrix `validation-20260908T140305Z`
+  OVERALL=PASS, frontier_calls=0, provider request count 0; one intermediate
+  failed matrix run preserved and accounted inside the sealed package; the
+  five local-synthetic pinned-CLI E-phase sessions are deterministic
+  client/wire route tests against local synthetic sinks only — NOT
+  Auditor-A executions, creating no qualification or execution authority,
+  and performing no frontier/model inference; SF 27/27 PASS and SI 14/14
+  PASS).
+  Successor Control Room disposition: **CONTROL ROOM MECHANICALLY
+  ACCEPTED** (2026-09-08 post-acceptance record correction; record-only:
+  sealed bytes, seal, matrix, and candidate/runtime unchanged; no matrix
+  rerun; no reseal; no inference; no new authority). Future real Opus
+  authority: NONE. Sol authority: NONE. Installed qualification provenance
+  remains unresolved; runtime/install unchanged. This continuation does not close the original
+  provenance-reconciliation scope, which remains unresolved.
 - Milestone: before the next candidate audit; verified historical evidence may close
   the item without rerunning qualification. A new summary alone is not proof.
 
