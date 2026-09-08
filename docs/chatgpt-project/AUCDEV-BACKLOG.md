@@ -449,6 +449,101 @@ publication snapshot; a missing repository entry is not proof of absent qualific
   authority: NONE. Installed qualification provenance remains unresolved;
   runtime/install unchanged. This continuation does not close the original
   provenance-reconciliation scope, which remains unresolved.
+Status record 2026-09-08 (FOURTH 8 Sep execution event; verified
+nonconforming at the binding/integrity gate): fresh Auditor-A execution
+authority was granted against the CONTROL-ROOM-MECHANICALLY-ACCEPTED
+`opus-v5-structid-preflight` package (canonical base for the cycle
+`c4be751e013d83db28c0ee19ee796c31a3313c2e`, live GitHub `master` resolved
+EXACT before the pass; the package was verified 147/147 intact). Exactly
+ONE sealed prospective launcher attempt ran; one substantive Auditor-A
+session `d8c85a23-8565-4f59-81e2-4a9743e0eacd`; real Claude Opus inference
+completed; exact modelUsage key set `["claude-opus-5"]` with the strict
+modelUsage gate PASS; CLI exit 0; isolation exit 0; frozen structural
+validator PASS; binding/integrity gate FAILED before
+`OPUS_V5R_LAUNCH_PHASE=BINDING_INTEGRITY_PASS` — classification
+`NONCONFORMING_AUDITOR_A_FIRST_PASS`. Verified root cause: the sealed
+supervisor archived the runtime binding record only at
+`guard-binding/run-<id>/GUARD-BINDING.json` while the sealed launcher
+requires the direct per-attempt contract path `guard-binding/
+GUARD-BINDING.json` (observed drift preserved under
+`operator-diagnostics/opus-v5-structid-preflight/attempts/attempt-20260908T184502Z-lxLUcY/`:
+run-scoped record present, direct record absent). Historical artifact
+UNREAD/HASH-ONLY: `682413e549f81b3bcfeef2009729efb7d42b5a6ea588c649b073424de507338b`,
+39983 bytes, 0444; response envelope
+`5ee59d86c4f6f62c2c6be78b1fd61ff1894e202ac933478c785bb85a957d6c85`,
+42010 bytes, 0444; the event's `FIRST-PASS.sha256` freeze record exists
+but is NOT a conforming barrier digest; no retroactive repair or
+reclassification. Authority consumed; retry 0; 39 directly observed
+in-session `UPSTREAM_FAILURE` events; exact total provider request count
+unobservable from the sealed guard logs (`num_turns=62` is never converted
+into a provider-request count); first-pass barrier CLOSED; Auditor-B/
+GPT-5.6 Sol NOT STARTED (authority NONE); qualification NONE. Verified
+execution evidence archive SHA-256
+`5c91ac6d74ad5b2e32f1eac3b3cc80e692565245f898ef5e47e13aa3617e5ada`.
+
+Status record 2026-09-08 (binding-record path-contract mechanical
+remediation; subsequently CONTROL ROOM MECHANICALLY ACCEPTED via the
+2026-09-08 post-acceptance record correction below): exactly ONE bounded
+ZERO-FRONTIER mechanical pass (not an Auditor-A retry; no real
+Claude/Opus inference; no Auditor-B/Sol execution; no qualification
+decision) sealed the non-overwriting successor
+`execution-addenda/opus-v5-structid-preflight-bindpath/`, derived only
+from the intact structid-preflight predecessor (seal `b48c7473…` verified
+147/147 with 0 missing / 0 mismatched / 0 unmanifested trusted regular
+files before any successor byte was written; predecessor immutable, seal
+never reused). Authorized fix (producer-side only; launcher consumer
+check byte-identical): the supervisor cleanup publishes a byte-identical
+copy of the exact runtime `GUARD-BINDING.json` at the direct per-attempt
+contract path via an exclusive no-clobber create, only after the binding
+is established, inside the launcher's unique attempt record directory;
+stale/pre-existing/symlink direct records and symlinked record dirs
+(out-of-attempt escape) fail the run closed; byte identity is verified
+against the runtime record and the retained run-scoped archival copy; no
+peer/process/socket binding semantics or any other trust boundary changed.
+New mandatory deterministic zero-frontier matrix phase `BP`
+(BP-1..BP-12, `tests/test_binding_path.py`): actual-successor supervisor
+lifecycle over strictly local synthetic infrastructure with a benign
+command; exact direct-record contract path; byte identity across
+authoritative copies; absent/stale/second-producer/symlink/escape
+fail-closed; the exact historical failure shape reproduced with synthetic
+metadata only; the EXACT sealed launcher binding/integrity gate logic
+dynamically executed against deterministic synthetic frozen-output files;
+frozen mode/digest regressions; inotify non-access proof for the
+historical artifact; barrier/Sol fail-closed; exact future gate sequence
+preserved. RED->GREEN discipline preserved (pre-fix BP-1/2/4/5/6/8 fail
+exactly on the producer defect; post-fix 30/30 PASS). Frozen identities
+preserved byte-for-byte: prompt `755ced88…`, structural validator
+`23d9b03f…`, STRUCTID trailer `52bfd1a5…`, pinned Claude `4ae40dd1…`
+(`2.1.261 (Claude Code)`), model `claude-opus-5`, `AUTOMATIC_REPAIR=false`.
+The authoritative matrix, seal and BP identities for this successor are
+recorded in the evidence archive accompanying this status record.
+Disposition: `STRUCTID_PREFLIGHT_BINDING_PATH_MECHANICAL_REMEDIATION_PASS_FRONTIER_NOT_AUTHORIZED`.
+Post-acceptance correction 2026-09-08 (record-only; no sealed package byte
+modified, no matrix rerun, no reseal, no inference, no Auditor-B/Sol
+launch, no barrier change, no qualification decision, no new execution
+authority): Control Room has MECHANICALLY ACCEPTED
+`execution-addenda/opus-v5-structid-preflight-bindpath/` — seal
+`2851002fc54f146b8a252934775aa0b5459de0eb61c81ca036c2e43f146bf560`, 250
+manifest records, authoritative zero-frontier matrix
+`validation-20260908T195913Z` with all 17 mandatory phases PASS (SF 27/27,
+SI 14/14, PX 10/10, BP 30/30; H phase authoritative sealed values:
+live_components=51, inventory_table_components=50, mismatches=[]);
+`frontier_calls=0`, provider request count 0, substantive Auditor-A
+sessions during remediation 0. Counting terminology: the five E-phase
+local-synthetic pinned-CLI sessions, the eight PX `--version` mechanical
+identity probes, the five BP supervisor lifecycles with five BP seal-gate
+`--version` probes, and any J/K mechanical version-probe executions are
+NOT Auditor-A executions, performed zero frontier/model inference and
+zero provider requests, and create no authority. One failed matrix
+attempt `validation-20260908T194519Z` was preserved (K FAIL on the RI-2
+supersession-record self-identity check); the final complete rerun
+`validation-20260908T195913Z` PASSed. The accepted package is the sole
+eligible package for any FUTURE Auditor-A execution, which still requires
+a fresh explicit operator authorization (none exists). No conforming Auditor-A first pass
+exists; future real Opus authority NONE; AUCDEV-010 remains OPEN;
+installed qualification provenance remains unresolved; runtime/install
+unchanged; the original provenance-reconciliation scope remains open.
+
 - Milestone: before the next candidate audit; verified historical evidence may close
   the item without rerunning qualification. A new summary alone is not proof.
 
