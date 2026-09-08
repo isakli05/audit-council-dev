@@ -544,6 +544,107 @@ exists; future real Opus authority NONE; AUCDEV-010 remains OPEN;
 installed qualification provenance remains unresolved; runtime/install
 unchanged; the original provenance-reconciliation scope remains open.
 
+Status record 2026-09-08 (FIFTH 8 Sep execution event; execution failure
+during the substantive Claude session; recorded by a record-only
+governance pass closed 2026-09-09 Europe/Istanbul, pass start
+2026-09-08T21:14:39Z UTC): fresh Auditor-A execution authority was granted
+(canonical base `ca8ad5507505b98963f0960973347fe8ea52bf8a`, live GitHub
+`master` resolved and verified EXACT at pass start and re-verified EXACT at
+close), and exactly ONE sealed prospective launcher attempt ran against
+the CONTROL-ROOM-MECHANICALLY-ACCEPTED `opus-v5-structid-preflight-bindpath`
+package (seal `2851002fc54f146b8a252934775aa0b5459de0eb61c81ca036c2e43f146bf560`,
+250 manifest records, verified 250/250 intact before the attempt and
+after). Exactly ONE substantive Auditor-A Claude CLI session started
+(session `b13b36ab-fc17-4c42-aa8b-64d2bd017dc7`) and FAILED DURING
+EXECUTION: machinery marker `CLAUDE_CLI_FAILURE`; accepted Control Room
+classification `SEALED_EXECUTION_FAILURE_DURING_SUBSTANTIVE_CLAUDE_SESSION`;
+explicitly NOT `CONFORMING_AUDITOR_A_FIRST_PASS` and NOT
+`NONCONFORMING_AUDITOR_A_FIRST_PASS` — no first pass was produced.
+Progression: prelaunch seal gate PASS; supervisor seal/nettrust prechecks
+PASS; fresh guard runtime; guard bound; guard-only credential delivery
+(peer-verified; `credential_received credential_len=108`); isolation
+`PRECHECK_BEGIN`; `PRECHECK_PASS`; BubbleWrap execution entry
+(`BUBBLEWRAP_ENTERED`); `CLAUDE_ARGV_READY`; then CLI failure. Claude CLI
+exit 1; isolation exit 1; launcher exit 1 at `SUPERVISOR_ISOLATION_EXIT_1`.
+Execution authority CONSUMED; top-level retry 0; NO second launcher
+attempt; NO second substantive Claude session. Terminal response-envelope
+metadata (mechanical scalars only; the envelope `result`-field value was
+never read and no `result` substance is published): `is_error=True`;
+`api_error_status=401`; `modelUsage={}`; `duration_api_ms=0`;
+`total_cost_usd=0`; `num_turns=1` — NO successful model inference
+established. NO `first-pass.md`; NO `FIRST-PASS.sha256`; NO
+`SESSION-IDENTITY.json`; NO structural-validation artifact exists for this
+event. Post-output gates NOT REACHED: the strict modelUsage launcher gate,
+the frozen structural validator, the binding/integrity consumer gate, and
+any conforming classification — the observed empty `modelUsage={}` would
+not establish exclusive `claude-opus-5` use, and the sealed
+strict-modelUsage gate itself did NOT execute. Provider telemetry
+precision: exactly 11 guard `accept` relay events are DIRECTLY OBSERVED
+(all `POST /v1/messages?beta=true`; all `credential_substituted=true`),
+comprising the first relay plus 10 additional in-session client retry
+relays (top-level retry remains 0); the guard does NOT record per-relay
+HTTP status, so per-relay 401 is NOT claimed; the terminal response
+envelope reports `api_error_status=401`. Mechanically established failure:
+`PROVIDER_AUTHORIZATION_FAILURE / TERMINAL_401`. Credential-source
+attribution boundary: the execution return attributes the failure to
+delivery of an expired bootstrap credential copy instead of the live
+operator credential — recorded ONLY as `OPERATOR_REPORTED_CREDENTIAL_SOURCE_ERROR`
+(operator-reported; NOT upgraded into a mechanically established fact;
+separate non-secret evidence would be required to independently prove the
+source-selection chain), together with
+`CREDENTIAL_SOURCE_ATTRIBUTION_NOT_INDEPENDENTLY_REPLAYABLE_FROM_EXECUTION_ARCHIVE`
+(the accepted execution archive contains the operator attribution
+narrative but does NOT contain a raw source-selection command/script or
+independent source/expiry transcript sufficient for Control Room to
+reproduce which credential source supplied the delivered bytes); NO
+credential/token bytes were hashed, printed, copied, exposed, or archived.
+BINDPATH result: the accepted producer-side correction was exercised
+successfully BEFORE cleanup — the direct binding record and the retained
+run-scoped binding record were byte-identical (exact SHA-256
+`04633cd25fbe88ad7cb135e5c3ded97cc98019fb1211a86a764608c9c298ba7c`, size
+`2337`); the direct record existed inside the exact attempt directory and
+the record directory was not a symlink; the launcher's post-output
+`BINDING_INTEGRITY_PASS` consumer gate was NOT REACHED because the Claude
+CLI failed first — this run did NOT exercise that consumer gate. Cleanup
+evidence residual: `CLEANUP_PROCESS_COUNT_EVIDENCE_CONFLICT` — the
+execution archive's `post-run-integrity.txt` reports
+`stale_guard_processes=3` while the operator classification prose states
+cleanup left no residual guard/bwrap processes (operator-reported,
+out-of-archive: a later self-excluding process check in the same operator
+session observed none — NOT mechanically established from the archive);
+an evidence-quality residual, NOT by itself a sealed-package defect
+finding; the three counted processes are NOT inferred to have caused the
+provider 401; historical zero-residual cleanup is NOT claimed as
+independently established from this archive. Frozen response-envelope
+metadata: SHA-256
+`b32f4662c00e22b1ef1bdd2dee7bc13813f8efac07bd621d9b744d81b15b4194`, size
+`1196`, mode `0444`; no first-pass substantive artifact exists for this
+event. Immutable identities unchanged: candidate
+`8ae33444f349ce73c1359b963722e2d16acba630`; accepted package
+`execution-addenda/opus-v5-structid-preflight-bindpath/`; accepted seal
+`2851002fc54f146b8a252934775aa0b5459de0eb61c81ca036c2e43f146bf560`; 250
+manifest records; frozen prompt
+`755ced882b0e4238a512e1ce7a4120956eb68f99dd77c4097a4cf07ab7285a72`; frozen
+structural validator
+`23d9b03fcbf15e2893a911999a0f39b5d625f2f9541392f3c63624b94af69d57`;
+STRUCTID trailer
+`52bfd1a5db2bc82762cef5ac3dcd30ad3f66cd312ba117f0ba3a5b5167f9bfa5`; pinned
+Claude executable
+`4ae40dd1784e85753e742e09f267d29ecbb82890361ad3817d27560866d364a6`;
+Claude Code `2.1.261`; no package modification, reseal, or matrix rerun
+occurred or was authorized; the accepted BINDPATH package remains the
+mechanically accepted package — this execution failure does not by itself
+supersede or revoke that mechanical package acceptance. Terminal
+governance state: ALL FIVE 8 Sep Auditor-A execution authorities are
+consumed; no conforming Auditor-A first pass exists; first-pass barrier
+CLOSED; Auditor-B/GPT-5.6 Sol NOT STARTED; Sol authority NONE; future real
+Opus authority NONE; qualification NONE; AUCDEV-010 OPEN; installed
+qualification provenance unresolved; runtime/install unchanged. Verified
+execution evidence archive SHA-256
+`e17f682953d4ed7941305a542be40a5abdc5320e67a538e97edd42ccee9bbed3`.
+This record-only pass created no future execution authority and implies
+none.
+
 - Milestone: before the next candidate audit; verified historical evidence may close
   the item without rerunning qualification. A new summary alone is not proof.
 
