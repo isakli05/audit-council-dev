@@ -279,6 +279,36 @@ publication snapshot; a missing repository entry is not proof of absent qualific
   and verdict inspection; append qualification history without replacing earlier entries.
 - References: `AUDIT-COUNCIL-V2-IMPLEMENTATION-REPORT.md` Installation section,
   `AUCDEV-QUALIFICATION-HISTORY.md`, `AUCDEV-CURRENT-STATE.md`.
+- Opus-V5 extension progress (2026-09-06 → 2026-09-07; cumulative record, item
+  remains OPEN): mechanical bootstrap lineage of sealed non-overwriting packages,
+  each with its own fresh zero-frontier matrix (frontier_calls=0): prospective →
+  remediation (R1–R4) → r2r5 → binding → custody → peerbind → peerbind-recordfix →
+  **net-trust** (resolver + explicit CA; seal `c8905290…`, 121 records; Control
+  Room mechanically accepted). One separately authorized Auditor-A execution ran
+  against net-trust: it reached the real upstream and failed HTTP 401 PRE-INFERENCE
+  (classification `NONCONFORMING_AUTHENTICATION_FAILURE_UPSTREAM_401_PRE_INFERENCE`;
+  zero completed inference; authority consumed; barrier CLOSED; Sol untouched;
+  Attempt-004 substantive result still unread; verified evidence archive
+  SHA-256 `b506e3d3…`; credential source `opus-oauth-token`). The bounded
+  OAuth-binding remediation then sealed `execution-addenda/opus-v5-oauthbind/`
+  (MODE A Bearer-placeholder substitution; new mandatory OA matrix phase;
+  frontier_calls=0; provider request count 0; authoritative matrix
+  `validation-20260907T190621Z`), and its mechanics are now **CONTROL ROOM
+  MECHANICALLY ACCEPTED** (accepted seal
+  `9959bbf1385f0314c54b4b053f18c13fa111b9b1f6177b3de477a1d12fb15730`, 127
+  manifest records). Terminology note: OA-1 mechanically executed the pinned
+  Claude Code 2.1.261 CLI against strictly local synthetic infrastructure
+  (3 AUTH_TOKEN + 3 control observations; client/wire-capability probes only;
+  no real credential; no provider request; no frontier/model inference) —
+  local synthetic CLI executions, NOT Auditor-A executions, creating no
+  qualification or execution authority. Current chain state: no conforming
+  Auditor-A first pass; prior real Auditor-A authority consumed; future Opus
+  authority NONE pending fresh explicit operator authorization; first-pass
+  barrier CLOSED; Sol/Auditor-B authority NONE; qualification verdict NONE;
+  no runtime/install change. A dated append-only post-seal record-integrity
+  correction was issued (sealed bytes unchanged; no matrix rerun; no reseal).
+  This extension does not close the original provenance-reconciliation scope,
+  which remains unresolved.
 - Milestone: before the next candidate audit; verified historical evidence may close
   the item without rerunning qualification. A new summary alone is not proof.
 
