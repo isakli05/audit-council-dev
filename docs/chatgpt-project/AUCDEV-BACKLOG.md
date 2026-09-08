@@ -645,6 +645,80 @@ execution evidence archive SHA-256
 This record-only pass created no future execution authority and implies
 none.
 
+Credential-source readiness preflight governance record (2026-09-08
+UTC; record-only; zero-frontier), prepared against exact canonical base
+`895c4e063019eb7a1e00c9987b41e7af5559909e` (live GitHub `master` resolved
+EXACT at record start 2026-09-08T21:57:16Z, re-verified EXACT at close):
+records exactly ONE bounded ZERO-FRONTIER operational readiness pass — no
+Auditor-A execution, no Claude/Opus inference, no provider request, no
+Auditor-B/GPT-5.6 Sol execution, no remediation, no package modification, no
+qualification decision, no commit/push. Accepted classification
+`CREDENTIAL_SOURCE_READINESS_MECHANICALLY_ESTABLISHED_FRONTIER_NOT_AUTHORIZED`
+— recorded as a zero-frontier operational readiness observation only, NOT an
+Auditor-A execution, NOT qualification, NOT package remediation, and NOT a
+credential validity guarantee for all future time. Verified readiness
+evidence archive SHA-256
+`ec814c8b66ed3c3aa1cb047fcf7eaea7020b7eb52d6fc15855286711dca0abe8`.
+Credential-source contract: the accepted future execution credential-source
+identity is `/home/isa/.claude/.credentials.json`; selection is fail-closed
+and requires the RESOLVED REALPATH to equal that exact path; ineligible
+REGARDLESS of contents: any path under `/home/isa/audits`, any
+`runtime-auth/` path, any `opus-home/` path, any execution-attempt/historical
+attempt directory, any sealed `execution-addenda` package area, and
+specifically
+`/home/isa/audit-council-dev/runtime-auth/opus-home/.claude/.credentials.json`
+(that reported bootstrap path was ABSENT during the pass and was mechanically
+REJECTED by path policy regardless of content). Credential source identity is
+NOT credential bytes; no credential/token bytes, hashes, fingerprints,
+prefixes, suffixes, or encodings are published. Point-in-time non-secret
+metadata observed: source realpath `/home/isa/.claude/.credentials.json`;
+regular file; not a symlink; owner uid/gid `1000/1000`; mode `0600`;
+access-token field PRESENT; access-token byte length `108` only; expiry
+observed `2026-09-09T00:57:44Z`; verification time `2026-09-08T21:46:28Z`;
+remaining lifetime at that verification `11475 seconds / 191.3 minutes`;
+required execution-readiness floor `45 minutes`. Explicit:
+`FUTURE_EXECUTION_MUST_REVERIFY_SOURCE_AND_EXPIRY_AT_DELIVERY_TIME` — the
+record does NOT imply the credential remains valid indefinitely. Deterministic
+selector testing: 8 synthetic negative cases REJECTED 8/8 as expected
+(runtime-auth; opus-home; symlink/realpath escape; expired; under 45-minute
+remaining lifetime; missing access-token field; empty token; unreadable
+source), 1 synthetic valid live-source-shaped case ACCEPTED as expected, and
+3 real-contract cases as expected — 12/12 expected behavior, zero real
+provider access. Process baseline: initial relevant residual
+guard/supervisor/BubbleWrap count = 0; final relevant residual count = 0;
+self-excluding scan; no process killed. `CLEANUP_PROCESS_COUNT_EVIDENCE_CONFLICT`
+is PRESERVED UNRESOLVED as historical evidence for the FIFTH execution; this
+readiness baseline does NOT retroactively resolve that historical conflict.
+Accepted package invariance re-verified read-only:
+`execution-addenda/opus-v5-structid-preflight-bindpath/`, seal
+`2851002fc54f146b8a252934775aa0b5459de0eb61c81ca036c2e43f146bf560`, manifest
+`250/250`, candidate `8ae33444f349ce73c1359b963722e2d16acba630`, authoritative
+matrix `validation-20260908T195913Z` `OVERALL=PASS` `frontier_calls=0`; no
+package byte modified, no reseal, no matrix rerun. AF_UNIX runtime-remnant
+precision: the readiness verifier observed 20 unmanifested AF_UNIX socket
+runtime remnants (`guard.sock`, `sink.sock`) under historical E-phase result
+directories — recorded ONLY as
+`KNOWN_UNMANIFESTED_AF_UNIX_RUNTIME_REMNANTS_OUTSIDE_SEALED_TRUSTED_REGULAR_SET`;
+no `zero filesystem extra entries` claim is made and the remnants are NOT
+reinterpreted as a seal failure; the trusted manifest state remains `250/250`.
+Evidence-quality residual: the readiness archive's malformed local-only
+diagnostic values are non-authoritative and are NOT copied into canonical
+governance; canonical authority for the pass is live GitHub `master`, verified
+EXACT at start and close; the operator's pre-existing local divergent branch
+remains non-canonical and unchanged. Historical blindness preserved: all
+historical substantive Auditor-A artifacts remain UNREAD/HASH-ONLY; no
+substantive result entered the governance archive. Terminal governance state:
+credential-source readiness mechanically established at the observed preflight
+time; any future execution must reverify the live source and a >=45-minute
+remaining lifetime before credential delivery; all FIVE prior Auditor-A
+authorities remain consumed; no conforming Auditor-A first pass exists;
+first-pass barrier CLOSED; Auditor-B/GPT-5.6 Sol NOT STARTED; Sol authority
+NONE; future real Opus authority NONE; qualification NONE; AUCDEV-010 OPEN;
+installed qualification provenance unresolved; runtime/install unchanged; the
+accepted BINDPATH mechanical acceptance stands. Disposition:
+`CREDENTIAL_SOURCE_READINESS_GOVERNANCE_RECORD_PREPARED / FUTURE_EXECUTION_REVERIFY_REQUIRED / FRONTIER_NOT_AUTHORIZED`.
+This readiness record creates NO future Auditor-A execution authority.
+
 - Milestone: before the next candidate audit; verified historical evidence may close
   the item without rerunning qualification. A new summary alone is not proof.
 
