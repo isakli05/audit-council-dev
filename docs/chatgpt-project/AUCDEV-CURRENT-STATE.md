@@ -1,6 +1,6 @@
 # Audit Council Dev — Current State
 
-Last updated: **2026-09-07** (Europe/Istanbul).
+Last updated: **2026-09-08** (Europe/Istanbul).
 Update this file at every significant implementation/audit/remediation/install transition.
 
 | Field | Verified state |
@@ -8,7 +8,7 @@ Update this file at every significant implementation/audit/remediation/install t
 | Canonical local repository | `/home/isa/audit-council-dev` |
 | GitHub repository | `https://github.com/isakli05/audit-council-dev` (public, owner `isakli05`; remote `origin`) |
 | Current branch | `master` |
-| Last verified repository HEAD/checkpoint | `44c4ce2c9564131ebe6ef92ff28353b88ae55363` (verified EXACT live GitHub HEAD at OAuth-binding remediation start and again at post-seal correction on 2026-09-07; local recording commits are descendants, not yet published) |
+| Last verified repository HEAD/checkpoint | `b05aa33ea89fe1feefaf09b0c30e2f8d002327ef` (exact live canonical GitHub `master` checkpoint of the 2026-09-08 cycle: published before the 8 Sep Auditor-A execution authorization, and re-resolved EXACT at the start and close of the structfmt remediation, the post-acceptance record correction, and this record-freshness correction; local recording commits are descendants, not yet published; a future publication commit necessarily has a different SHA than any SHA it records) |
 | Live current HEAD | Resolve `refs/heads/master` from GitHub or `git rev-parse HEAD`; see SHA recording rule below |
 | Runtime source baseline | `8ae33444f349ce73c1359b963722e2d16acba630` |
 | Installed skill path | `/home/isa/.claude/skills/audit-council/` |
@@ -18,10 +18,10 @@ Update this file at every significant implementation/audit/remediation/install t
 | Currently installed qualified version/HEAD | **PENDING EVIDENCE RECONCILIATION** (unchanged): operator confirms external historical qualification/install evidence; exact linkage not inspected here. Missing Git record does not establish absence |
 | Latest documented verified installation | v2.0 source `579e39a409a1b6df58368a7b07dbdbbed5839dd9`, recorded in commit `d0c6008d1bdef5909db31852575a0b6a0685f187` as INSTALLATION_VERIFIED |
 | Latest completed qualification status | Qualification verdict: **NONE** for the Opus-V5 chain (no conforming Auditor-A first pass exists); historical published qualification records remain to be reconciled as before |
-| Current development status | Runtime unchanged (no runtime/install change). AUCDEV-010 Opus-V5 extension: OAuth-binding successor mechanics **CONTROL ROOM MECHANICALLY ACCEPTED** — sealed package `execution-addenda/opus-v5-oauthbind/` (MODE A Bearer-placeholder substitution), accepted seal `9959bbf1385f0314c54b4b053f18c13fa111b9b1f6177b3de477a1d12fb15730` (127 manifest records). OA-1 used local synthetic pinned-CLI capability executions, NOT frontier inference |
-| Active runtime backlog item | None executing. The accepted successor package is eligible (sole eligible package) for a FUTURE Auditor-A execution, which still requires a fresh explicit operator authorization; no such authorization exists |
-| Next runtime objective | Operator decision on whether/when to authorize a future Auditor-A first-pass execution against the accepted package (fresh explicit authorization required; none exists). Independently, the original AUCDEV-010 provenance reconciliation remains open; AUCDEV-001/009 (P0) unchanged |
-| Current validation | Accepted-package zero-frontier matrix `validation-20260907T190621Z` OVERALL=PASS, `frontier_calls=0`, provider request count 0 (G-before, A-BC-S-P, R5 rewritten to the Bearer invariant, D, E, F, G-after, J, K, NT, OA, H, I; H: 38 live components vs 37 table entries — `IDENTITY-INVENTORY.md` intentionally self-excluded, 0 missing, 0 mismatches); post-seal record-integrity correction issued (append-only; sealed bytes unchanged; no matrix rerun; no reseal); NOT a qualification campaign |
+| Current development status | Runtime unchanged (no runtime/install change). AUCDEV-010 Opus-V5 extension: the accepted OAuth-binding package's single separately authorized 8 Sep Auditor-A execution completed real frontier inference but FAILED the frozen structural output contract (`NONCONFORMING_AUDITOR_A_FIRST_PASS`; authority consumed; retry 0). The bounded zero-frontier structural-output-conformance remediation then sealed `execution-addenda/opus-v5-structfmt/` (format-only trailer composed after unchanged frozen prompt bytes; envelope-vs-structural gate split with the frozen structural validator gating any conformance classification; AUTOMATIC_REPAIR=false; new mandatory SF matrix phase), seal `e7b0a897e9b2a495174e62e584d6f0afe1cc328ec5a69eafb672136fe96f840f` (408 manifest records) — **CONTROL ROOM MECHANICALLY ACCEPTED** (2026-09-08 post-acceptance record correction) |
+| Active runtime backlog item | None executing. No conforming Auditor-A first pass exists; the first-pass barrier is CLOSED; Auditor-B/GPT-5.6 Sol never started (authority NONE); qualification verdict NONE. The CONTROL-ROOM-MECHANICALLY-ACCEPTED `opus-v5-structfmt` successor is the sole eligible package for any FUTURE Auditor-A execution, which still requires a fresh explicit operator authorization; no such authorization exists |
+| Next runtime objective | Operator decision on whether/when to authorize a future Auditor-A first-pass execution against the CONTROL-ROOM-MECHANICALLY-ACCEPTED `opus-v5-structfmt` package (fresh explicit authorization required; none exists; future real Opus authority NONE until then). Independently, the original AUCDEV-010 provenance reconciliation remains open; AUCDEV-001/009 (P0) unchanged |
+| Current validation | Successor zero-frontier matrix `validation-20260908T102043Z` OVERALL=PASS, `frontier_calls=0`, provider request count 0 (G-before, A-BC-S-P, R5, D, E, F, G-after, J, K, NT, OA, SF new mandatory structural-conformance phase, H: 44 live components vs 43 table entries — `IDENTITY-INVENTORY.md` intentionally self-excluded, 0 missing, 0 mismatches, I). Terminology: the matrix's E phase and OA probes executed the pinned Claude Code 2.1.261 CLI in five local-synthetic sessions — deterministic client/wire route tests against local synthetic sinks ONLY; local-synthetic pinned-CLI executions are NOT Auditor-A first-pass executions and create no qualification or execution authority. No real Auditor-A/frontier execution occurred during the remediation; no Anthropic/provider request occurred; no frontier/model inference occurred (`frontier_calls=0`, provider request count 0). Three intermediate matrix runs are preserved and accounted inside the sealed package (a J/K/NT mirror-list failure; a gate `grep -q`/pipefail race exposed at seal time; and a run superseded by the deterministic correction of the launcher's Sol-absence precondition, since `private/sol` is pre-existing empty scaffolding). The accepted oauthbind package's own matrix `validation-20260907T190621Z` remains its record; NOT a qualification campaign |
 | Baseline ZIP in ChatGPT | `audit-council-dev-baseline-2026-09-05.zip` — HISTORICAL SNAPSHOT ONLY; embedded SHA not established |
 | Project memory | PROJECT-ONLY MEMORY (operator configuration); not independently inspected in ChatGPT UI |
 | GitHub Project access | Connected and verified according to operator; each conversation must still perform actual live retrieval |
@@ -59,35 +59,71 @@ Update this file at every significant implementation/audit/remediation/install t
    (3 AUTH_TOKEN + 3 control observations; client/wire-capability probes
    only; no real credential present; no provider request; no frontier/model
    inference) — these local synthetic CLI executions are NOT Auditor-A
-   executions and create no qualification or execution authority. Current
-   chain state: no conforming Auditor-A first pass; prior real Auditor-A
-   authority consumed; future Opus authority NONE pending fresh operator
-   authorization; first-pass barrier CLOSED; Sol/Auditor-B authority NONE;
-   qualification verdict NONE; installed provenance reconciliation remains
-   unresolved. A dated append-only post-seal record-integrity correction
-   (terminology, H-count description, outer-checksum coverage) was issued
-   with the sealed bytes unchanged, no matrix rerun, and no reseal.
-2. **Recorded**: run `20260904T222609Z-da27c0` exposed Codex wrapper PATH/node/resolver
+   executions and create no qualification or execution authority. A dated
+   append-only post-seal record-integrity correction (terminology,
+   H-count description, outer-checksum coverage) was issued with the
+   sealed bytes unchanged, no matrix rerun, and no reseal.
+2. **AUCDEV-010 8 Sep Opus execution + structural-format remediation
+   (2026-09-08)**: fresh Auditor-A authority was granted after the canonical
+   `b05aa33e` publication, and exactly ONE real Opus execution ran against
+   the accepted oauthbind package (session
+   `cf71e782-9c4e-4e06-8733-0990b8329d4b`): one Claude CLI invocation,
+   process exit 0, real frontier inference completed, exact modelUsage key
+   set `["claude-opus-5"]` with strict modelUsage validator PASS — but the
+   frozen strict structural validator FAILED (`INVALID_FIRST_PASS:
+   'Target SHA' occurs 0 times; exactly one is required`); classification
+   `NONCONFORMING_AUDITOR_A_FIRST_PASS`; the nonconforming substantive
+   artifact is preserved unread (SHA-256 `68dae378…`, 38183 bytes;
+   HASH-ONLY identity); execution authority consumed; retry 0; no
+   conforming Auditor-A first pass; first-pass barrier CLOSED;
+   Auditor-B/GPT-5.6 Sol NOT STARTED; qualification NONE; the accepted
+   oauthbind package remained 127/127 intact with its seal unchanged.
+   Verified evidence archive SHA-256 `838a2aa4…`. A mechanical
+   field-presence census established strict frozen form 0/12 versus
+   relaxed label recognition 12/12 — a syntax/conformance failure, not
+   missing content; the frozen validator remains authoritative. The
+   bounded ZERO-FRONTIER structural-output-conformance remediation then
+   produced the non-overwriting successor `execution-addenda/
+   opus-v5-structfmt/` (format-only trailer generated from the frozen
+   validator's exact 12-field contract and composed AFTER the unchanged
+   frozen prompt bytes; envelope-vs-structural validation terminology
+   split; the frozen structural validator mechanically gates any
+   CONFORMING classification; AUTOMATIC_REPAIR=false; new mandatory SF
+   matrix phase with synthetic fixtures only; seal `e7b0a897…`, 408
+   records; matrix `validation-20260908T102043Z` OVERALL=PASS,
+   frontier_calls=0, provider request count 0; the matrix's five local-synthetic
+   pinned-CLI sessions were deterministic client/wire route tests against
+   local synthetic sinks only — NOT Auditor-A executions, creating no
+   qualification or execution authority). Successor Control Room
+   disposition: **CONTROL ROOM MECHANICALLY ACCEPTED** (2026-09-08
+   post-acceptance record correction; the sealed remediation archive
+   `5ff306f7…` remains immutable historical evidence). Future real Opus
+   authority: NONE. Sol authority:
+   NONE. AUCDEV-010 remains open; installed qualification provenance
+   remains unresolved; runtime/install unchanged.
+3. **Recorded**: run `20260904T222609Z-da27c0` exposed Codex wrapper PATH/node/resolver
    failures, missing RELEASE evidence/skill access, and record-vs-binding divergence.
    Source commits ff3f848 and 8ae3344 implement fixes with 19 Tier-4 regression methods.
    Do not reopen those exact fixes as missing; new inference/qualification is separate.
-3. **OPERATOR_REPORTED, source-corroborated exposure**: a later v2.0.1 dual-model audit
+4. **OPERATOR_REPORTED, source-corroborated exposure**: a later v2.0.1 dual-model audit
    showed that Codex could technically read Opus's independent artifact, and external/
    denylisted evidence ingress remained awkward. Run ID, exact target/auditor SHA,
    archive digest, and final completeness are **unknown** here. AUCDEV-001/002/004/005.
-4. Historical Benchmark 001 and Fifth runs exposed malformed citation/telemetry and
+5. Historical Benchmark 001 and Fifth runs exposed malformed citation/telemetry and
    partial-stage issues. Recorded replay preserves these failures; it is not a new audit.
 
 ## Blockers and residuals
 
 AUCDEV-010 is P1 and remains OPEN. Historical evidence reconciliation
 (installed qualification provenance) is still unresolved — unchanged by the
-Opus-V5 extension. Extension state: OAuth-binding successor mechanics are
-CONTROL ROOM MECHANICALLY ACCEPTED; the failed nettrust execution's
-authority is consumed; the first-pass barrier is CLOSED; Auditor-B/Sol
-authority is NONE; future Opus authority is NONE pending a fresh explicit
-operator authorization. License choice (AUCDEV-014) and real-model
-evaluation budget/provenance (AUCDEV-016) remain blocked.
+Opus-V5 extension. Extension state: the 8 Sep Auditor-A execution against
+the accepted oauthbind package is consumed NONCONFORMING authority
+(`NONCONFORMING_AUDITOR_A_FIRST_PASS`); the structural-format successor
+`execution-addenda/opus-v5-structfmt/` is **CONTROL ROOM MECHANICALLY
+ACCEPTED** (seal `e7b0a897…`, 408 records); the first-pass barrier is
+CLOSED; Auditor-B/Sol authority is NONE; future Opus authority is NONE
+pending a fresh explicit operator authorization (none exists). License choice (AUCDEV-014) and
+real-model evaluation budget/provenance (AUCDEV-016) remain blocked.
 
 Focused priority review: AUCDEV-001 and AUCDEV-009 are now P0/READY because the
 documented peer-artifact exposure and executed protocol contradictions affect core
@@ -107,11 +143,14 @@ Specialists stay default-off; fully autonomous development/audit lifecycle is DE
 
 ## Next operator action
 
-Decide whether and when to authorize a future Auditor-A first-pass execution
-against the accepted `execution-addenda/opus-v5-oauthbind/` package (fresh
-explicit operator authorization required; none exists; the prospective
-launcher remains triple-blocked). Review the post-seal correction archive
-(append-only records; sealed package unchanged). Independently, reconcile
+The Control Room has MECHANICALLY ACCEPTED the sealed `opus-v5-structfmt`
+successor (seal `e7b0a897…`, 408 records; authoritative matrix
+`validation-20260908T102043Z`). Decide whether and when to authorize a
+future Auditor-A first-pass execution against it (fresh explicit operator
+authorization required; none exists; the prospective launcher remains
+triple-blocked; future real Opus authority NONE until then). Review the
+immutable remediation archive (`5ff306f7…`) and the append-only
+post-acceptance correction record/archive. Independently, reconcile
 existing qualification evidence before treating the installed tree as a
 qualified predecessor. Keep the baseline ZIP historical.
 

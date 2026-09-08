@@ -1,6 +1,6 @@
 # Audit Council Dev — Engineering Backlog
 
-Last reviewed: 2026-09-05 against source
+Last reviewed: 2026-09-08 against source
 `8ae33444f349ce73c1359b963722e2d16acba630`, tracked history, installed bytes,
 and the operator's production observations. This is the canonical development
 queue. No feature implementation is authorized by creation of this backlog.
@@ -307,8 +307,41 @@ publication snapshot; a missing repository entry is not proof of absent qualific
   barrier CLOSED; Sol/Auditor-B authority NONE; qualification verdict NONE;
   no runtime/install change. A dated append-only post-seal record-integrity
   correction was issued (sealed bytes unchanged; no matrix rerun; no reseal).
-  This extension does not close the original provenance-reconciliation scope,
-  which remains unresolved.
+- Opus-V5 extension continuation (2026-09-08; item remains OPEN): fresh
+  Auditor-A authority was granted after canonical publication `b05aa33e`,
+  and exactly ONE real Opus execution ran against the accepted oauthbind
+  package (session `cf71e782-9c4e-4e06-8733-0990b8329d4b`; one Claude CLI
+  invocation; exit 0; real frontier inference completed; exclusive
+  `claude-opus-5` modelUsage with strict modelUsage PASS; frozen structural
+  validator FAIL `INVALID_FIRST_PASS: 'Target SHA' occurs 0 times; exactly
+  one is required`; classification `NONCONFORMING_AUDITOR_A_FIRST_PASS`;
+  nonconforming substantive artifact preserved unread — HASH-ONLY identity
+  SHA-256 `68dae378…`, 38183 bytes; execution authority consumed; retry 0;
+  no conforming Auditor-A first pass; first-pass barrier CLOSED;
+  Auditor-B/GPT-5.6 Sol NOT STARTED; qualification NONE; the accepted
+  oauthbind package remained 127/127 intact with its seal unchanged;
+  verified evidence archive SHA-256 `838a2aa4…`). A mechanical census
+  established strict frozen form 0/12 versus relaxed label recognition
+  12/12 — a syntax/conformance failure, not missing content; the frozen
+  validator remains authoritative. The bounded ZERO-FRONTIER
+  structural-output-conformance remediation then sealed the non-overwriting
+  successor `execution-addenda/opus-v5-structfmt/` (format-only trailer
+  generated from the frozen validator's exact 12-field contract and
+  composed AFTER the unchanged frozen prompt bytes; envelope-vs-structural
+  validation terminology split; the frozen structural validator mechanically
+  gates any CONFORMING classification; AUTOMATIC_REPAIR=false; new
+  mandatory SF matrix phase with deterministic synthetic fixtures only;
+  seal `e7b0a897e9b2a495174e62e584d6f0afe1cc328ec5a69eafb672136fe96f840f`,
+  408 manifest records; authoritative matrix `validation-20260908T102043Z`
+  OVERALL=PASS, frontier_calls=0, provider request count 0; three
+  intermediate matrix runs preserved and accounted inside the sealed
+  package). Successor Control Room disposition: CONTROL ROOM MECHANICALLY ACCEPTED
+  (2026-09-08 post-acceptance record correction; sealed remediation archive
+  `5ff306f7…` immutable). Future real Opus authority: NONE. Sol authority:
+  NONE. Installed qualification provenance
+  remains unresolved; runtime/install unchanged. This continuation does not
+  close the original provenance-reconciliation scope, which remains
+  unresolved.
 - Milestone: before the next candidate audit; verified historical evidence may close
   the item without rerunning qualification. A new summary alone is not proof.
 
