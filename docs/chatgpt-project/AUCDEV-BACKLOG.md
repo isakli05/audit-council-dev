@@ -1418,6 +1418,82 @@ can only be considered by a separate Control Room decision AFTER this
 governance record is independently verified and canonically published.
 Disposition: `SOL_CONTRACTDIGEST_SUCCESSOR_POSTACCEPTANCE_GOVERNANCE_RECORD_PREPARED_WITH_EVIDENCE_PRECISION_RESIDUALS / BARRIER_CLOSED / QUALIFICATION_NONE`.
 
+2026-09-09 (post-publication) — AUCDEV-010 Stage-2 governance publication
+verified + post-publication canonical-state reconciliation record
+(record-only; prepared against exact canonical base
+`147ca90fe674d3ae144e67c47181af6928b51d3e`): the Stage-2 Sol
+contract-digest post-acceptance governance record was canonically
+published and independently verified (`STAGE2_GOVERNANCE_PUBLICATION_VERIFIED`) — publication commit
+`147ca90fe674d3ae144e67c47181af6928b51d3e`, sole parent
+`b2ccf8d52bd956f03c87c8683868fbddb44fdf50`, exactly the two governance
+docs changed (AUCDEV-BACKLOG.md 122/0; AUCDEV-CURRENT-STATE.md 64/7),
+published live blobs CURRENT-STATE
+`a53db80866d188e39d6600142d9a2e995cbd5bbc` / BACKLOG
+`1102099d300bce4ae7e1849b682d49e33c1dd308`, publication evidence archive
+SHA-256 `20567c2cbb7f40468dc51c342fc263b16c89beebba43a670fb5c2da81583564a`
+(31219 bytes, independently verified). Stage-2 publication COMPLETE.
+Discovered AFTER publication:
+`POST_PUBLICATION_CURRENT_STATE_SELF_STALENESS` — the published CURRENT summary still described its own
+publication as pending (publication-pending and publication-as-next-
+objective statements, plus a hard-coded preparation SHA described as the
+current live tip), classified HARNESS/GOVERNANCE-PROTOCOL DEFECT +
+CANONICAL CURRENT-STATE CONSISTENCY DEFECT (observed fact; blocks issuing
+second Auditor-B authority until canonical current state is reconciled,
+independently verified, and published), together with checker
+completeness limitation
+`POST_PUBLICATION_STATE_TRANSITION_NOT_MODELED_BY_SEMANTIC_CHECKER` (the 239/239 publication pre/post assertion suite
+validated static proposal semantics and did not model the state
+transition caused by successful publication). This reconciliation
+proposal removes the self-stale CURRENT statements with stable semantics
+that remain true after this reconciliation itself is published (dedicated
+RED test reproduces the published-state self-staleness; the proposed
+state GREENs all field-aware and cross-field assertions). These findings
+do NOT invalidate publication commit `147ca90f…`, Stage-2 mechanical
+acceptance, the Stage-2 package or seal (seal
+`31f8bf68cc9d5da1bf8be6b3a86a552ab2c1f38e4d347157e547b09e4e8395df`, 206/206),
+the Stage-2 matrix, R1/R2/R3, or the first
+Auditor-B historical classification. Authority state unchanged: Auditor-A
+SEVENTH accepted conforming first pass; FIRST Auditor-B authority
+CONSUMED/CLOSED `NONCONFORMING_AUDITOR_B_FIRST_PASS`
+(`CONTRACT_DIGEST_FIELD_NOT_EXACT`); SECOND Auditor-B authority NONE
+(reconciliation must be verified and published BEFORE any second-B
+authority decision); automatic retry NONE; barrier CLOSED;
+cross-examination NONE; adjudication NONE; qualification NONE; AUCDEV-010
+remains OPEN / P1 / READY; installed qualification provenance remains
+`PENDING EVIDENCE RECONCILIATION`; R1
+`SEALED_REMEDIATION_RECORD_DIFF_ACCOUNTING_TEXT_INCONSISTENCY`, R2
+`REAL_AUTH_METADATA_PROBE_REPORTING_PRECISION`, and R3
+`FINAL_IMPLEMENTATION_REPORT_ARCHIVE_COMPLETENESS_GAP` remain unchanged;
+no package mutation, no reseal, no matrix rerun, no model execution of
+any kind. Disposition:
+`SOL_CONTRACTDIGEST_POSTPUBLICATION_CANONICAL_STATE_RECONCILIATION_PREPARED / SECOND_B_AUTHORITY_NONE / BARRIER_CLOSED / QUALIFICATION_NONE`.
+
+
+2026-09-09 (post-publication, final active-row cleanup) — checker
+completeness follow-up (record-only): Control Room finding
+`POSTPUBLICATION_RECONCILIATION_ACTIVE_ROW_STALE_HISTORICAL_NEXT_ACTION`
+(canonical CURRENT-STATE consistency defect + semantic-checker
+completeness limitation; observed fact; blocked publication of the
+previous reconciliation proposal) — the proposed Active-runtime field
+still carried the obsolete unqualified clause "the next bounded action
+is the canonical publication of the accepted Stage-2 post-acceptance
+governance record" inside the first-B parenthetical, false as a CURRENT
+statement because publication commit
+`147ca90fe674d3ae144e67c47181af6928b51d3e` is already COMPLETE and
+verified; additionally recorded
+`POSTPUBLICATION_RECONCILIATION_CHECKER_MISSED_HISTORICAL_NEXT_ACTION_SUBCLAUSE`. Correction: the obsolete clause is DELETED (the historical
+first-B facts are retained unchanged); the Active-runtime field now
+carries exactly ONE current next-action meaning — the SEPARATE Control
+Room AUTHORITY DECISION on whether to grant exactly ONE fresh second
+Auditor-B first-pass authority — and the field-aware checker now
+fail-closes on any unqualified "next bounded action … canonical
+publication … Stage-2" phrase in that field plus an exact-one-next-action
+count, with a RED reproduction against the previous proposal. No
+authority is granted; second Auditor-B authority remains NONE; barrier
+CLOSED; qualification NONE; AUCDEV-010 OPEN / P1 / READY; R1/R2/R3
+unchanged; no package mutation, no reseal, no matrix rerun.
+
+
 - Milestone: before the next candidate audit; verified historical evidence may close
   the item without rerunning qualification. A new summary alone is not proof.
 
