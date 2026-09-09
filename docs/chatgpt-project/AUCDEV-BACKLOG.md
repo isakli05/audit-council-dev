@@ -1019,6 +1019,125 @@ remains OPEN. Verified execution evidence archive SHA-256
 Disposition:
 `SEVENTH_CONFORMING_AUDITOR_A_GOVERNANCE_RECORD_PREPARED / TELEMETRY_COUNT_CORRECTED / BARRIER_CLOSED / SOL_NOT_AUTHORIZED / QUALIFICATION_NONE`.
 
+2026-09-09 FIRST Auditor-B (GPT-5.6 Sol) authority status record (execution
+executed 2026-09-09 UTC; record-only governance pass 2026-09-09): after
+canonical publication of the SEVENTH record (this record's exact canonical
+base `413712b489fe30adb87915718044a127527f99db`, live GitHub `master`
+re-resolved EXACT at the record's start and close), Control Room granted the
+FIRST Auditor-B/GPT-5.6 Sol blind first-pass authority; it executed exactly
+ONE substantive session and closed NONCONFORMING. Accepted classification
+`NONCONFORMING_AUDITOR_B_FIRST_PASS` with evidence acceptance
+`AUDITOR_B_FIRST_PASS_EVIDENCE_ACCEPTED` (Control Room independently verified
+the execution evidence archive SHA-256
+`b852747a63a58e1b151d85452792a3bb3be58ee2e9d91b719eca6ea4febb1356`, exact
+size 13183 bytes: 21 total tar members; 18 regular files; 3 directories; 17
+outer SHA256SUMS records excluding SHA256SUMS itself with 17/17 checksum
+PASS; complete regular-file coverage; no unsafe archive members; no
+substantive Auditor-A content; no substantive Auditor-B content; no raw
+frozen Sol prompt; independent secret-shaped scan PASS). A first-pass
+artifact EXISTS and the single substantive model execution COMPLETED — this
+is not an execution-failure classification; the frozen output-contract
+validator REJECTED the artifact: exact structural failure
+`CONTRACT_DIGEST_FIELD_NOT_EXACT` (frozen validator output
+`INVALID_FIRST_PASS: Contract digest field is not exact`, exit 1); the
+artifact was NOT repaired, the incorrect field value was NOT inspected, and
+no root cause beyond the mechanically established validator failure is
+claimed or inferred. `NO_SOL_SEAL_CREATED` (sealing is validator-gated; the
+seal step aborts at its validation gate). Frozen Auditor-B artifacts
+(UNREAD/HASH-ONLY): `private/sol/first-pass.md` SHA-256
+`29266fadac540bbf7156dc5aafa0d53ba33f69e60aeaa2ac34b9c5871d918f6e`, 1088
+bytes, mode 0444 — frozen, unrepaired, launcher-hashed; `private/sol/
+events.jsonl` SHA-256
+`12cb40d36c4227e351f42c7d20999ca87f8e6fb8e94d6dd3d55bb7a5c8cd1a7b`, 2497
+bytes, mode 0444; no substantive model result text is included in
+governance. Execution identity: model `gpt-5.6-sol`; reasoning `xhigh`;
+`codex-cli 0.153.4`; fresh thread `01a085e0-da05-70e2-aefe-59b2393a4749`;
+session mode `--ephemeral`, no resume, no `--last`; substantive model-call
+count 1; launcher exit 0; CLI exit 0; mechanical event inventory
+`thread.started=1`, `turn.started=1`, `turn.completed=1`, `item.completed=4`,
+non-Sol model strings 0, fallback fields 0, reroute text 0 — these
+mechanical launcher checks PASS but do NOT override the frozen
+structural-validator failure. Frozen bootstrap identities unchanged pre and
+post: candidate `8ae33444f349ce73c1359b963722e2d16acba630`; baseline
+`68ce12acc6c614d1876b902e6511d21f95b33c43:skill`; qualification contract
+SHA-256
+`3d7168ba3768485a16df0d2fcb266b6962b4657d2d30eaf1bc97f237a9d17bbf`; common
+input manifest SHA-256
+`14cd8b3b06dfd8edf679486d955c40f8e0096345e33c669bb9f279aed8b09ad8`;
+first-pass output contract SHA-256
+`3b787c0689a718e5194042972ad97e26bf5b51481560706b5bc887122d1f2c3a`; Sol
+bundle SHA-256
+`162c5bcc3e4f8b98534df6210306090d4ad7bc2ee1aa2a70f5dae74d4ed0099c` (opus
+symmetric bundle identical); frozen Sol prompt
+`views/sol/input/common/SOL-FIRST-PASS-PROMPT.md` SHA-256
+`8b8f8e3954631759fa0fd41747ce0b52669c920869fde16f799e681b91c617b6`;
+`BOOTSTRAP_DELTA_COMPLETE` with frozen input surface 224/224 PASS pre and
+post. Blindness `AUDITOR_B_BLIND_VIEW_PASS`: `/audit` exposes only `input`,
+`meta`, `output`; common input read allowed, write denied; own output write
+allowed; peer output denied; host repository denied; Claude skill path
+denied; Codex history denied; host `.bashrc` denied; host `.ssh` denied;
+entire bootstrap root denied; alternate symlink escape denied; MCP
+credential/traversal reads denied; Auditor-A substantive artifacts were never
+read, opened, hashed, summarized or exposed to the model; executor
+inspection was names/stat metadata only; pre/post metadata for all
+Auditor-A/Opus historical entries remained identical (the `private/sol`
+directory entry changed only because this Auditor-B execution created its
+own frozen output); barrier remains CLOSED. Authentication (non-secret
+mechanics only): PAYG environment gate PASS-absent (no `OPENAI_API_KEY`, no
+`CODEX_API_KEY`); ChatGPT subscription auth; in-sandbox `codex login status`
+PASS; no credential contents were included, hashed, fingerprinted or
+otherwise exposed. Execution deviations, recorded precisely: DEV-1 — the
+frozen isolation logic contained an unconditional Claude executable hash pin
+even though the Sol branch does not mount or execute Claude; the current
+host NVM Claude binary had drifted; the execution wrapper verified the
+required historical SHA against the archived hash-exact pinned Claude
+2.1.261 binary
+`4ae40dd1784e85753e742e09f267d29ecbb82890361ad3817d27560866d364a6`; Claude
+was NOT mounted into the Sol view and NOT executed. DEV-2 — the historical
+bootstrap Codex auth copy was stale relative to the current logged-in host
+state; the execution used the existing live ChatGPT subscription credential
+at `/home/isa/.codex/auth.json` as a read-only sandbox bind; its contents
+were NOT read by the executor, printed, hashed, copied or archived;
+in-sandbox `codex login status` established logged-in readiness. Deviation
+governance boundary
+`EXECUTION_DEVIATIONS_RECORDED_NOT_AUTOMATICALLY_CANONICALIZED_FOR_FUTURE_SUCCESS`:
+Control Room accepts these facts as part of the evidence for this
+NONCONFORMING event only; this acceptance does NOT establish that the
+modified execution wrapper is itself a canonical successor execution package
+suitable for a future successful Auditor-B run; no future authority may be
+granted based solely on these deviations; a future Control Room decision may
+require a bounded zero-frontier Sol execution-environment reconciliation
+before any new substantive B authority. Post-run invariance PASS: candidate
+identity unchanged; baseline identity unchanged; qualification contract
+unchanged; common manifest unchanged; first-pass output contract unchanged;
+Sol input bundle unchanged; 224/224 frozen input surface unchanged;
+Auditor-A private metadata unchanged; barrier CLOSED; canonical GitHub HEAD
+unchanged during execution; qualification NONE; no cross-examination,
+adjudication or qualification occurred. Frozen Auditor-A state preserved:
+`SEVENTH_AUDITOR_A_FIRST_PASS_ACCEPTED` and its
+`CONFORMING_AUDITOR_A_FIRST_PASS` classification remain canonical; the
+Auditor-A first-pass artifact remains private, frozen and UNREAD; no
+Auditor-A substance was exposed to Auditor-B and no Auditor-B substance was
+exposed to Auditor-A. Terminal authority state after this record: FIVE
+earlier Auditor-A execution authorities consumed; SIXTH Auditor-A authority
+CLOSED pre-execution; SEVENTH Auditor-A authority consumed/closed with the
+accepted conforming A pass; no EIGHTH Auditor-A authority; FIRST
+Auditor-B/Sol authority consumed/closed; Auditor-B first pass classified
+`NONCONFORMING_AUDITOR_B_FIRST_PASS`; no second Auditor-B authority; no
+automatic retry; barrier CLOSED;
+cross-examination authority NONE; adjudication authority NONE;
+qualification NONE; AUCDEV-010 remains OPEN; installed qualification
+provenance remains `PENDING EVIDENCE RECONCILIATION`. No remediation
+decision is made by this record: the frozen Sol prompt, frozen output
+contract, validator, launcher, isolation wrapper, Sol bundle and common
+manifest are all unchanged; no further Sol model call is authorized; after
+this governance event is independently accepted and published, Control Room
+will separately determine whether the next bounded action is zero-frontier
+structural-output remediation, zero-frontier Sol execution-environment
+reconciliation, both in a staged order, or another governance disposition.
+Disposition:
+`NONCONFORMING_AUDITOR_B_GOVERNANCE_RECORD_PREPARED / CONTRACT_DIGEST_MISMATCH_RECORDED / EXECUTION_DEVIATIONS_RECORDED / BARRIER_CLOSED / QUALIFICATION_NONE`.
+
 - Milestone: before the next candidate audit; verified historical evidence may close
   the item without rerunning qualification. A new summary alone is not proof.
 
