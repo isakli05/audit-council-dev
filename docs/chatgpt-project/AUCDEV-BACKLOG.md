@@ -812,6 +812,125 @@ blocker exists but is NOT canonicalized by this record. Disposition:
 `SIXTH_PREEXECUTION_CLOSEOUT_GOVERNANCE_RECORD_PREPARED / FRESH_OUTPUT_SUCCESSOR_REMEDIATION_REQUIRED / FRONTIER_NOT_AUTHORIZED`.
 This record creates no future execution authority.
 
+2026-09-09 FRESHOUT successor post-acceptance governance record (record-only;
+the remediation executed 2026-09-09 UTC under exactly ONE bounded ZERO-FRONTIER
+mechanical authorization — no Auditor-A retry, no Claude/Opus inference, no
+provider request, no credential access/delivery, no Auditor-B/Sol execution, no
+qualification, no installation, no package modification, no reseal, no matrix
+rerun, no commit, no push): Control Room disposition
+**`FRESH_OUTPUT_SUCCESSOR_MECHANICALLY_ACCEPTED`** (mechanical acceptance is
+NOT qualification). Accepted successor
+`execution-addenda/opus-v5-structid-preflight-bindpath-freshout/`, seal
+`80ddad6d5aeae148887d76bb6c75f5acf06b3ba2c7eca7033322bb15f96b16cf`, trusted
+manifest 457 records: 457/457 PASS, zero missing, zero mismatched, zero
+unmanifested trusted regular files, anchor manifest byte-identical, anchor
+digest equals the successor seal, sealed prelaunch gate PASS records=457.
+Accepted remediation evidence archive SHA-256
+`b1af2c2d3c329d597341621de0b304bcb6d05a04a7c55c8d30002486fb91d7c7`. The
+previously canonical defect is mechanically resolved: the immediate predecessor
+`execution-addenda/opus-v5-structid-preflight-bindpath/` (seal
+`2851002fc54f146b8a252934775aa0b5459de0eb61c81ca036c2e43f146bf560`, launcher
+SHA-256 `478ad909cad6b8240fddd8a5a7788015fbd465b45607736765da9a994a10e592`)
+used one fixed reusable Auditor-A output directory with empty-directory
+freshness applied to that historical reusable path; the FIFTH frozen evidence
+permanently occupied it; the launcher was effectively one-shot; the SIXTH
+authority closed pre-execution with launcher attempts = 0. The Control Room
+decisions `FRESH_OUTPUT_SUCCESSOR_REMEDIATION_REQUIRED` and
+`HISTORICAL_FROZEN_EVIDENCE_MUST_NOT_BE_RELOCATED` are now mechanically
+satisfied; the historical SIXTH closeout is NOT rewritten. Accepted fresh-output
+design (successor launcher SHA-256
+`d18af82a72deb65ac664dfcf7528277df1dda4b369d6686c18ed1c8c2e1d85d4`): output
+root `$qroot/private/opus-v5-structid-preflight-bindpath-freshout/attempts`;
+output directory generated internally per launcher attempt; identity derived
+from the same validated fresh `attempt_dir` identity; no arbitrary
+operator/environment output override; output must not pre-exist; exclusive
+fail-closed creation; mode `0700`; realpath containment inside the exact
+expected output root; symlink/collision/escape fail-closed; historical output
+never cleared/moved/reused; the preserved empty-directory freshness assertion
+applies only to the new per-attempt directory; `INVOCATION.txt` records attempt
+identity/output path/root/allocation; auditor isolation uses that exact output;
+frozen structural validation targets that exact per-attempt `first-pass.md`;
+post-output integrity checks target the same exact output; binding-record
+mechanics remain tied to the corresponding `attempt_dir`. Matrix acceptance:
+authoritative run `validation-20260909T010308Z` OVERALL=PASS; mandatory phases
+18/18 PASS (`G-before, A-BC-S-P, R5, D, E, F, G-after, J, K, NT, OA, SF, SI,
+PX, BP, FO, H, I`); counts R5 32, K 39, SF 27/27, SI 14/14, PX 10/10, BP
+30/30, FO 31/31; G-before == G-after byte-identical; frontier_calls = 0;
+provider/frontier real calls = 0; substantive Auditor-A sessions = 0;
+mechanical pinned-Claude `--version` probes = 13 total (PX 8; BP 5; FO 0);
+synthetic/local mechanical CLI activity is NOT Auditor-A inference.
+RED->GREEN / intermediate history preserved (all runs remain sealed as
+evidence; none hidden or deleted): `validation-20260909T002920Z` OVERALL FAIL,
+BP only, all other mandatory phases including FO PASS;
+`validation-20260909T004043Z` OVERALL PASS, later superseded because package
+bytes subsequently changed during seal-gate implementation correction;
+`validation-20260909T005226Z` OVERALL FAIL, SI only, all other phases including
+FO PASS; `validation-20260909T010308Z` final authoritative OVERALL PASS after
+final bytes; plus the retained first seal attempt failure where the inherited
+pipeline-style membership check encountered a `set -o pipefail` / early-`grep
+-q` SIGPIPE race at the enlarged manifest. DIFF-INVENTORY PRECISION CORRECTION
+(evidence/reporting count correction only; does NOT change package bytes,
+seal, matrix, or acceptance): the implementer's summary
+`differing_or_added=10` failed to increment its counter for ADDED entries
+before `continue`; the correct component-level inventory excluding validation
+results, `__pycache__`, and the package manifest is 51 predecessor files /
+53 successor files / 34 byte-identical / 7 identical after
+package-identity/path normalization / 10 modified existing / 2 newly added
+(`tests/test_freshout.py`, `FRESHOUT-REMEDIATION-RECORD.md`) / 0 removed;
+therefore 12 entries are modified-or-added after normalization (10 modified
+existing + 2 added). SEAL-GATE IMPLEMENTATION PRECISION: the successor
+`prelaunch-seal-gate.sh` is NOT byte-identical to the predecessor; its
+trust-boundary membership semantics are preserved, but its implementation
+contains TWO inherited SIGPIPE-safe membership rewrites — `tests/test_oauthbind.py`
+and `tests/test_binding_path.py`, from the predecessor shape `tr '\0' '\n' |
+sed ... | grep -qxF` to `grep -qxF <target> "$tmp_records"` — plus TWO NEW FO
+membership assertions using `$tmp_records` (`tests/test_freshout.py`,
+`FRESHOUT-REMEDIATION-RECORD.md`); do NOT describe all four as inherited
+rewrites. Control Room independent mechanical finding:
+`SEALGATE_MEMBERSHIP_SEMANTICS_PRESERVED_WITH_SIGPIPE_SAFE_IMPLEMENTATION_REWRITE`
+— `$tmp_records` is generated from the same already-validated NUL manifest
+records and contains the exact sorted relative-path membership set; the
+replacement performs the same exact fixed-string whole-line membership
+predicate; no accepted membership is broadened; no fail-closed trust check is
+removed; it removes only the spurious upstream SIGPIPE failure caused by early
+`grep -q` under `pipefail`; accepted as implementation-equivalent hardening
+preserving trust-boundary semantics, not a separate product/authentication
+behavior change. Predecessor and frozen-history invariance: predecessor seal
+`2851002fc54f146b8a252934775aa0b5459de0eb61c81ca036c2e43f146bf560` 250/250,
+immutable historical package, never resealed or relabelled; FIFTH frozen
+evidence preserved at its historical path with hash-only invariance PASS
+(`response.json` `b32f4662c00e22b1ef1bdd2dee7bc13813f8efac07bd621d9b744d81b15b4194`,
+`CLI-EXIT-CODE.txt` `4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865`,
+`EXECUTION-PHASE.txt` `417750270a0aac71081cd9646ea605928ed57b08cf7d3e7603b18a2a7f5f952a`,
+`PRELAUNCH-IDENTITY.txt` `b7e3ed39aee4cc12c7d943e0cab6d3645b7049f14b5553968c76efa4e80c5a14`,
+`stderr.log` `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`;
+`supervisor-runs/` remained empty); no historical substantive artifact was
+read. Frozen identities unchanged: candidate
+`8ae33444f349ce73c1359b963722e2d16acba630`; frozen prompt
+`755ced882b0e4238a512e1ce7a4120956eb68f99dd77c4097a4cf07ab7285a72`; frozen
+structural validator
+`23d9b03fcbf15e2893a911999a0f39b5d625f2f9541392f3c63624b94af69d57`; STRUCTID
+trailer `52bfd1a5db2bc82762cef5ac3dcd30ad3f66cd312ba117f0ba3a5b5167f9bfa5`;
+pinned Claude executable
+`4ae40dd1784e85753e742e09f267d29ecbb82890361ad3817d27560866d364a6`; Claude
+Code `2.1.261`; guard implementation and credential-delivery client remain
+byte-identical to the predecessor; supervisor/authentication/binding semantics
+unchanged except unavoidable successor package path identities; credential
+source NOT accessed. Credential readiness remains future-time gated:
+`FUTURE_EXECUTION_MUST_REVERIFY_SOURCE_AND_EXPIRY_AT_DELIVERY_TIME` — any
+future separately authorized execution must still require exact source
+`/home/isa/.claude/.credentials.json` and at least 45 minutes remaining
+lifetime immediately before delivery; this post-acceptance record creates no
+execution authority. Terminal authority state after this record: FIVE earlier
+real execution authorities remain consumed; SIXTH authority remains CLOSED
+pre-execution; no seventh/future Auditor-A authority exists; no conforming
+Auditor-A first pass exists; barrier CLOSED; Auditor-B/GPT-5.6 Sol NOT
+STARTED; Sol authority NONE; future real Opus authority NONE; qualification
+NONE; AUCDEV-010 OPEN; installed qualification provenance unresolved;
+runtime/install unchanged. Mechanical successor acceptance is NOT
+qualification. Disposition:
+`FRESH_OUTPUT_SUCCESSOR_POSTACCEPTANCE_GOVERNANCE_RECORD_PREPARED / DIFF_COUNT_CORRECTED / SEALGATE_MEMBERSHIP_EQUIVALENCE_RECORDED / FRONTIER_NOT_AUTHORIZED`.
+
 - Milestone: before the next candidate audit; verified historical evidence may close
   the item without rerunning qualification. A new summary alone is not proof.
 
