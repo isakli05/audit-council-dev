@@ -931,6 +931,94 @@ runtime/install unchanged. Mechanical successor acceptance is NOT
 qualification. Disposition:
 `FRESH_OUTPUT_SUCCESSOR_POSTACCEPTANCE_GOVERNANCE_RECORD_PREPARED / DIFF_COUNT_CORRECTED / SEALGATE_MEMBERSHIP_EQUIVALENCE_RECORDED / FRONTIER_NOT_AUTHORIZED`.
 
+2026-09-09 SEVENTH Auditor-A authority status record (execution executed
+2026-09-09 UTC; record-only governance pass 2026-09-09): the SEVENTH bounded
+execution authority ran against the accepted
+`execution-addenda/opus-v5-structid-preflight-bindpath-freshout/` package and
+produced the FIRST Control-Room-accepted conforming Auditor-A first pass in the
+Opus-V5 chain — accepted classification `CONFORMING_AUDITOR_A_FIRST_PASS`,
+record `SEVENTH_AUDITOR_A_FIRST_PASS_ACCEPTED`. Canonical/package/candidate:
+live GitHub `master` `67267d5bc0787e6d1515769fed1a629c7b3fb833` EXACT pre and
+post; candidate `8ae33444f349ce73c1359b963722e2d16acba630`; seal
+`80ddad6d5aeae148887d76bb6c75f5acf06b3ba2c7eca7033322bb15f96b16cf` pre == post;
+manifest 457/457 PASS with 0 missing / 0 mismatched / 0 unmanifested trusted
+regular files, anchor manifest byte-identical, digest anchor equals seal, sealed
+prelaunch gate PASS records=457; package/candidate/runtime/install unchanged;
+frozen identities unchanged (prompt `755ced88…`, validator `23d9b03f…`, trailer
+`52bfd1a5…`, FRESHOUT launcher `d18af82a…`, pinned Claude `4ae40dd1…` / Claude
+Code `2.1.261`, required model `claude-opus-5`; `AUTOMATIC_REPAIR=false`). FRESHOUT
+attempt identity: `attempt-20260909T094248Z-FUUZDc`; output root
+`/home/isa/audits/aucdev-bootstrap-8ae33444-attempt2/private/opus-v5-structid-preflight-bindpath-freshout/attempts`;
+exact per-attempt output `…/attempts/attempt-20260909T094248Z-FUUZDc`;
+`FRESH_OUTPUT_ALLOCATED` with internal identity derivation, no override, no
+pre-existence, exclusive creation, mode `0700`, canonical realpath containment,
+no symlink/collision/escape, `INVOCATION.txt` bound, isolation/structural/binding
+all on that exact identity. Credential delivery-time readiness (metadata only):
+source `/home/isa/.claude/.credentials.json` exact realpath, uid/gid `1000/1000`,
+mode `0600`, regular non-symlink, token PRESENT byte length `108` only, verified
+`2026-09-09T09:42:53Z`, expiry `2026-09-09T15:51:20Z`, remaining `368.5` minutes
+(floor 45) PASS, one sealed peer-bound delivery, client RC 0;
+`FUTURE_EXECUTION_MUST_REVERIFY_SOURCE_AND_EXPIRY_AT_DELIVERY_TIME` (the
+historical credential is NOT implied valid for any future execution); no
+credential/token bytes, hashes, fingerprints, prefixes, suffixes, or encodings
+recorded. Execution counters: launcher attempts 1; mechanical `--version` probes
+5; substantive Auditor-A sessions 1; top-level retry 0; session
+`fd7102dc-9eb2-43a5-8b9c-a861bf961c48`; CLI exit 0, isolation exit 0, launcher
+exit 0; residual relevant processes 0 initial / 0 final, none killed;
+historical `CLEANUP_PROCESS_COUNT_EVIDENCE_CONFLICT` remains unresolved and
+unrelated. Progression (observed order): `SEAL_GATE_PASS`, `PREFLIGHT_PASS`,
+`NETTRUST_PASS`, `GUARD_BOUND`, `CREDENTIAL_RECEIVED_GUARD_ONLY`, `AUDITOR_BEGIN`,
+`PRECHECK_BEGIN`, `PRECHECK_PASS`, `BWRAP_EXEC`, `AUDITOR_EXIT_0`,
+`STRUCTURAL_VALIDATION_PASS`, `BINDING_INTEGRITY_PASS`,
+`CONFORMING_AUDITOR_A_FIRST_PASS`; no conformance stage claimed before its
+predecessor gate. Model identity: exact modelUsage key set `["claude-opus-5"]`
+(`STRICT_EXCLUSIVE_MODELUSAGE_PASS`); cost USD `2.67339325`; duration
+`770665` ms; `num_turns=42` (never converted to a provider request count).
+Structural: `STRUCTURAL_OUTPUT_CONTRACT_PASS`, frozen validator exit `0` on the
+exact SEVENTH per-attempt `first-pass.md`;
+`MATERIAL_COMPLETENESS_REQUIRES_HUMAN_REVIEW=true` (NOT a completed human
+substantive review); `AUTOMATIC_REPAIR=false`. Binding/integrity:
+`BINDING_INTEGRITY_PASS`; direct and run-scoped records byte-identical;
+binding-record SHA-256
+`0346b10f5dc4cddf05b3e61acbc43d118550198a5c85a22bb51f4ef8ae109eed`; guard
+peer/starttime verification preserved; no credential material exposed. Frozen
+Auditor-A artifacts: first pass `0171b7ff60c721297ae204f7020074d8772a1dc28e354cd81dc571921218c136`
+(45368 bytes, mode 0444) and response envelope
+`6b1424f87922619a0af36e927e7decc71a094f8ce6ad90249b45605f76754717`
+(47330 bytes, mode 0444), frozen, digest record present, no automatic repair,
+substantive content UNREAD, response substance private, historical substantive
+artifacts UNREAD/HASH-ONLY; no substantive findings in governance files.
+Telemetry count correction
+(`TELEMETRY_COUNT_CORRECTION_24_DIRECTLY_LOGGED_UPSTREAM_FAILURE_EVENTS`):
+independent Control Room inspection of the raw archived `guard-log.jsonl`
+established 28 total records — 4 lifecycle (`start`,
+`credential_socket_listening`, `listening`, `credential_received`) and exactly
+24 records with event `error` / code `UPSTREAM_FAILURE` / method `POST` / path
+`/v1/messages?beta=true`, 0 `accept`, 0 `reject`, no per-relay HTTP status
+field; the prior operator count of 25 was a nonblocking off-by-one
+evidence/reporting error and is NOT canonicalized; do NOT infer that all 24
+provider operations failed, one-to-one request correspondence, or any provider
+request count from `num_turns=42`
+(`EXACT_PROVIDER_REQUEST_COUNT_NOT_ESTABLISHABLE_FROM_GUARD_LOG`; the guard
+relays response bytes as they arrive and a later upstream reset can reach the
+`UPSTREAM_FAILURE` path after relay — the label alone is not a conformance
+failure); the correction does not change the accepted classification.
+Authority accounting after this record: FIVE earlier real Auditor-A execution
+authorities consumed; SIXTH authority CLOSED pre-execution; SEVENTH authority
+CONSUMED and CLOSED (exactly one sealed prospective attempt; exactly one
+substantive Auditor-A Claude session; top-level retry 0); no EIGHTH/future
+Auditor-A authority exists. Barrier/blindness: first-pass barrier REMAINS
+CLOSED; Auditor-A artifact NOT exposed to Auditor-B; GPT-5.6 Sol NOT STARTED;
+Sol authority NONE; no cross-examination, adjudication, or qualification; a
+separate Control Room decision after canonical publication is required before
+Auditor-B may execute. Qualification remains NONE (a conforming first pass is a
+prerequisite milestone, not a final qualification verdict); installed
+qualification provenance remains PENDING EVIDENCE RECONCILIATION; AUCDEV-010
+remains OPEN. Verified execution evidence archive SHA-256
+`6fbd364b432788258efc4c3cb3ef4a86c30c00d423b3441e209f6d4572d0f903`.
+Disposition:
+`SEVENTH_CONFORMING_AUDITOR_A_GOVERNANCE_RECORD_PREPARED / TELEMETRY_COUNT_CORRECTED / BARRIER_CLOSED / SOL_NOT_AUTHORIZED / QUALIFICATION_NONE`.
+
 - Milestone: before the next candidate audit; verified historical evidence may close
   the item without rerunning qualification. A new summary alone is not proof.
 
