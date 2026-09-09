@@ -1138,6 +1138,164 @@ reconciliation, both in a staged order, or another governance disposition.
 Disposition:
 `NONCONFORMING_AUDITOR_B_GOVERNANCE_RECORD_PREPARED / CONTRACT_DIGEST_MISMATCH_RECORDED / EXECUTION_DEVIATIONS_RECORDED / BARRIER_CLOSED / QUALIFICATION_NONE`.
 
+2026-09-09 Stage-1 Sol execution-boundary successor post-acceptance status
+record (remediation executed 2026-09-09 UTC; record-only governance pass
+2026-09-09): against the exact canonical base
+`35c02c60fb624ab9985d10ff9bed3fe5cb00d4c3` (live GitHub `master`
+re-resolved EXACT at the record's start and close), Control Room
+mechanically accepted the Stage-1 zero-frontier Sol execution-boundary
+successor. Accepted disposition
+`SOL_EXECUTION_BOUNDARY_SUCCESSOR_MECHANICALLY_ACCEPTED` — mechanical
+acceptance is NOT an Auditor-B first pass and NOT qualification. Control
+Room independently verified the accepted evidence archive SHA-256
+`4ff28849573e603b37b586ba2705207bcf68bfea6813b3a6c7bf3049da18a697`, exact
+size 242225 bytes (190 total tar members; 173 regular files; 17
+directories; no symlink/hardlink/special members; 172 outer SHA256SUMS
+records excluding itself, 172/172 PASS; complete regular-file coverage;
+independent secret-shaped scan PASS). Successor identity: package
+`execution-addenda/sol-v1-execbound/`; seal SHA-256
+`76ee6a5158792215bcda8f9cd3e845f02570012b0205844032d48ae88ff66ecc`;
+trusted manifest 139 records (139/139 PASS; zero missing; zero mismatched;
+zero unmanifested trusted regular files; NUL-safe; external anchor manifest
+byte-identical; digest anchor equals the exact seal; post-seal prelaunch
+gate PASS); launcher
+`87a7eb179262b812db6deba47ff8e5b5b417e6cf794a0b5223ea8d6719308d21`; Sol
+isolation wrapper
+`37a166feb4d618623d9889ae5efacd958d95cc8db2baa23ab7c899adcd8164b2`;
+prelaunch seal gate
+`b431191af5788052f61220a745fedbc80a4720830f9f8e10ca2f6b2d3ae4d7cb`;
+attempt sealer
+`021ad99066075a87ca08327aeb42fa761d37f2c94f29e6fbccc8781d9481d84f`.
+Fixed-output RED: `SOL_FIXED_OUTPUT_FRESHNESS_BLOCKER_REPRODUCED` —
+historical frozen predecessor `output=$qroot/private/sol` with an
+empty-directory requirement; historical `private/sol` held seven frozen
+entries; the exact frozen predicate failed rc=1; the actual frozen launcher
+exited rc=1 before its model execution surface; strict launch-signature
+processes 0 before and 0 after; no model/provider call. Accepted
+resolution: `SOL_FIXED_OUTPUT_FUTURE_EXECUTION_BLOCKER_RESOLVED` —
+dedicated root `$qroot/private/sol-attempts`; internally generated fresh
+attempt identity; no arbitrary environment/operator output override;
+attempt output must not pre-exist; exclusive fail-closed creation; mode
+0700; exact realpath containment; root/attempt symlink rejection; collision
+rejection; escape rejection; prior attempts do not block future attempts;
+failed attempts may remain frozen without blocking later attempts;
+historical `private/sol` never cleared/moved/reused; validator and future
+attempt-sealer target exactly the fresh attempt output; launcher
+hard-blocked unless a separate future Control Room execution authority
+sets the explicit execution-authorized condition. DEV-1 acceptance:
+`SOL_CLAUDE_DEPENDENCY_RECONCILIATED` — the frozen Sol branch carried an
+unconditional mutable-host Claude executable pin although Claude was not
+part of the Sol execution surface; the accepted successor has no Claude
+executable digest dependency on the Sol path, mounts no Claude binary,
+executes no Claude binary, provides no Claude command path, and preserves
+all Sol-consumed executable and frozen-input pins; the exact removed pin
+set is only
+`4ae40dd1784e85753e742e09f267d29ecbb82890361ad3817d27560866d364a6`; the
+observed current host NVM Claude digest during remediation
+`26d020351e8112f4006790f3cfce43b4c9df0c1bb1d0e542364d64151b81d5ba` is
+historical metadata only and NOT a new Sol dependency. DEV-2 acceptance:
+`SOL_LIVE_SUBSCRIPTION_AUTH_SOURCE_CONTRACT_ACCEPTED` — sole eligible
+future auth source `/home/isa/.codex/auth.json`; bind-time contract:
+requested path exact, resolved realpath exact, regular file, not symlink,
+owner/mode metadata recorded, group/other-writable rejected,
+audit/bootstrap/runtime-auth/historical-output/package locations rejected,
+stale bootstrap copy explicitly ineligible, no alternate source, no
+fallback, no automatic login, no automatic refresh, auth contents never
+inspected/printed/hashed/fingerprinted/copied/archived, exact live file
+read-only bound into the isolated Sol environment only; preserved
+`FUTURE_SOL_EXECUTION_MUST_REVERIFY_LIVE_SUBSCRIPTION_AUTH_SOURCE_AT_BIND_TIME`;
+Stage-1 did NOT execute `codex login status`; any future separately
+authorized execution must perform the readiness decision required by its
+future execution authority — this record does not authorize that access.
+Frozen Codex/model identity preserved: payload SHA-256
+`56ef98ab4032d317ab26e9b5e5a175650717351edb16ed9cde0cb6d1734d62da`;
+observed CLI `codex-cli 0.153.4`; future required model `gpt-5.6-sol`;
+future required reasoning `xhigh`; no fallback/reroute accepted; no model
+invoked during Stage-1. Blindness acceptance:
+`AUDITOR_B_BLIND_VIEW_SUCCESSOR_ACCEPTED` — the authoritative BV phase
+mechanically established the successor sandbox denial/visibility contract
+(common input readable/unwritable; own fresh output writable; peer output
+denied; host repository denied; Claude skill denied; Claude credential
+path denied; Codex history denied; `.bashrc` denied; `.ssh` denied; entire
+bootstrap root denied; historical `private/opus` denied; historical
+`private/sol` denied; execution-addenda host path denied; alternate
+symlink escape denied; evidence-MCP credential/traversal denial; exact
+`/audit/input`, `/audit/meta`, `/audit/output` surface; ephemeral auditor
+home; read-only Codex auth bind; no Claude mount); barrier remains CLOSED.
+Authoritative matrix: final run `validation-20260909T123406Z`,
+OVERALL=PASS — EB 42/42 PASS; OF 33/33 PASS; C1 30/30 PASS; AU 26/26
+PASS; BV 31/31 PASS; NP 19/19 PASS; frontier/accounting
+`sol_model_calls=0`, `claude_calls=0`, `provider_requests=0`,
+`credential_material_archived=0`, `historical_substantive_read=0`,
+`frontier_calls=0`; all intermediate runs preserved unrewritten
+(`validation-20260909T123015Z` FAIL OF crash; `validation-20260909T123052Z`
+FAIL OF 31 PASS / 2 FAIL; `validation-20260909T123132Z` FAIL C1;
+`validation-20260909T123216Z` FAIL AU; `validation-20260909T123249Z` FAIL
+NP; `validation-20260909T123327Z` PASS but intermediate with package bytes
+later changed; `validation-20260909T123406Z` authoritative final PASS).
+Historical first-B invariance preserved at the original path:
+`private/sol/first-pass.md` SHA-256
+`29266fadac540bbf7156dc5aafa0d53ba33f69e60aeaa2ac34b9c5871d918f6e`, 1088
+bytes, mode 0444 — byte/mode invariant, HASH-ONLY, UNREAD, never moved,
+never replaced; `private/sol/events.jsonl` SHA-256
+`12cb40d36c4227e351f42c7d20999ca87f8e6fb8e94d6dd3d55bb7a5c8cd1a7b`, 2497
+bytes, mode 0444; Auditor-A substantive artifacts remain UNREAD and
+unchanged. Frozen bootstrap identities preserved: candidate
+`8ae33444f349ce73c1359b963722e2d16acba630`; baseline
+`68ce12acc6c614d1876b902e6511d21f95b33c43:skill`; qualification contract
+`3d7168ba3768485a16df0d2fcb266b6962b4657d2d30eaf1bc97f237a9d17bbf`; common
+manifest
+`14cd8b3b06dfd8edf679486d955c40f8e0096345e33c669bb9f279aed8b09ad8`;
+first-pass output contract
+`3b787c0689a718e5194042972ad97e26bf5b51481560706b5bc887122d1f2c3a`; Sol
+bundle
+`162c5bcc3e4f8b98534df6210306090d4ad7bc2ee1aa2a70f5dae74d4ed0099c`; frozen
+Sol prompt
+`8b8f8e3954631759fa0fd41747ce0b52669c920869fde16f799e681b91c617b6`; frozen
+structural validator
+`23d9b03fcbf15e2893a911999a0f39b5d625f2f9541392f3c63624b94af69d57`;
+evidence MCP
+`ee80e465818117587b14974de8541394fd5d5f9c49c683ec2fa28b31b804a520`; Codex
+bootstrap config
+`d1e5c4654a5502667aa7438456e82ea830d016d3e919bb3859408398f8caf55a`.
+OUTPUT-CONTRACT EVIDENCE PRECISION recorded exactly:
+`OUTPUT_CONTRACT_DIRECT_EB_ASSERTION_ABSENT_STAGE1_ARCHIVE` — Stage-1 EB
+did NOT contain a separately named direct assertion for the exact
+`FIRST-PASS-OUTPUT-CONTRACT.md` digest; Stage-1 did NOT independently
+renew or re-attest that identity; the exact frozen output-contract identity
+remains inherited from previously accepted bootstrap evidence
+`3b787c0689a718e5194042972ad97e26bf5b51481560706b5bc887122d1f2c3a`; Stage-1
+was not authorized to modify that contract and no structural-output
+remediation occurred; Control Room treats this as an evidence-precision
+gap, NOT an execution-boundary behavioral failure; before any Stage-2
+structural-output remediation may be mechanically accepted, Stage-2 MUST
+directly and explicitly hash the exact frozen
+`FIRST-PASS-OUTPUT-CONTRACT.md`, require the exact digest above, include
+that assertion in its deterministic identity phase, include that identity
+in its prelaunch/seal integrity gate as appropriate, and return direct
+evidence of the check — recorded as
+`STAGE2_MUST_DIRECTLY_REASSERT_OUTPUT_CONTRACT_IDENTITY`. Known nonblocking
+gate warning recorded:
+`KNOWN_NONBLOCKING_GNU_GREP_ESCAPED_SLASH_WARNING` — the sealed prelaunch
+gate's ADDENDUM directory-membership check may emit a GNU grep warning
+caused by escaped `/` characters in an ERE; Control Room independently
+inspected the code; the warning does NOT change the membership predicate
+outcome and does not weaken the separate exact manifest/file-set checks; no
+reseal or mutation of Stage-1 is performed to remove this cosmetic warning;
+a later authorized successor may remove it only if that change is
+explicitly accounted for. Structural failure remains intentionally
+unresolved: `CONTRACT_DIGEST_FIELD_NOT_EXACT` — Stage-1 did NOT remediate
+it; no conforming Auditor-B first pass exists; Stage-2 remains a separate
+future Control Room decision. Authority state after this record: Auditor-A
+SEVENTH accepted conforming first pass unchanged; FIRST Auditor-B authority
+CONSUMED/CLOSED with its first pass NONCONFORMING; second Auditor-B
+authority NONE; no automatic retry; barrier CLOSED; cross-examination
+authority NONE; adjudication authority NONE; qualification NONE;
+AUCDEV-010 OPEN; installed qualification provenance remains `PENDING
+EVIDENCE RECONCILIATION`; mechanical acceptance of `sol-v1-execbound`
+creates NO model execution authority. Disposition:
+`SOL_EXECBOUND_SUCCESSOR_POSTACCEPTANCE_GOVERNANCE_RECORD_PREPARED / OUTPUT_CONTRACT_PRECISION_GAP_RECORDED / STAGE2_DIRECT_REASSERTION_REQUIRED / BARRIER_CLOSED / QUALIFICATION_NONE`.
+
 - Milestone: before the next candidate audit; verified historical evidence may close
   the item without rerunning qualification. A new summary alone is not proof.
 
