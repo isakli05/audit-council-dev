@@ -1296,6 +1296,128 @@ EVIDENCE RECONCILIATION`; mechanical acceptance of `sol-v1-execbound`
 creates NO model execution authority. Disposition:
 `SOL_EXECBOUND_SUCCESSOR_POSTACCEPTANCE_GOVERNANCE_RECORD_PREPARED / OUTPUT_CONTRACT_PRECISION_GAP_RECORDED / STAGE2_DIRECT_REASSERTION_REQUIRED / BARRIER_CLOSED / QUALIFICATION_NONE`.
 
+2026-09-09 — AUCDEV-010 Stage-2 Sol contract-digest structural-output
+successor post-acceptance governance record (record-only; canonical base
+`b2ccf8d52bd956f03c87c8683868fbddb44fdf50` exact at start and close; no
+commit/push by the preparation pass). Control Room mechanically accepted
+the sealed Stage-2 successor package
+`execution-addenda/sol-v1-execbound-contractdigest/` — seal SHA-256
+`31f8bf68cc9d5da1bf8be6b3a86a552ab2c1f38e4d347157e547b09e4e8395df`,
+trusted manifest 206 records verified 206/206 PASS (0 missing, 0
+mismatched, 0 extra trusted regular files); remediation evidence archive
+`aucdev-010-sol-contractdigest-remediation-evidence-20260909.tar.gz`
+SHA-256 `74cb245a8c396d8f9d41d4c3c1c88ffe8a675cfb6be49a492141d4cd84da68ae`,
+448451 bytes — Control-Room independent verification: 251 members, 234
+regular files, 17 directories, no traversal, no symlink/hardlink/special
+members, outer SHA256SUMS 233/233 with complete coverage excluding itself,
+nested trusted manifest 206/206 with manifest digest equal to the successor
+seal, outer/nested anchors agreeing, independent secret-shaped scan clean.
+Disposition:
+`SOL_CONTRACT_DIGEST_STRUCTURAL_SUCCESSOR_MECHANICALLY_ACCEPTED_WITH_EVIDENCE_PRECISION_RESIDUALS`
+/ `FRONTIER_NOT_AUTHORIZED` — bounded structural mechanics accepted,
+structural remediation evidence sufficient for governance recording,
+Stage-1 output-contract direct-identity gap mechanically closed by Stage-2
+evidence; NOT a conforming Auditor-B first pass, NOT a second Auditor-B
+authority, NOT Sol execution permission, NOT a future-compliance guarantee,
+NOT barrier-opening, cross-examination, or adjudication authority, NOT
+qualification, NOT installation authority. The Stage-1 predecessor
+`execution-addenda/sol-v1-execbound/` (seal
+`76ee6a5158792215bcda8f9cd3e845f02570012b0205844032d48ae88ff66ecc`,
+139/139 PASS) is preserved unmodified with its accepted records
+(`SOL_FIXED_OUTPUT_FUTURE_EXECUTION_BLOCKER_RESOLVED`,
+`SOL_CLAUDE_DEPENDENCY_RECONCILED`,
+`SOL_LIVE_SUBSCRIPTION_AUTH_SOURCE_CONTRACT_ACCEPTED`,
+`AUDITOR_B_BLIND_VIEW_SUCCESSOR_ACCEPTED`,
+`FUTURE_SOL_EXECUTION_MUST_REVERIFY_LIVE_SUBSCRIPTION_AUTH_SOURCE_AT_BIND_TIME`,
+`KNOWN_NONBLOCKING_GNU_GREP_ESCAPED_SLASH_WARNING`). Direct output-contract
+reassertion: exactly one frozen common-input FIRST-PASS-OUTPUT-CONTRACT.md
+candidate resolved; direct SHA-256 of
+`views/sol/input/common/FIRST-PASS-OUTPUT-CONTRACT.md` =
+`3b787c0689a718e5194042972ad97e26bf5b51481560706b5bc887122d1f2c3a`;
+`STAGE2_MUST_DIRECTLY_REASSERT_OUTPUT_CONTRACT_IDENTITY = SATISFIED`;
+`OUTPUT_CONTRACT_DIRECT_EB_ASSERTION_ABSENT_STAGE1_ARCHIVE = CLOSED BY
+DIRECT STAGE-2 MECHANICAL EVIDENCE`; that digest is the frozen FILE
+identity and is NOT the validator-required model-output Contract digest
+value. Mechanically derived model-output field (from frozen
+validator/instruction mechanics; historical Auditor-B substantive artifact
+never read): label `Contract digest`; expected value
+`3d7168ba3768485a16df0d2fcb266b6962b4657d2d30eaf1bc97f237a9d17bbf`;
+identity: qualification-contract digest / `qualification_digests`
+`contract_sha256`. Synthetic RED: wrong value → frozen validator rc=1
+`INVALID_FIRST_PASS: Contract digest field is not exact`
+(`SOL_CONTRACT_DIGEST_STRUCTURAL_BLOCKER_REPRODUCED`); synthetic
+exact-value GREEN: rc=0 `STRUCTURAL_OUTPUT_CONTRACT_PASS` — GREEN proves
+validator semantics only, NOT future GPT-5.6 Sol compliance. Accepted
+design: frozen Sol first-pass prompt, frozen output contract, frozen
+structural validator preserved byte-for-byte; structure-only trailer
+`SOL-FIRST-PASS-STRUCTURE-TRAILER.md` (SHA-256
+`f9efcc71a34db939046515b82fc10f8b744816a8b7fca783d3953d37ef1884c5`)
+composed deterministically after the unchanged frozen prompt with the
+exact label/value guidance explicit; no Auditor-A substance; no historical
+Auditor-B substance; no findings/hypotheses/verdicts inserted; no
+model-output post-processing; no automatic repair; the frozen validator
+remains the final structural conformance/sealing gate; Stage-1
+execution-boundary behavior preserved. Authoritative final matrix
+`validation-20260909T164016Z` OVERALL=PASS (ID 56/56, CD 37/37, PC 20/20,
+OF 33/33, C1 30/30, AU 26/26, BV 32/32, NP 19/19; frontier_calls=0); the
+six failed/intermediate runs (validation-20260909T163441Z, 163552Z,
+163655Z, 163734Z, 163804Z, 163847Z) are preserved unrewritten historical
+evidence. Zero-activity accounting for the accepted task:
+sol_model_calls=0, claude_calls=0, provider_requests=0, frontier_calls=0,
+codex_login_status=0, historical_substantive_read=0,
+credential_material_archived=0. THREE Control-Room evidence-precision
+residuals recorded as governance truth (sealed Stage-2 record preserved
+unchanged; no mutation, no reseal): R1
+`SEALED_REMEDIATION_RECORD_DIFF_ACCOUNTING_TEXT_INCONSISTENCY`
+(evidence/reporting precision defect; non-behavioral; non-blocking for
+mechanical acceptance) — the sealed CONTRACTDIGEST-REMEDIATION-RECORD.md
+§5 incorrectly places tests/test_fresh_output.py,
+tests/test_claude_dependency.py, tests/test_auth_source.py, and
+tests/test_no_frontier.py under byte-identical carries; the byte-identical
+carries are exactly auth/AUTH-SOURCE-CONTRACT.md and
+launcher/seal-attempt-first-pass-v1e.sh; test_fresh_output.py,
+test_auth_source.py, and test_no_frontier.py changed by successor package
+path identity only; test_claude_dependency.py changed by package path
+identity PLUS deterministic Stage-2 test changes permitting/asserting the
+authorized structural-trailer read-only mount and exact trailer digest
+pin; test_blind_view.py changed by package path identity PLUS
+deterministic Stage-2 trailer visibility verification; the external
+06-DIFF-ACCOUNTING-AND-MATRIX-INDEX.txt, machine diff artifacts, and final
+matrix provide the correct reconcilable changed-byte evidence; R2
+`REAL_AUTH_METADATA_PROBE_REPORTING_PRECISION` (implementation/reporting
+precision deviation; no credential-content exposure observed; non-blocking)
+— synthetic auth fixtures covered the adversarial AU cases while the real
+eligible path `/home/isa/.codex/auth.json` also received metadata-only
+path/readiness checks (file/path/stat properties), was read-only bound for
+blind-view readability and write-denial verification, and evidence-MCP
+credential-content access attempts were expected to be denied; precise
+accounting: credential_content_read=0, credential_material_archived=0,
+real_auth_metadata_probe=OCCURRED, real_auth_read_only_bind_probe=OCCURRED
+(correcting the implementer's overbroad "synthetic fixtures only"); R3
+`FINAL_IMPLEMENTATION_REPORT_ARCHIVE_COMPLETENESS_GAP` (evidence-package
+completeness limitation; non-behavioral; non-blocking) — the remediation
+archive does not contain a standalone copy of the 57-item REQUIRED FINAL
+RETURN provided to Control Room; the original archive remains immutable
+historical evidence; this governance record includes its own complete
+record/report. Historical Auditor-B identity preserved hash/stat-only
+(`29266fadac540bbf7156dc5aafa0d53ba33f69e60aeaa2ac34b9c5871d918f6e`, 1088
+bytes, 0444; events
+`12cb40d36c4227e351f42c7d20999ca87f8e6fb8e94d6dd3d55bb7a5c8cd1a7b`, 2497
+bytes, 0444; substantive content never read, grep'd, parsed, diffed,
+quoted, copied, relocated, or repaired; Auditor-A substantive artifacts
+remain unread, metadata/hash/stat only). Authority state after this record:
+Auditor-A SEVENTH accepted conforming first pass unchanged; FIRST
+Auditor-B authority CONSUMED/CLOSED with its first pass
+NONCONFORMING_AUDITOR_B_FIRST_PASS (`CONTRACT_DIGEST_FIELD_NOT_EXACT`
+unchanged); second Auditor-B authority NONE; automatic retry NONE; barrier
+CLOSED; cross-examination NONE; adjudication NONE; qualification NONE;
+AUCDEV-010 OPEN; installed qualification provenance remains `PENDING
+EVIDENCE RECONCILIATION`; the Stage-2 mechanical acceptance creates NO
+model execution authority; a future second Auditor-B first-pass authority
+can only be considered by a separate Control Room decision AFTER this
+governance record is independently verified and canonically published.
+Disposition: `SOL_CONTRACTDIGEST_SUCCESSOR_POSTACCEPTANCE_GOVERNANCE_RECORD_PREPARED_WITH_EVIDENCE_PRECISION_RESIDUALS / BARRIER_CLOSED / QUALIFICATION_NONE`.
+
 - Milestone: before the next candidate audit; verified historical evidence may close
   the item without rerunning qualification. A new summary alone is not proof.
 
