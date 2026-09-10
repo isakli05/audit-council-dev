@@ -419,3 +419,201 @@ class TestV201VerifierFindings(unittest.TestCase):
                 break
         else:
             self.fail("no toolchain bind found after --tmpfs")
+
+
+class TestFA1PreflightProbeOwnership(unittest.TestCase):
+    """F-A1 — sandbox-preflight probe fixtures must be created atomically
+    and OWNED. A planted symlink or pre-existing file at any predictable
+    probe pathname (<repo>/.ac-sbx-probe, <run-dir>/.ac-sbx-probe,
+    <HOME>/.audit-council-sbx-probe-secret) must yield the sanctioned
+    preflight_probe_conflict WITHOUT following, truncating, writing
+    through, or unlinking the pre-existing object, and cleanup must
+    remove only fixtures the current invocation created. Patched HOME and
+    a stubbed sandbox executor: no bwrap/codex/model execution, so the
+    conflict is proven reachable before any sandbox launch."""
+
+    def setUp(self):
+        import unittest.mock
+        self.base = tempfile.mkdtemp(prefix="t4fa1-", dir=str(FIXTURES))
+        self.repo = os.path.join(self.base, "repo")
+        self.run_dir = os.path.join(self.repo, "audit-output", "run")
+        self.home = os.path.join(self.base, "home")
+        os.makedirs(os.path.join(self.repo, "src"))
+        os.makedirs(self.run_dir)
+        os.makedirs(self.home)
+        self.repo_probe = os.path.join(self.repo, ".ac-sbx-probe")
+        self.run_probe = os.path.join(self.run_dir, ".ac-sbx-probe")
+        self.outside_probe = os.path.join(
+            self.home, ".audit-council-sbx-probe-secret")
+        # never touch the operator's real HOME probe path
+        self._old_home = os.environ.get("HOME")
+        os.environ["HOME"] = self.home
+        # make the preflight believe bwrap is present; stub argv building
+        # so the recorded payload is exactly the in-sandbox command
+        p1 = unittest.mock.patch.object(
+            codex_sandbox, "bwrap_available", lambda: "/usr/bin/bwrap")
+        p2 = unittest.mock.patch.object(
+            codex_sandbox, "build_sandbox_argv",
+            lambda payload, rr, rd, ar: list(payload))
+        p1.start()
+        p2.start()
+        self.addCleanup(p2.stop)
+        self.addCleanup(p1.stop)
+        self.exec_calls: list = []
+
+    def tearDown(self):
+        if self._old_home is None:
+            os.environ.pop("HOME", None)
+        else:
+            os.environ["HOME"] = self._old_home
+        shutil.rmtree(self.base, ignore_errors=True)
+
+    def _victim(self, name):
+        # disposable temporary victim only — never a real sensitive file
+        path = os.path.join(self.base, name)
+        with open(path, "wb") as fh:
+            fh.write(b"F-A1-VICTIM-" + name.encode() + b"\n")
+        return path
+
+    def _stub_exec_fail(self):
+        # reaching any sandbox execution before the probe conflict is an
+        # invariant breach, not a sanctioned path
+        import unittest.mock
+
+        def fake_run(argv, *a, **kw):
+            self.exec_calls.append(list(argv))
+            raise AssertionError(
+                "sandbox execution attempted for a conflicting probe "
+                "path: %r" % (list(argv)[:6],))
+
+        p = unittest.mock.patch.object(codex_sandbox.subprocess, "run",
+                                       fake_run)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def _stub_exec_success(self):
+        # deterministic in-sandbox outcomes for all eight probes
+        import unittest.mock
+
+        def fake_run(argv, *a, **kw):
+            self.exec_calls.append(list(argv))
+            payload = list(argv)
+            joined = " ".join(payload)
+            cp = subprocess.CompletedProcess
+            if payload[:1] == ["cat"]:
+                outside = payload[1] == self.outside_probe
+                return cp(payload, 1 if outside else 0,
+                          stdout="" if outside else "repo-probe\n",
+                          stderr="")
+            if "command -v node" in joined:
+                return cp(payload, 0,
+                          stdout="/opt/toolchain/bin/node\nv24.14.0\n",
+                          stderr="")
+            if "echo x >>" in joined:  # repo append: must be blocked
+                return cp(payload, 1, stdout="", stderr="EROFS")
+            if "echo x >" in joined:  # run-dir write: must succeed
+                return cp(payload, 0, stdout="", stderr="")
+            if payload[:2] == ["codex", "--version"]:
+                return cp(payload, 0, stdout="codex-cli 0.0.0\n", stderr="")
+            if payload[:3] == ["codex", "login", "status"]:
+                return cp(payload, 0, stdout="Logged in\n", stderr="")
+            return cp(payload, 0, stdout="104.18.7.161\n", stderr="")  # dns
+
+        p = unittest.mock.patch.object(codex_sandbox.subprocess, "run",
+                                       fake_run)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_planted_repo_probe_symlink_not_followed(self):
+        victim = self._victim("repo-victim.txt")
+        with open(victim, "rb") as fh:
+            original = fh.read()
+        os.symlink(victim, self.repo_probe)
+        self._stub_exec_fail()
+        result = codex_sandbox.sandbox_preflight(self.repo, self.run_dir)
+        with open(victim, "rb") as fh:
+            self.assertEqual(fh.read(), original,
+                             "host-side probe setup wrote through the "
+                             "planted symlink into the victim")
+        self.assertTrue(os.path.islink(self.repo_probe)
+                        and os.readlink(self.repo_probe) == victim,
+                        "cleanup removed or rewrote the planted symlink")
+        self.assertFalse(result["ok"])
+        self.assertIn("preflight_probe_conflict", result["failures"],
+                      str(result))
+        self.assertEqual(self.exec_calls, [],
+                         "sandbox execution happened before the conflict")
+
+    def test_planted_outside_home_probe_symlink_not_followed(self):
+        victim = self._victim("home-victim.txt")
+        with open(victim, "rb") as fh:
+            original = fh.read()
+        os.symlink(victim, self.outside_probe)
+        self._stub_exec_fail()
+        result = codex_sandbox.sandbox_preflight(self.repo, self.run_dir)
+        with open(victim, "rb") as fh:
+            self.assertEqual(fh.read(), original,
+                             "host-side probe setup wrote through the "
+                             "planted HOME symlink into the victim")
+        self.assertTrue(os.path.islink(self.outside_probe)
+                        and os.readlink(self.outside_probe) == victim,
+                        "cleanup removed or rewrote the planted symlink")
+        self.assertIn("preflight_probe_conflict", result["failures"],
+                      str(result))
+        self.assertEqual(self.exec_calls, [],
+                         "sandbox execution happened before the conflict")
+
+    def test_preexisting_regular_repo_probe_preserved(self):
+        with open(self.repo_probe, "wb") as fh:
+            fh.write(b"pre-existing-regular\n")
+        self._stub_exec_fail()
+        result = codex_sandbox.sandbox_preflight(self.repo, self.run_dir)
+        self.assertTrue(os.path.isfile(self.repo_probe)
+                        and not os.path.islink(self.repo_probe),
+                        "pre-existing regular probe file was removed")
+        with open(self.repo_probe, "rb") as fh:
+            self.assertEqual(fh.read(), b"pre-existing-regular\n",
+                             "pre-existing regular probe file was "
+                             "truncated/overwritten")
+        self.assertIn("preflight_probe_conflict", result["failures"],
+                      str(result))
+        self.assertEqual(self.exec_calls, [],
+                         "sandbox execution happened before the conflict")
+
+    def test_planted_run_dir_probe_conflict_cleans_only_owned(self):
+        # a pre-existing object at the run-dir probe pathname is a
+        # sanctioned conflict; fixtures created earlier by THIS invocation
+        # (repo + HOME probes) must still be cleaned up afterwards
+        with open(self.run_probe, "wb") as fh:
+            fh.write(b"pre-existing-run-probe\n")
+        self._stub_exec_fail()
+        result = codex_sandbox.sandbox_preflight(self.repo, self.run_dir)
+        self.assertTrue(os.path.isfile(self.run_probe)
+                        and not os.path.islink(self.run_probe),
+                        "pre-existing run-dir probe object was removed")
+        with open(self.run_probe, "rb") as fh:
+            self.assertEqual(fh.read(), b"pre-existing-run-probe\n",
+                             "pre-existing run-dir probe object was "
+                             "mutated")
+        self.assertIn("preflight_probe_conflict", result["failures"],
+                      str(result))
+        self.assertFalse(os.path.exists(self.repo_probe),
+                         "owned repo probe fixture left behind")
+        self.assertFalse(os.path.exists(self.outside_probe),
+                         "owned HOME probe fixture left behind")
+        self.assertEqual(self.exec_calls, [],
+                         "sandbox execution happened before the conflict")
+
+    def test_healthy_preflight_semantics_and_owned_cleanup(self):
+        # ordinary preflight: all eight probes keep their exact contract
+        # and every owned fixture (now including the run-dir probe) is
+        # cleaned up after normal completion
+        self._stub_exec_success()
+        result = codex_sandbox.sandbox_preflight(self.repo, self.run_dir)
+        self.assertEqual(result["failures"], [], str(result["details"]))
+        self.assertTrue(result["ok"])
+        for path in (self.repo_probe, self.outside_probe, self.run_probe):
+            self.assertFalse(os.path.exists(path),
+                             "owned probe fixture left behind: " + path)
+        self.assertEqual(len(self.exec_calls), 8,
+                         "the eight-probe contract changed shape")

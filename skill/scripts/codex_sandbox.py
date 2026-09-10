@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import stat
 import subprocess
 from pathlib import Path
 
@@ -236,6 +237,47 @@ def probe(bwrap: str | None = None) -> dict:
                 "outside_read_blocked": outside_rc != 0}
 
 
+def _create_probe_fixture(path: str, content: bytes,
+                          created: list) -> None:
+    """F-A1 hardening: create a probe file this invocation OWNS.
+
+    Atomic exclusive creation (O_CREAT|O_EXCL, plus O_NOFOLLOW where
+    supported): a pre-existing object at the predictable probe path —
+    regular file OR symlink — fails with EEXIST instead of being
+    followed, truncated, or written through. The (st_dev, st_ino)
+    identity of the object WE created is recorded so cleanup removes
+    exactly that object and nothing else."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    fd = os.open(path, flags, 0o600)
+    try:
+        os.write(fd, content)
+    finally:
+        os.close(fd)
+    st = os.lstat(path)
+    created.append((path, st.st_dev, st.st_ino))
+
+
+def _cleanup_probe_fixtures(created: list) -> None:
+    """F-A1 hardening: unlink only objects whose recorded (st_dev,
+    st_ino) identity still matches the fixture this invocation created;
+    a path that was swapped — or was never ours — is left alone."""
+    for path, dev, ino in reversed(created):
+        try:
+            st = os.lstat(path)
+        except OSError:
+            continue
+        if (st.st_dev, st.st_ino) != (dev, ino):
+            continue
+        if not stat.S_ISREG(st.st_mode):
+            continue
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
 def sandbox_preflight(repo_root: str, run_dir: str,
                       allowed_roots: list[str] | None = None,
                       timeout: int = 60) -> dict:
@@ -252,6 +294,14 @@ def sandbox_preflight(repo_root: str, run_dir: str,
       6 repo write FAILS                (read-only bind)
       7 outside-root user-data read FAILS
       8 run-dir output write succeeds
+
+    F-A1 hardening: every probe fixture is created atomically and
+    exclusively (O_CREAT|O_EXCL [+O_NOFOLLOW]) and tracked by inode
+    identity — a pre-existing symlink or regular file at any predictable
+    probe pathname is the sanctioned preflight_probe_conflict (never
+    followed, truncated, or unlinked), and cleanup removes only objects
+    this invocation created. The run-dir probe is host-created too, so
+    probe 8 proves the rw bind by truncating a file the preflight owns.
 
     Returns {"ok": bool, "failures": [names], "details": {...}}. A
     failure is an Audit Council environment/harness failure
@@ -278,16 +328,19 @@ def sandbox_preflight(repo_root: str, run_dir: str,
         return subprocess.run(argv, capture_output=True, text=True,
                               timeout=timeout)
 
-    # fresh probe fixtures (removed afterwards)
+    # fresh probe fixtures — atomic, exclusive, ownership-tracked (F-A1)
+    created: list = []
     try:
         try:
-            with open(repo_file, "w") as fh:
-                fh.write("repo-probe\n")
-            with open(probe_outside, "w") as fh:
-                fh.write("user-data-probe\n")
+            _create_probe_fixture(repo_file, b"repo-probe\n", created)
+            _create_probe_fixture(probe_outside, b"user-data-probe\n",
+                                  created)
+            _create_probe_fixture(run_file, b"run-probe\n", created)
         except OSError as exc:
-            # v2.0.1 N1: a planted/conflicting probe path must produce a
-            # sanctioned preflight failure, never a traceback
+            # v2.0.1 N1 / F-A1: a planted or conflicting probe path
+            # (symlink OR regular file) must produce a sanctioned
+            # preflight failure — never a traceback, never a
+            # write-through or truncation of the pre-existing object
             return {"ok": False,
                     "failures": ["preflight_probe_conflict"],
                     "details": {"probe_error": repr(exc)[:120]}}
@@ -356,10 +409,8 @@ def sandbox_preflight(repo_root: str, run_dir: str,
         except Exception:
             failures.append("run_dir_write")
     finally:
-        for path in (repo_file, run_file, probe_outside):
-            try:
-                os.unlink(path)
-            except OSError:
-                pass
+        # F-A1: remove ONLY fixtures this invocation created, by inode
+        # identity — never a path merely because its name is predictable
+        _cleanup_probe_fixtures(created)
 
     return {"ok": not failures, "failures": failures, "details": details}
