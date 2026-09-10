@@ -57,9 +57,12 @@ the next candidate. Qualification and installation are separate; installed-byte
 equality, version labels and tests do not prove independent qualification.
 
 Missing repo records do not prove qualification absent. First reconcile existing
-historical/operator-held evidence and import safe references. Consider new expensive
-qualification only if evidence is insufficient and the operator authorizes it.
-Do not certify the installed tree as predecessor until provenance is established.
+historical/operator-held evidence and import safe references. When no proven
+qualified installed predecessor exists after bounded AUCDEV-010 evidence
+reconciliation, the Runbook's one-time bootstrap-root exception may be used only
+under separate operator execution authority; candidate self-qualification remains
+prohibited. Do not certify the installed tree as predecessor until provenance is
+established.
 
 ## Exact target and verdicts
 

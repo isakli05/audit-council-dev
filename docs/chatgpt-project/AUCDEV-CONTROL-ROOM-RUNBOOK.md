@@ -68,6 +68,139 @@ The repository currently records an older verified v2.0 installation and a newer
 v2.0.1-equivalent installed tree; see [qualification history](AUCDEV-QUALIFICATION-HISTORY.md).
 This documentation/publication task does not certify or install a runtime release.
 
+### Bootstrap root exception (one-time)
+
+Adopted 2026-09-10 as the AUCDEV-010 one-time bootstrap-root policy addendum; state
+at adoption: AVAILABLE / UNCONSUMED. Adoption is policy publication only and confers
+NO campaign execution authority; see CURRENT-STATE for the live policy state.
+
+1. APPLICABILITY
+
+This exception may be invoked ONLY when a bounded evidence reconciliation, recorded
+by Control Room, establishes that no proven independently qualified AND
+verified-installed predecessor currently exists.
+
+For AUCDEV-010, that prerequisite is the canonical
+qualified-predecessor-provenance result:
+
+INSTALLED_8AE_QUALIFIED_PREDECESSOR_PROVENANCE_NOT_ESTABLISHED
+
+and:
+
+NO_ALTERNATE_QUALIFIED_PREDECESSOR_ESTABLISHED.
+
+The exception applies to this AUCDEV-010 bootstrap state only.
+
+2. SELF-QUALIFICATION BARRIER UNCHANGED
+
+The candidate Audit Council must never:
+
+* qualify itself;
+* select its own qualification evidence;
+* orchestrate its qualification auditors;
+* validate away conflicting auditor output;
+* convert its own deterministic PASS into qualification.
+
+Invoking the unqualified installed Audit Council and relabeling its result as
+independent bootstrap qualification is prohibited.
+
+3. AUDITORS
+
+Bootstrap qualification requires TWO external independent first-pass auditors,
+independent of the candidate Audit Council runtime.
+
+They must be directly provisioned under:
+
+* a frozen bootstrap contract;
+* identical/common evidence manifest;
+* explicit evidence parity;
+* explicit first-pass blindness disclosure.
+
+Mechanical blindness may be claimed only if mechanically established.
+Otherwise record procedural-only blindness honestly.
+
+4. AUTHORITY AND DEFAULT MODEL BUDGET
+
+Every bootstrap campaign requires a SEPARATE explicit operator execution authority
+with a recorded event ID.
+
+Adoption of this policy addendum is NOT that execution authority.
+
+Default bootstrap campaign:
+
+DEFAULT_MODEL_ENGAGEMENTS = 2
+
+Those two engagements are ONLY:
+
+* independent blind first pass A;
+* independent blind first pass B.
+
+Default post-barrier reconciliation is zero-model.
+
+Historical F-A1 through F-A13 coverage must be mapped mechanically after both first
+passes are immutable.
+
+Post-barrier auditor addenda require a NEW separate operator authority for named
+issues.
+
+Adjudication requires another separate authority for named material disputes.
+
+Model agreement is not proof.
+
+Incomplete mandatory auditor coverage blocks qualification readiness.
+
+Unresolved material HIGH/CRITICAL issues block qualification.
+
+5. QUALIFICATION DECISION AND INSTALLATION ARE SEPARATE
+
+Auditor recommendations are not the operator qualification decision.
+
+Deterministic gate PASS is not qualification.
+
+Qualification does not install.
+
+A source may become:
+
+FIRST_PROVEN_QUALIFIED_INSTALLED_PREDECESSOR
+
+only after BOTH:
+
+* independently supported bootstrap qualification is separately accepted by the
+  operator; and
+* installation of the exact audited SHA is separately authorized and verified.
+
+6. PERMANENT SINGLE-USE EXPIRY
+
+Upon the first canonical record of:
+
+FIRST_PROVEN_QUALIFIED_INSTALLED_PREDECESSOR
+
+this AUCDEV-010 bootstrap-root exception becomes permanently:
+
+CONSUMED / EXPIRED
+
+It never automatically revives.
+
+It is not standing authority.
+
+Thereafter ordinary predecessor/successor qualification is mandatory.
+
+7. NO REVIVAL / NO REUSE
+
+If a future event again leaves the project without a proven qualified installed
+predecessor, that future state requires:
+
+* a NEW Control Room governance/policy decision; and
+* NEW explicit operator authority.
+
+This AUCDEV-010 bootstrap-root exception may not be:
+
+* reused;
+* revived;
+* cited as standing authority;
+* used as an easier alternative to ordinary successor qualification while a proven
+  predecessor exists.
+
 ## Implementation prompt template
 
 ```text
