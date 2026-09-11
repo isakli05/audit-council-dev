@@ -146,6 +146,80 @@ class TestTransitions(unittest.TestCase):
                 {**state_store.new_state("bad", "/", "0" * 64)})
 
 
+class TestCheckTransition(unittest.TestCase):
+    """B-001: check_transition is a pure eligibility preview that applies
+    the SAME authoritative rules as apply_transition — forward-only order,
+    adjudication-skip rules, LEDGER_COMPLETE, explicit artifact-phase skip
+    records — with zero mutation and zero attempt accounting."""
+
+    def test_preview_agrees_with_apply_and_writes_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = make_run(tmp)
+            state_store.apply_transition(run_dir, "CONTRACT_FROZEN")
+            before = open(state_store.state_path(run_dir), "rb").read()
+            for bad in ("CONTRACT_FROZEN", "CREATED", "NOT_A_PHASE"):
+                with self.assertRaises(state_store.StateError):
+                    state_store.check_transition(run_dir, bad)
+            previewed = state_store.check_transition(
+                run_dir, "OPUS_INDEPENDENT_COMPLETE")
+            self.assertEqual(previewed["phase"],
+                             "OPUS_INDEPENDENT_COMPLETE")
+            # pure: state.json byte-identical, no attempt accounting
+            self.assertEqual(
+                open(state_store.state_path(run_dir), "rb").read(), before)
+            state = state_store.load_state(run_dir)
+            self.assertEqual(state["phase"], "CONTRACT_FROZEN")
+            self.assertNotIn("OPUS_INDEPENDENT_COMPLETE",
+                             state["phase_attempts"])
+
+    def test_preview_evaluates_prospective_skips_without_persisting(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = make_run(tmp)
+            entries = [{"skipped_phase": p, "reason": "test jump"}
+                       for p in ("CONTRACT_FROZEN",
+                                 "OPUS_INDEPENDENT_COMPLETE")]
+            # the multi-phase jump is rejected without skip records — the
+            # preview enforces the same explicit-skip requirement
+            with self.assertRaises(state_store.StateError):
+                state_store.check_transition(
+                    run_dir, "CODEX_INDEPENDENT_COMPLETE")
+            # ...previews clean with the prospective skips admitted...
+            state_store.check_transition(run_dir, "CODEX_INDEPENDENT_COMPLETE",
+                                         prospective_skips=entries)
+            # ...and persisted nothing
+            state = state_store.load_state(run_dir)
+            self.assertNotIn("phase_skips", state)
+            # recording the same skips for real then lets the authoritative
+            # commit path accept the identical transition
+            state_store.record_phase_skips(run_dir, entries)
+            state_store.apply_transition(
+                run_dir, "CODEX_INDEPENDENT_COMPLETE")
+
+    def test_preview_rejects_invalid_prospective_skips(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = make_run(tmp)
+            with self.assertRaises(state_store.StateError):
+                state_store.check_transition(
+                    run_dir, "CODEX_INDEPENDENT_COMPLETE",
+                    prospective_skips=[
+                        {"skipped_phase": "NOT_A_PHASE", "reason": "x"}])
+            with self.assertRaises(state_store.StateError):
+                state_store.check_transition(
+                    run_dir, "CODEX_INDEPENDENT_COMPLETE",
+                    prospective_skips=[
+                        {"skipped_phase": "CONTRACT_FROZEN",
+                         "reason": "   "}])
+            # duplicates of already-recorded skips are rejected identically
+            state_store.record_phase_skips(run_dir, [
+                {"skipped_phase": "CONTRACT_FROZEN", "reason": "recorded"}])
+            with self.assertRaises(state_store.StateError):
+                state_store.check_transition(
+                    run_dir, "CODEX_INDEPENDENT_COMPLETE",
+                    prospective_skips=[
+                        {"skipped_phase": "CONTRACT_FROZEN",
+                         "reason": "duplicate"}])
+
+
 class TestChecksums(unittest.TestCase):
     def test_record_and_verify(self):
         with tempfile.TemporaryDirectory() as tmp:

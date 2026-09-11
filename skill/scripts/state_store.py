@@ -312,11 +312,33 @@ def apply_transition(run_dir: str | os.PathLike[str], target: str, *,
     return new
 
 
-def record_phase_skips(run_dir: str | os.PathLike[str],
-                       entries: list[dict[str, Any]]) -> None:
-    """Persist explicit skip records (validated shape) BEFORE the transition
-    that passes over those phases; the transition then admits them."""
+def check_transition(run_dir: str | os.PathLike[str], target: str, *,
+                     adjudication_skipped: bool | None = None,
+                     prospective_skips: list[dict[str, Any]] | None = None,
+                     ) -> dict[str, Any]:
+    """Pure eligibility preview for apply_transition (B-001 ordering fix).
+
+    Applies the SAME authoritative transition rules — forward-only phase
+    order, adjudication-skip rules, LEDGER_COMPLETE, explicit artifact-
+    phase skip records — without writing anything: no state save, no
+    attempt accounting, no skip persistence. `prospective_skips` are
+    validated exactly like record_phase_skips entries and admitted into
+    the in-memory state copy only, so a multi-phase jump can be previewed
+    before its skip records are persisted. Raises StateError iff
+    apply_transition would reject the same request; returns the state
+    apply_transition would commit.
+    """
     state = load_state(run_dir)
+    if prospective_skips:
+        state["phase_skips"] = _merged_skip_entries(state, prospective_skips)
+    return transition(state, target, adjudication_skipped=adjudication_skipped)
+
+
+def _merged_skip_entries(state: dict[str, Any],
+                         entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Validate `entries` against the skip records already in `state` and
+    return the combined skip list. Pure: raises the same StateError
+    record_phase_skips raises for a bad entry; mutates nothing."""
     skips = list(state.get("phase_skips", []))
     known = {s.get("skipped_phase") for s in skips}
     for e in entries:
@@ -331,7 +353,15 @@ def record_phase_skips(run_dir: str | os.PathLike[str],
                       "reason": e["reason"],
                       "recorded_at": e.get("recorded_at") or utc_now_iso()})
         known.add(phase)
-    state["phase_skips"] = skips
+    return skips
+
+
+def record_phase_skips(run_dir: str | os.PathLike[str],
+                       entries: list[dict[str, Any]]) -> None:
+    """Persist explicit skip records (validated shape) BEFORE the transition
+    that passes over those phases; the transition then admits them."""
+    state = load_state(run_dir)
+    state["phase_skips"] = _merged_skip_entries(state, entries)
     save_state(run_dir, state)
 
 

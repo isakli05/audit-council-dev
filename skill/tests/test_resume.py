@@ -21,7 +21,7 @@ AUDIT_COUNCIL = str(SCRIPTS / "audit_council.py")
 SCHEMAS_DIR = SCRIPTS.parent / "schemas"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_schema_validation import contract, independent_audit  # noqa: E402
+from test_schema_validation import contract, finding, independent_audit  # noqa: E402
 
 import state_store  # noqa: E402
 import validate_artifact  # noqa: E402
@@ -118,6 +118,41 @@ class TestResumeLifecycle(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         return json.loads(proc.stdout)
 
+    def _snap(self, name):
+        with open(os.path.join(self.run_dir, name), "rb") as fh:
+            return fh.read()
+
+    def _checksum_entry(self, name):
+        with open(os.path.join(self.run_dir, "checksums.sha256")) as fh:
+            for line in fh:
+                digest, sep, fname = line.rstrip("\n").partition("  ")
+                if sep and fname == name:
+                    return digest
+        return None
+
+    def _replacement_contract_stdin(self):
+        """A DIFFERENT but schema-valid contract targeting the same frozen
+        repository identity (B-001: only free-text scope fields differ)."""
+        head = git(self.repo, "rev-parse", "HEAD").strip()
+        doc = contract(objective="Attacker replacement objective",
+                       scope=["attacker/"])
+        doc["target_repository"] = {
+            "root": self.repo, "head_sha": head, "branch": "main",
+            "fingerprint_sha256": self._run_fingerprint(), "dirty": False,
+        }
+        return json.dumps(doc).encode()
+
+    def _replacement_opus_audit_stdin(self):
+        """A DIFFERENT but schema-valid independent audit for the same
+        frozen repository fingerprint."""
+        doc = independent_audit(
+            audit_summary="attacker replacement summary",
+            findings=[finding(id="OPUS-666", origin="OPUS-666",
+                              title="Replacement finding",
+                              claim="replacement claim")])
+        doc["repository_fingerprint_sha256"] = self._run_fingerprint()
+        return json.dumps(doc).encode()
+
     def test_full_lifecycle_and_resume_point(self):
         frozen = self._freeze_contract_stdin()
         self.assertTrue(frozen["ok"])
@@ -177,7 +212,10 @@ class TestResumeLifecycle(unittest.TestCase):
 
     def test_advance_rejects_backward_transition(self):
         """Completed phases are immutable: re-advancing an already satisfied
-        phase must fail without rewriting artifacts."""
+        phase must fail without rewriting artifacts — and (B-001/GREEN-3)
+        the rejection must happen BEFORE the completed CONTRACT_FROZEN
+        checkpoint's canonical identity is replaced, even when the backward
+        request carries DIFFERENT schema-valid bytes on stdin."""
         self._freeze_contract_stdin()
         self._advance_opus_stdin()
         art_before = open(os.path.join(
@@ -193,6 +231,89 @@ class TestResumeLifecycle(unittest.TestCase):
                  "rb").read(), art_before)
         state = json.load(open(os.path.join(self.run_dir, "state.json")))
         self.assertEqual(state["phase"], "OPUS_INDEPENDENT_COMPLETE")
+
+        # B-001/GREEN-3: backward target with DIFFERENT valid stdin bytes
+        # must not replace the completed checkpoint's identity records
+        contract_before = self._snap("02-audit-contract.json")
+        sidecar_before = self._snap("02-audit-contract.sha256")
+        entry_before = self._checksum_entry("02-audit-contract.json")
+        proc = cli("advance", "--run", self.run_dir,
+                   "--to", "CONTRACT_FROZEN",
+                   "--artifact", "-", "--stdin",
+                   stdin=self._replacement_contract_stdin())
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertFalse(json.loads(proc.stdout)["ok"])
+        self.assertEqual(self._snap("02-audit-contract.json"),
+                         contract_before)
+        self.assertEqual(self._snap("02-audit-contract.sha256"),
+                         sidecar_before)
+        self.assertEqual(self._checksum_entry("02-audit-contract.json"),
+                         entry_before)
+        self.assertEqual(self._snap("10-opus-independent.json"), art_before)
+        state = json.load(open(os.path.join(self.run_dir, "state.json")))
+        self.assertEqual(state["phase"], "OPUS_INDEPENDENT_COMPLETE")
+
+    def test_repeated_freeze_rejected_preserves_frozen_contract(self):
+        """B-001/GREEN-1: freeze-contract against an already CONTRACT_FROZEN
+        run with a DIFFERENT valid stdin contract must fail without
+        replacing any completed-checkpoint identity record: canonical
+        contract bytes, checksum binding, sidecar, and repository-state
+        contract digest all stay frozen; only normal failed-attempt
+        accounting may change state.json."""
+        self._freeze_contract_stdin()
+        contract_before = self._snap("02-audit-contract.json")
+        sidecar_before = self._snap("02-audit-contract.sha256")
+        entry_before = self._checksum_entry("02-audit-contract.json")
+        repo_state_before = self._snap("01-repository-state.json")
+        proc = cli("freeze-contract", "--run", self.run_dir,
+                   "--contract", "-", "--stdin",
+                   stdin=self._replacement_contract_stdin())
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertFalse(json.loads(proc.stdout)["ok"])
+        self.assertEqual(self._snap("02-audit-contract.json"),
+                         contract_before)
+        self.assertEqual(self._snap("02-audit-contract.sha256"),
+                         sidecar_before)
+        self.assertEqual(self._checksum_entry("02-audit-contract.json"),
+                         entry_before)
+        self.assertEqual(self._snap("01-repository-state.json"),
+                         repo_state_before)
+        code, doc = resume_check(self.run_dir)
+        self.assertEqual(code, 0, doc)
+        self.assertEqual(doc["problems"], [])
+        state = json.load(open(os.path.join(self.run_dir, "state.json")))
+        self.assertEqual(state["phase"], "CONTRACT_FROZEN")
+        # the only permitted state.json change: failed-attempt accounting
+        self.assertEqual(state["phase_attempts"]["CONTRACT_FROZEN"], 2)
+
+    def test_same_phase_advance_rejected_preserves_checkpoint(self):
+        """B-001/GREEN-2: advancing again to an already-completed
+        OPUS_INDEPENDENT_COMPLETE with DIFFERENT valid stdin bytes must
+        fail without replacing the completed canonical artifact or its
+        checksum binding, and resume integrity must keep honoring the
+        original bytes (no attacker-replacement acceptance)."""
+        self._freeze_contract_stdin()
+        self._advance_opus_stdin()
+        art_before = self._snap("10-opus-independent.json")
+        entry_before = self._checksum_entry("10-opus-independent.json")
+        proc = cli("advance", "--run", self.run_dir,
+                   "--to", "OPUS_INDEPENDENT_COMPLETE",
+                   "--artifact", "-", "--stdin",
+                   stdin=self._replacement_opus_audit_stdin())
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertFalse(json.loads(proc.stdout)["ok"])
+        self.assertEqual(self._snap("10-opus-independent.json"), art_before)
+        self.assertEqual(self._checksum_entry("10-opus-independent.json"),
+                         entry_before)
+        # resume integrity does not accept replacement bytes
+        self.assertEqual(state_store.verify_all(self.run_dir), [])
+        code, doc = resume_check(self.run_dir)
+        self.assertEqual(code, 0, doc)
+        self.assertEqual(doc["problems"], [])
+        state = json.load(open(os.path.join(self.run_dir, "state.json")))
+        self.assertEqual(state["phase"], "OPUS_INDEPENDENT_COMPLETE")
+        self.assertEqual(state["phase_attempts"]["OPUS_INDEPENDENT_COMPLETE"],
+                         2)
 
 
 class TestTamperDetected(unittest.TestCase):

@@ -681,6 +681,19 @@ def cmd_freeze_contract(args: argparse.Namespace) -> int:
     if not args.contract:
         _fail("freeze-contract requires --contract FILE or '--contract - --stdin'")
         return EXIT_FAIL
+    # B-001: establish transition eligibility BEFORE any canonical
+    # checkpoint byte is staged or replaced. check_transition applies the
+    # authoritative forward-only rules purely; a rejected request writes
+    # nothing and only the normal failed-attempt accounting happens.
+    try:
+        state_store.check_transition(run_dir, "CONTRACT_FROZEN")
+    except StateError as exc:
+        try:
+            state_store.bump_phase_attempt(run_dir, "CONTRACT_FROZEN")
+        except StateError:
+            pass  # unusable state cannot be accounted; rejection stands
+        _fail(str(exc))
+        return EXIT_FAIL
     if args.contract == "-" or getattr(args, "stdin", False):
         try:
             contract = _read_stdin_artifact(
@@ -821,19 +834,11 @@ def cmd_advance(args: argparse.Namespace) -> int:
         env_errors = _env_gate_errors(run_dir)
         if env_errors:
             return _env_fail(run_dir, env_errors)
-    if args.artifact == "-" or getattr(args, "stdin", False):
-        # content piped on stdin; filename derives from the target phase
-        try:
-            artifact = _read_stdin_artifact(run_dir, PHASE_ARTIFACT[target])
-        except OSError as exc:
-            _fail(f"could not stage stdin artifact: {exc}")
-            return EXIT_FAIL
-    else:
-        artifact = os.path.abspath(args.artifact)
-
-    if target not in state_store.PHASE_INDEX:
-        _fail(f"unknown target phase {target!r}")
-        return EXIT_FAIL
+    # B-001: establish transition eligibility BEFORE canonical checkpoint
+    # bytes are staged, checksum entries are recorded, or skip records
+    # persist. Everything the state machine needs is available now:
+    # current phase, target, and the requested skip/adjudication
+    # semantics (prospective skips are previewed, not persisted).
     try:
         cur_phase = state_store.load_state(run_dir)["phase"]
     except StateError as exc:
@@ -853,19 +858,56 @@ def cmd_advance(args: argparse.Namespace) -> int:
             return EXIT_FAIL
         skip_entries.append({"skipped_phase": phase,
                              "reason": reason.strip()})
-    if skip_entries:
-        try:
-            state_store.record_phase_skips(run_dir, skip_entries)
-        except StateError as exc2:
-            _fail(str(exc2))
-            return EXIT_FAIL
     if target == "COMPLETE" and cur_phase != "FINALIZED":
         # closing a run requires the honest finalize path (completeness
         # state + metrics); FINALIZED must not be jumped over
         _fail("advance to COMPLETE is only permitted from FINALIZED; "
               "use `finalize --run ... --completeness <STATE>` instead")
         return EXIT_FAIL
+    # the prospective artifact name (stdin stages at the canonical phase
+    # artifact; a file argument keeps its own basename) drives the same
+    # adjudication-skip semantics apply_transition will later be given
+    if args.artifact == "-" or getattr(args, "stdin", False):
+        prospective_name = PHASE_ARTIFACT[target]
+    else:
+        prospective_name = os.path.basename(os.path.abspath(args.artifact))
+    ci = state_store.PHASE_INDEX[cur_phase]
+    ti = state_store.PHASE_INDEX[target]
+    skips_adj = (ti > state_store.PHASE_INDEX[state_store.ADJUDICATION_PHASE]
+                 > ci)
+    skip_flag = True if (skips_adj
+                         and cur_phase == "LEDGER_COMPLETE"
+                         and target in state_store.ADJUDICATION_SKIP_TARGETS
+                         and prospective_name != "50-targeted-adjudication.json") \
+        else None
+    try:
+        state_store.check_transition(
+            run_dir, target, adjudication_skipped=skip_flag,
+            prospective_skips=skip_entries or None)
+    except StateError as exc:
+        try:
+            state_store.bump_phase_attempt(run_dir, target)
+        except StateError:
+            pass  # unusable state cannot be accounted; rejection stands
+        _fail(str(exc))
         return EXIT_FAIL
+
+    # eligibility established: canonical staging may begin
+    if args.artifact == "-" or getattr(args, "stdin", False):
+        # content piped on stdin; filename derives from the target phase
+        try:
+            artifact = _read_stdin_artifact(run_dir, PHASE_ARTIFACT[target])
+        except OSError as exc:
+            _fail(f"could not stage stdin artifact: {exc}")
+            return EXIT_FAIL
+    else:
+        artifact = os.path.abspath(args.artifact)
+    if skip_entries:
+        try:
+            state_store.record_phase_skips(run_dir, skip_entries)
+        except StateError as exc2:
+            _fail(str(exc2))
+            return EXIT_FAIL
     if not _inside_run_dir(run_dir, artifact):
         _fail(f"artifact must live inside the run dir: {artifact}")
         return EXIT_FAIL
