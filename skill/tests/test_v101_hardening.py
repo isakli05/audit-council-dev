@@ -172,12 +172,42 @@ class TestFingerprintInvariant(Fixture):
             "executive_summary": "s",
             "findings": [],
         }
+        # (1) eligibility-first ordering (B-001): a transition-ineligible
+        # finalize request is rejected by the state machine BEFORE the
+        # artifact is validated or staged, so no artifact verdict is
+        # produced and nothing is staged
+        proc = run_cli(["advance", "--run", run_dir, "--to", "FINALIZED",
+                        "--artifact", "-", "--stdin"],
+                       stdin_text=json.dumps(final))
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertNotIn("INVALID_ARTIFACT", proc.stderr + proc.stdout)
+        self.assertFalse(os.path.isfile(
+            os.path.join(run_dir, "90-final-findings.json")))
+        state = json.load(open(os.path.join(run_dir, "state.json")))
+        self.assertEqual(state["phase"], "OPUS_INDEPENDENT_COMPLETE")
+        # (2) fingerprint invariant on the eligible path: move the run to
+        # its legitimately eligible pre-finalization phase via the
+        # product's own skip-record mechanics, so final-artifact
+        # validation IS reached; the wrong-but-valid fingerprint must be
+        # refused and never become canonical
+        proc = run_cli(["advance", "--run", run_dir, "--to", "LEDGER_COMPLETE",
+                        "--artifact", "-", "--stdin",
+                        "--skip", "CODEX_INDEPENDENT_COMPLETE=quota (t)",
+                        "--skip", "NORMALIZED=none (t)",
+                        "--skip", "OPUS_CROSS_EXAM_COMPLETE=deferred (t)",
+                        "--skip", "CODEX_CROSS_EXAM_COMPLETE=quota (t)"],
+                       stdin_text=json.dumps({"clusters": []}))
+        self.assertEqual(proc.returncode, 0, proc.stderr + proc.stdout)
         proc = run_cli(["advance", "--run", run_dir, "--to", "FINALIZED",
                         "--artifact", "-", "--stdin"],
                        stdin_text=json.dumps(final))
         # rejected before any finalize can consume it
         self.assertNotEqual(proc.returncode, 0)
         self.assertIn("INVALID_ARTIFACT", proc.stderr + proc.stdout)
+        state = json.load(open(os.path.join(run_dir, "state.json")))
+        self.assertEqual(state["phase"], "LEDGER_COMPLETE")
+        cs = open(os.path.join(run_dir, "checksums.sha256")).read()
+        self.assertNotIn("90-final-findings.json", cs)
 
     def test_invalid_output_diagnosable_not_canonical(self):
         run_dir = self.init_run()
