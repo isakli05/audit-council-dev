@@ -544,7 +544,8 @@ class TestBindingFingerprintAlgorithm(unittest.TestCase):
         with open(os.path.join(self.repo, "u.txt"), "wb") as fh:
             fh.write(b"AAAA")
         brief = os.path.join(self.tmp, "b.md")
-        open(brief, "w").write("# b\n")
+        with open(brief, "w") as fh:
+            fh.write("# b\n")
         binding = env_binding.capture(self.repo, "r", brief, None, [])
         self.assertEqual(binding.get("fingerprint_algorithm"), 2)
         # same-size untracked replacement flips the binding digest input
@@ -559,7 +560,8 @@ class TestBindingFingerprintAlgorithm(unittest.TestCase):
     def test_legacy_binding_without_algorithm_field_verifies(self):
         import env_binding
         brief = os.path.join(self.tmp, "b.md")
-        open(brief, "w").write("# b\n")
+        with open(brief, "w") as fh:
+            fh.write("# b\n")
         with open(os.path.join(self.repo, "u.txt"), "wb") as fh:
             fh.write(b"AAAA")
         binding = env_binding.capture(self.repo, "r", brief, None, [])
