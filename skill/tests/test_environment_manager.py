@@ -62,9 +62,49 @@ RUN_I = "20260904T090909Z-c99d5d"
 RUN_Z = "20200101T000000Z-deadbe"
 
 
+# Deterministic, test-owned Git execution environment (hermetic fixtures).
+# The harness must not depend on arbitrary operator/system Git configuration
+# or unrelated repository-routing state: an inherited core.fsmonitor /
+# maintenance / detached-gc configuration can spawn background .git writers
+# that race teardown (historical Errno 39 on other-repo/.git), and inherited
+# GIT_DIR-style variables override fixture repository discovery.
+_GIT_ROUTING_VARS = (
+    "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_COMMON_DIR", "GIT_NAMESPACE",
+)
+_HERMETIC_GIT_CONFIG = (
+    ("maintenance.auto", "false"),
+    ("gc.auto", "0"),
+    ("gc.autoDetach", "false"),
+    ("core.fsmonitor", "false"),
+    ("fetch.writeCommitGraph", "false"),
+    ("core.untrackedCache", "false"),
+)
+
+
+def hermetic_git_env() -> dict:
+    """Test-owned environment for fixture Git subprocesses: the ambient
+    environment minus every GIT_* input, system/global configuration
+    redirected to empty files, and background Git work disabled via env
+    config (GIT_CONFIG_* env injection is supported since Git 2.31; this
+    host runs 2.55). Env config has the highest precedence, so these
+    overrides beat any inherited or repository-local setting."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    env.update({
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_SYSTEM": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_COUNT": str(len(_HERMETIC_GIT_CONFIG)),
+    })
+    for i, (key, value) in enumerate(_HERMETIC_GIT_CONFIG):
+        env[f"GIT_CONFIG_KEY_{i}"] = key
+        env[f"GIT_CONFIG_VALUE_{i}"] = value
+    return env
+
+
 def git(repo: str, *args: str) -> str:
     proc = subprocess.run(["git", "-C", repo, *args], capture_output=True,
-                          text=True, check=False)
+                          text=True, check=False, env=hermetic_git_env())
     if proc.returncode != 0:
         raise AssertionError(f"git {args} failed: {proc.stderr}")
     return proc.stdout
@@ -127,6 +167,20 @@ class EnvManagerBase(unittest.TestCase):
         })
         self.env_patch.start()
         self.addCleanup(self.env_patch.stop)
+        # Neutralize ambient Git inputs for the whole test so that BOTH the
+        # fixture helper (explicit env) and the production environment_manager
+        # _git subprocesses (which inherit the process environment and must
+        # not be modified here) run hermetically: no operator/system/global
+        # Git configuration, no repo-routing variables, no background work.
+        self.git_env_patch = unittest.mock.patch.dict(
+            os.environ, {k: v for k, v in hermetic_git_env().items()
+                         if k.startswith("GIT_")})
+        self.git_env_patch.start()
+        self.addCleanup(self.git_env_patch.stop)
+        self._git_routing_saved = {name: os.environ.pop(name)
+                                   for name in _GIT_ROUTING_VARS
+                                   if name in os.environ}
+        self.addCleanup(os.environ.update, self._git_routing_saved)
         self.repo, self.first_sha = make_repo(self.base)
         self.other, _ = make_repo(self.base, name="other-repo")
         self.head = git(self.repo, "rev-parse", "HEAD").strip()
@@ -691,6 +745,94 @@ class TestNothingWrittenToRealHome(EnvManagerBase):
 
         after = (snapshot_tree(real_local), snapshot_tree(real_cache))
         self.assertEqual(after, before)
+
+
+class TestHermeticGitExecution(EnvManagerBase):
+    """Fixture Git subprocesses run in a test-owned environment: an
+    intentionally hostile (but non-secret) inherited Git configuration and
+    repository-routing environment cannot alter the fixture repository
+    context. The operator's real global configuration is never modified —
+    hostility is injected only through this process's environment and a
+    synthetic config file inside the test sandbox."""
+
+    def test_fixture_git_ignores_hostile_inherited_environment(self):
+        hostile_cfg = os.path.join(self.base, "hostile-global.gitconfig")
+        with open(hostile_cfg, "w") as fh:
+            fh.write("[user]\n"
+                     "\tname = Hostile Operator\n"
+                     "\temail = hostile@example.com\n"
+                     "[core]\n"
+                     "\tfsmonitor = true\n"
+                     "[aucdev]\n"
+                     "\thostileMarker = present\n")
+        decoy_git_dir = os.path.join(self.base, "decoy", ".git")
+        hostile = {
+            "GIT_CONFIG_GLOBAL": hostile_cfg,
+            "GIT_CONFIG_SYSTEM": hostile_cfg,
+            "GIT_DIR": decoy_git_dir,
+            "GIT_WORK_TREE": self.other,
+            "GIT_INDEX_FILE": os.path.join(self.other, "hostile-index"),
+            "GIT_OBJECT_DIRECTORY": os.path.join(self.other,
+                                                 "hostile-objects"),
+            "GIT_ALTERNATE_OBJECT_DIRECTORIES": os.path.join(self.other,
+                                                             "alt-objects"),
+        }
+        with unittest.mock.patch.dict(os.environ, hostile):
+            # repository routing: the helper resolves the FIXTURE repository
+            # even with a hostile GIT_DIR/GIT_WORK_TREE present
+            self.assertEqual(
+                git(self.repo, "rev-parse", "--absolute-git-dir").strip(),
+                os.path.join(os.path.realpath(self.repo), ".git"))
+            # writes land in the fixture repository; hostile object/index
+            # directories are never created (no diversion)
+            before = git(self.repo, "rev-parse", "HEAD").strip()
+            git(self.repo, "commit", "--allow-empty", "-q", "-m",
+                "hermetic-proof")
+            self.assertNotEqual(
+                git(self.repo, "rev-parse", "HEAD").strip(), before)
+            self.assertFalse(os.path.exists(os.path.join(
+                self.other, "hostile-objects")))
+            self.assertFalse(os.path.exists(os.path.join(
+                self.other, "hostile-index")))
+            # configuration: fixture-local identity wins, hostile global
+            # values are not inherited, background work stays disabled even
+            # though the hostile global enables fsmonitor
+            self.assertEqual(
+                git(self.repo, "config", "--get", "user.name").strip(),
+                "ENV Test")
+            self.assertEqual(
+                git(self.repo, "config", "--get", "core.fsmonitor").strip(),
+                "false")
+            self.assertEqual(
+                git(self.repo, "config", "--get", "maintenance.auto").strip(),
+                "false")
+            proc = subprocess.run(
+                ["git", "-C", self.repo, "config", "--get",
+                 "aucdev.hostileMarker"],
+                capture_output=True, text=True, env=hermetic_git_env())
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertEqual(proc.stdout.strip(), "")
+
+    def test_ambient_git_environment_neutralized_during_tests(self):
+        # production environment_manager._git inherits the process
+        # environment; setUp must neutralize ambient Git inputs so those
+        # subprocesses are equally hermetic for the duration of each test
+        self.assertEqual(os.environ.get("GIT_CONFIG_GLOBAL"), os.devnull)
+        self.assertEqual(os.environ.get("GIT_CONFIG_SYSTEM"), os.devnull)
+        self.assertEqual(os.environ.get("GIT_CONFIG_NOSYSTEM"), "1")
+        self.assertEqual(os.environ.get("GIT_CONFIG_COUNT"),
+                         str(len(_HERMETIC_GIT_CONFIG)))
+        for name in _GIT_ROUTING_VARS:
+            self.assertNotIn(name, os.environ)
+        for i, (key, value) in enumerate(_HERMETIC_GIT_CONFIG):
+            self.assertEqual(os.environ[f"GIT_CONFIG_KEY_{i}"], key)
+            self.assertEqual(os.environ[f"GIT_CONFIG_VALUE_{i}"], value)
+        # the production path itself works under the neutralized ambient
+        # environment (its subprocesses inherit it); resolve_mode derives
+        # the live repository from the cwd, so run from the fixture
+        os.chdir(self.repo)
+        self.assertEqual(environment_manager.resolve_mode(self.contract()),
+                         "CURRENT")
 
 
 if __name__ == "__main__":
