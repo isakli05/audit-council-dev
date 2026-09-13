@@ -29,7 +29,8 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
-from state_store import atomic_write_json, sha256_bytes, utc_now_iso
+from state_store import (PHASE_INDEX, STATE_NAME, atomic_write_json,
+                         sha256_bytes, utc_now_iso)
 from validate_artifact import validate
 
 SCHEMA_VERSION = 2
@@ -39,6 +40,15 @@ SCHEMA_PATH = (Path(__file__).resolve().parent.parent / "schemas"
 INDEX_NAME = os.path.join("evidence", "index.jsonl")
 OBJECTS_DIR = os.path.join("evidence", "objects")
 ACCESS_LOG_NAME = os.path.join("evidence", "access-log.jsonl")
+
+# Production wiring (AUCDEV-017 minimal useful path / F-A-12 closure):
+# the run-side identity files every evidence record is bound to, and the
+# authoritative state-machine phase at which the first-pass independence
+# barrier is OPEN (both independent first passes checkpointed).
+RUN_BINDING_NAME = "01-environment-binding.json"
+BARRIER_OPEN_PHASE = "CODEX_INDEPENDENT_COMPLETE"
+
+_HEX64 = set("0123456789abcdef")
 
 KIND_ENUM = (
     "REPO_FACT", "FILE_EXCERPT", "SEARCH_RESULT", "DEPENDENCY_QUERY",
@@ -108,6 +118,19 @@ def evidence_id_for(record: dict[str, Any]) -> str:
     return "ev-" + sha256_bytes(_canonical_json(body).encode("utf-8"))[:16]
 
 
+def _content_key(record: dict[str, Any]) -> str | None:
+    """Digest of the record's evidence CONTENT — everything except the
+    non-content identity fields (`evidence_id`, `produced_at`). Two puts of
+    the same evidence under the same provenance deduplicate to one record
+    even when stamped at different times."""
+    body = {k: v for k, v in record.items()
+            if k not in ("evidence_id", "produced_at")}
+    try:
+        return sha256_bytes(_canonical_json(body).encode("utf-8"))
+    except (TypeError, ValueError):
+        return None
+
+
 def _marker_count(obj: dict[str, Any]) -> int:
     return sum(1 for key in FINDING_SHAPE_KEYS if key in obj)
 
@@ -160,6 +183,7 @@ class EvidenceStore:
         self._objects_root = os.path.join(self.run_dir, OBJECTS_DIR)
         self._log_path = os.path.join(self.run_dir, ACCESS_LOG_NAME)
         self._records: dict[str, dict[str, Any]] = {}
+        self._content_key_ids: dict[str, str] = {}
         self._log: list[dict[str, Any]] = []
         self._schema: dict[str, Any] | None = None
         self._load_index()
@@ -179,6 +203,10 @@ class EvidenceStore:
                     if not isinstance(record, dict):
                         raise ValueError("index line is not an object")
                     self._records[record.get("evidence_id", "")] = record
+                    key = _content_key(record)
+                    if key is not None:
+                        self._content_key_ids[key] = record.get(
+                            "evidence_id", "")
         except (OSError, ValueError) as exc:
             raise EvidenceStoreError(
                 "corrupt evidence index %s: %s" % (self._index_path, exc)
@@ -321,11 +349,17 @@ class EvidenceStore:
 
         if evidence_id in self._records:
             return evidence_id  # idempotent by content — no duplicate entry
+        content_key = _content_key(rec)
+        if content_key is not None \
+                and content_key in self._content_key_ids:
+            return self._content_key_ids[content_key]
 
         if result is not None:
             self._write_object(rec["result_digest"], result)
         self._append_index(rec)
         self._records[evidence_id] = rec
+        if content_key is not None:
+            self._content_key_ids[content_key] = evidence_id
         return evidence_id
 
     # -- barrier / visibility ----------------------------------------------
@@ -370,9 +404,31 @@ class EvidenceStore:
             return False
         return self._visible(record, consumer)
 
+    def find_records(self, *, producer: str | None = None,
+                     command_or_query: str | None = None,
+                     kind: str | None = None) -> list[str]:
+        """Evidence ids (index order) matching ALL given filters. Read-only
+        harness-side lookup so production consumers can locate the record
+        for a logical name (e.g. the OPUS first-pass manifest) without
+        knowing its content-derived id; the actual serve still goes through
+        get() with the full visibility + freshness law."""
+        ids: list[str] = []
+        for evidence_id, record in self._records.items():
+            if producer is not None and record.get("producer") != producer:
+                continue
+            if command_or_query is not None \
+                    and record.get("command_or_query") != command_or_query:
+                continue
+            if kind is not None and record.get("kind") != kind:
+                continue
+            ids.append(evidence_id)
+        return ids
+
     # -- get ----------------------------------------------------------------
     def get(self, evidence_id: str, consumer: str,
-            include_content: bool = False) -> dict[str, Any] | None:
+            include_content: bool = False, *,
+            reuse_gate: Callable[[dict[str, Any]], bool] | None = None
+            ) -> dict[str, Any] | None:
         """Serve an evidence REF (or, with include_content=True, the full
         record + payload) to `consumer` under visibility + freshness law.
 
@@ -382,6 +438,14 @@ class EvidenceStore:
         from cache regardless of everything else. Every lookup — served or
         denied — is appended to the access log (consumers never see the log
         through get()).
+
+        `reuse_gate` (production consumption points only): an extra
+        validity gate applied to CACHEABLE records after the fresh gate —
+        a record the gate rejects is denied with reason
+        `stale_not_reusable` before any visibility decision. It exists so
+        real callers can enforce `revalidate()`-style freshness (current
+        frozen fingerprint/binding/input digest) exactly where evidence is
+        consumed; None keeps the standalone library behavior.
         """
         record = self._records.get(evidence_id)
         if record is None:
@@ -394,6 +458,11 @@ class EvidenceStore:
             # is retained for audit history — retention is not reuse
             self._log_access(evidence_id, consumer, served=False,
                              reason="fresh_required")
+            return None
+        if reuse_gate is not None and policy.get("class") == "CACHEABLE" \
+                and not reuse_gate(record):
+            self._log_access(evidence_id, consumer, served=False,
+                             reason="stale_not_reusable")
             return None
         if not self._visible(record, consumer):
             self._log_access(evidence_id, consumer, served=False,
@@ -478,3 +547,174 @@ class EvidenceStore:
             return [dict(entry) for entry in self._log]
         return [dict(entry) for entry in self._log
                 if entry.get("consumer") == consumer]
+
+
+# ---------------------------------------------------------------------------
+# Production wiring (AUCDEV-017 minimal useful path — F-A-12 closure)
+#
+# The functions below are the ONLY production entry points into the store:
+# they own the lifecycle-derived barrier identity, the frozen run identity
+# records are bound to, the record shapes producers write, and the serve
+# path consumers read through (visibility + freshness law enforced, every
+# decision access-logged). Nothing here changes the store's semantics; it
+# connects them to real stage flow.
+# ---------------------------------------------------------------------------
+def run_barrier_state(run_dir: str) -> bool:
+    """Lifecycle-owned first-pass barrier identity for a run dir: True
+    exactly when the authoritative state machine has checkpointed BOTH
+    independent first passes (phase at or past CODEX_INDEPENDENT_COMPLETE).
+    Any unreadable/unknown state fails CLOSED (a closed barrier is the
+    safe barrier)."""
+    try:
+        with open(os.path.join(run_dir, STATE_NAME), "r",
+                  encoding="utf-8") as fh:
+            phase = (json.load(fh) or {}).get("phase")
+    except (OSError, ValueError):
+        return False
+    index = PHASE_INDEX.get(phase)
+    return index is not None and index >= PHASE_INDEX[BARRIER_OPEN_PHASE]
+
+
+def open_run_store(run_dir: str, *, now: Callable[[], str] | None = None
+                   ) -> "EvidenceStore":
+    """EvidenceStore for a run dir with the barrier identity owned by the
+    run lifecycle (state machine phase), never by the caller."""
+    return EvidenceStore(run_dir,
+                         lambda: run_barrier_state(run_dir),
+                         now=now)
+
+
+def frozen_run_identity(run_dir: str) -> tuple[str, str]:
+    """(repository_fingerprint_sha256, environment_binding_digest) the run
+    froze at init — the identity every evidence record is bound to and the
+    production serve path revalidates against. Fail-closed: an unreadable
+    or malformed identity raises EvidenceStoreError (no provable identity
+    means no provably-valid cached evidence)."""
+    try:
+        with open(os.path.join(run_dir, STATE_NAME), "r",
+                  encoding="utf-8") as fh:
+            fingerprint = (json.load(fh) or {}).get(
+                "repo_fingerprint_sha256")
+        with open(os.path.join(run_dir, RUN_BINDING_NAME), "r",
+                  encoding="utf-8") as fh:
+            binding = (json.load(fh) or {}).get("binding_digest")
+    except (OSError, ValueError) as exc:
+        raise EvidenceStoreError(
+            "run identity unreadable (%s): %s" % (run_dir, exc)) from None
+    for name, value in (("repo_fingerprint_sha256", fingerprint),
+                        ("binding_digest", binding)):
+        if not isinstance(value, str) or len(value) != 64 \
+                or not set(value) <= _HEX64:
+            raise EvidenceStoreError(
+                "run identity field %s is not a 64-hex digest in %s"
+                % (name, run_dir))
+    return fingerprint, binding
+
+
+def serve_run_evidence(store: "EvidenceStore", run_dir: str,
+                       evidence_id: str, consumer: str, *,
+                       include_content: bool = False
+                       ) -> dict[str, Any] | None:
+    """PRODUCTION consumption point. get() under the full visibility +
+    freshness law with one addition: CACHEABLE records are additionally
+    revalidated against the run's frozen identity before being served —
+    `cached evidence reused when valid` enforced exactly here. A run whose
+    identity cannot be established denies all CACHEABLE reuse (fail-closed
+    gate); FRESH_REQUIRED and visibility denials are unchanged. Every
+    decision lands in the store's access log."""
+    try:
+        fingerprint, binding = frozen_run_identity(run_dir)
+        gate: Callable[[dict[str, Any]], bool] = \
+            lambda record: store.revalidate(record, fingerprint, binding)
+    except EvidenceStoreError:
+        gate = lambda record: False  # unprovable validity is denied validity
+    return store.get(evidence_id, consumer,
+                     include_content=include_content,
+                     reuse_gate=gate)
+
+
+_ALL_INVALIDATION = ["tracked_change", "head_change", "binding_change"]
+
+
+def _run_bound_base(*, fingerprint: str, binding_digest: str, kind: str,
+                    command_or_query: str, tool: dict[str, Any], producer: str,
+                    visibility: str, freshness_class: str,
+                    produced_at: str) -> dict[str, Any]:
+    """The schema-complete record skeleton every production producer shares
+    (put() computes and verifies input/result digests and the id; repeated
+    puts of the same content deduplicate regardless of produced_at)."""
+    return {
+        "kind": kind,
+        "repository_fingerprint_sha256": fingerprint,
+        "environment_binding_digest": binding_digest,
+        "command_or_query": command_or_query,
+        "tool": {"name": tool["name"], "version": tool["version"]},
+        "produced_at": produced_at,
+        "producer": producer,
+        "visibility": visibility,
+        "validity_scope": "RUN",
+        "deterministic": True,
+        "reproducible": True,
+        "freshness_policy": {"class": freshness_class,
+                             "ttl_sec": None,
+                             "invalidated_by": list(_ALL_INVALIDATION)},
+    }
+
+
+def staged_evidence_record(entry: dict[str, Any], *, fingerprint: str,
+                           binding_digest: str, tool: dict[str, Any],
+                           produced_at: str) -> dict[str, Any]:
+    """Record for one staged evidence file: SHARED_MECHANICAL (visible
+    identically to both auditors — the staging contract) and FRESH_REQUIRED
+    (staged evidence is a release-gate input: retained for provenance and
+    access accounting, never served from cache)."""
+    record = _run_bound_base(
+        fingerprint=fingerprint, binding_digest=binding_digest,
+        kind="FILE_EXCERPT",
+        command_or_query="staged-evidence:%s" % entry["path"],
+        tool=tool, producer="HARNESS", visibility="SHARED_MECHANICAL",
+        freshness_class="FRESH_REQUIRED", produced_at=produced_at)
+    record["result"] = {"path": entry["path"],
+                        "sha256": entry["sha256"],
+                        "bytes": entry.get("bytes")}
+    return record
+
+
+def first_pass_manifest_record(artifact_name: str, producer: str, *,
+                               fingerprint: str, binding_digest: str,
+                               tool: dict[str, Any], sha256: str, size: int,
+                               produced_at: str) -> dict[str, Any]:
+    """Record for a checkpointed first-pass artifact: AUDITOR_PRIVATE (the
+    producer's family only, everyone post-barrier) and CACHEABLE — the
+    payload is the mechanical identity manifest {path, sha256, bytes}
+    (F-A-11 pattern), NEVER the finding-shaped artifact substance (the
+    anti-conclusion guard rejects that by design)."""
+    record = _run_bound_base(
+        fingerprint=fingerprint, binding_digest=binding_digest,
+        kind="FILE_EXCERPT",
+        command_or_query="first-pass-artifact:%s" % artifact_name,
+        tool=tool, producer=producer, visibility="AUDITOR_PRIVATE",
+        freshness_class="CACHEABLE", produced_at=produced_at)
+    record["result"] = {"path": artifact_name, "sha256": sha256,
+                        "bytes": size}
+    return record
+
+
+def stage_input_record(phase: str, manifest: dict[str, Any], *,
+                       fingerprint: str, binding_digest: str,
+                       tool: dict[str, Any],
+                       produced_at: str) -> dict[str, Any]:
+    """Record for one model-stage launch's input manifest (prompt/schema/
+    codex binary identities): SHARED_MECHANICAL and CACHEABLE — the record
+    class the governor's REUSE_WHEN_VALID policy governs. A later launch of
+    the same phase reuses it only when serve_run_evidence still validates it
+    (frozen fingerprint + binding + input digest unchanged); any change
+    produces a new record, never a mutation."""
+    record = _run_bound_base(
+        fingerprint=fingerprint, binding_digest=binding_digest,
+        kind="DETERMINISTIC_PROBE",
+        command_or_query="stage-input:%s" % phase,
+        tool=tool, producer="HARNESS", visibility="SHARED_MECHANICAL",
+        freshness_class="CACHEABLE", produced_at=produced_at)
+    record["result"] = dict(manifest)
+    return record

@@ -18,11 +18,12 @@ from pathlib import Path
 from typing import Any
 
 import env_binding
+import evidence_store
 import repo_fingerprint
 import state_store
 import validate_artifact
 from state_store import StateError, atomic_write_bytes, atomic_write_json, \
-    load_json, sha256_file, utc_now_iso
+    load_json, sha256_bytes, sha256_file, utc_now_iso
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 SCHEMAS_DIR = SCRIPTS_DIR.parent / "schemas"
@@ -42,6 +43,17 @@ FINGERPRINT_FIELDS: dict[str, tuple[str, ...]] = {
     "20-codex-independent.json": ("repository_fingerprint_sha256",),
     "90-final-findings.json": ("repository_fingerprint_sha256",),
 }
+
+# F-A-12 / AUCDEV-017: the first-pass artifacts whose checkpoint produces a
+# provenance-bound EvidenceStore record (AUDITOR_PRIVATE identity manifest;
+# the finding-shaped artifact itself never enters the store), and the tool
+# identity the run-side producers record.
+FIRST_PASS_PRODUCERS: dict[str, str] = {
+    "10-opus-independent.json": "OPUS",
+    "20-codex-independent.json": "CODEX",
+}
+EVIDENCE_TOOL = {"name": "audit_council.run",
+                 "version": "2.0"}
 
 # artifact basename -> schema filename (None = structural check only)
 ARTIFACT_SCHEMAS: dict[str, str | None] = {
@@ -583,6 +595,27 @@ def cmd_prepare(args: argparse.Namespace) -> int:
     run_binding = load_json(os.path.join(run_dir, ENV_BINDING_NAME))
     record["preparation_binding_digest"] = record.get("binding_digest")
     record["binding_digest"] = run_binding["binding_digest"]
+    # F-A-12 / AUCDEV-017: every staged evidence file gains a
+    # provenance-bound EvidenceStore record (SHARED_MECHANICAL visibility —
+    # the staging contract; FRESH_REQUIRED — retained for provenance and
+    # access accounting, never served from cache). Fail-closed: a fresh
+    # prepared run without provable identity or recordable provenance does
+    # not proceed to inference.
+    if staged:
+        try:
+            store = evidence_store.open_run_store(run_dir)
+            fingerprint, binding = evidence_store.frozen_run_identity(
+                run_dir)
+            for entry in staged:
+                dest = os.path.join(run_staged_root, entry["path"])
+                entry = dict(entry, bytes=os.path.getsize(dest))
+                store.put(evidence_store.staged_evidence_record(
+                    entry, fingerprint=fingerprint,
+                    binding_digest=binding, tool=EVIDENCE_TOOL,
+                    produced_at=utc_now_iso()))
+        except (evidence_store.EvidenceStoreError, OSError) as exc:
+            _fail(f"staged-evidence provenance recording failed: {exc}")
+            return EXIT_FAIL
     # link the environment record into the run (provenance: which worktree,
     # which source, what was staged)
     atomic_write_json(os.path.join(run_dir, em.RECORD_NAME), record)
@@ -962,6 +995,22 @@ def cmd_advance(args: argparse.Namespace) -> int:
 
     state_store.record_checksum(run_dir, artifact)
 
+    # F-A-12 / AUCDEV-017: checkpointing a first-pass artifact also records
+    # its provenance-bound identity manifest in the run's EvidenceStore
+    # (AUDITOR_PRIVATE; the store's anti-conclusion guard means the
+    # finding-shaped artifact substance itself can never be cached). A run
+    # without a provable frozen identity (v1-era migration path, mirroring
+    # the env-gate precedent) records that honestly instead.
+    evidence_note = "not_applicable"
+    if name in FIRST_PASS_PRODUCERS:
+        try:
+            evidence_note = _record_first_pass_evidence(run_dir, artifact,
+                                                        name)
+        except (evidence_store.EvidenceStoreError, OSError) as exc:
+            state_store.bump_phase_attempt(run_dir, target)
+            _fail(f"first-pass evidence provenance recording failed: {exc}")
+            return EXIT_FAIL
+
     cur = state_store.load_state(run_dir)["phase"]
     ci = state_store.PHASE_INDEX[cur]
     ti = state_store.PHASE_INDEX[target]
@@ -981,8 +1030,30 @@ def cmd_advance(args: argparse.Namespace) -> int:
         return EXIT_FAIL
     _emit({"ok": True, "phase": new_state["phase"],
            "adjudication_skipped": new_state.get("adjudication_skipped",
-                                                 False)})
+                                                 False),
+           "evidence_store": evidence_note})
     return EXIT_OK
+
+
+def _record_first_pass_evidence(run_dir: str, artifact: str,
+                                name: str) -> str:
+    """Record the AUDITOR_PRIVATE identity manifest of a checkpointed
+    first-pass artifact. Returns the outcome note for the advance output;
+    raises EvidenceStoreError/OSError on any failure inside a bound run
+    (fail-closed — the caller refuses the transition)."""
+    try:
+        store = evidence_store.open_run_store(run_dir)
+        fingerprint, binding = evidence_store.frozen_run_identity(run_dir)
+    except evidence_store.EvidenceStoreError:
+        return "unbound_run_no_record"
+    with open(artifact, "rb") as fh:
+        data = fh.read()
+    store.put(evidence_store.first_pass_manifest_record(
+        name, FIRST_PASS_PRODUCERS[name], fingerprint=fingerprint,
+        binding_digest=binding, tool=EVIDENCE_TOOL,
+        sha256=sha256_bytes(data), size=len(data),
+        produced_at=utc_now_iso()))
+    return "recorded"
 
 
 # ---------------------------------------------------------------------------
@@ -1505,7 +1576,10 @@ PUBLIC_CONTRACT: dict[str, Any] = {
             "RELEASE and HISTORICAL both stage allow-listed evidence "
             "(realpath-resolved; containment + deny-list re-applied) into "
             "the run-owned staged-evidence/ dir, visible identically to "
-            "Opus and the bubblewrapped Codex"),
+            "Opus and the bubblewrapped Codex; each staged file is also "
+            "recorded as a provenance-bound FRESH_REQUIRED evidence-store "
+            "record (retained for provenance and access accounting, never "
+            "served from cache)"),
     },
     "known_limitations": [
         "without bubblewrap, codex repo-read confinement is not enforced "
@@ -1522,11 +1596,15 @@ PUBLIC_CONTRACT: dict[str, Any] = {
         "encoded/dynamically-constructed payloads are beyond it; it "
         "hardens on top of detection (fingerprint + write-guard + binding "
         "verification), not a sandbox",
-        "the evidence-store visibility classes and access log are a "
-        "LIBRARY API (evidence_store.py), not yet wired into the "
-        "production stage pipeline: no production control is claimed for "
-        "them; payloads under <run>/evidence/objects/ remain readable by "
-        "any in-root reader",
+        "the evidence-store visibility classes, freshness law and access "
+        "log are wired into the production stage path (staged-evidence "
+        "provenance at prepare, first-pass artifact identity manifests at "
+        "checkpoint, stage-launch consumption and input-manifest "
+        "reuse-when-valid, report provenance); they govern the STORE API "
+        "only — payloads under <run>/evidence/objects/ remain readable by "
+        "any in-root reader, canonical phase artifacts (not store records) "
+        "remain the authoritative record, and evidence recording by the "
+        "interactive auditor side remains protocol-enforced",
         "first-pass independence is mechanical only on the codex side "
         "(sandbox artifact masking); the interactive opus side remains "
         "protocol-enforced",

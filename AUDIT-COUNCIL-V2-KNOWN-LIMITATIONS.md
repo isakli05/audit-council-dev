@@ -268,3 +268,23 @@ risk.
     established; the documented install contents now include `hooks/`.
     F-A-13: the fingerprint-mismatch helper honors its list return
     contract.
+
+## Qualification-exit completion deltas — 2026-09-13 (successor candidate review basis)
+
+43. F-A-12 (visibility-class half — supersedes the "not wired" statement
+    of items 24/38 append-only; those items remain true for their
+    historical targets): the evidence-store visibility classes, freshness
+    law and access log are wired into the production stage path —
+    staged-evidence provenance at prepare (SHARED_MECHANICAL,
+    FRESH_REQUIRED), first-pass artifact identity manifests at checkpoint
+    (AUDITOR_PRIVATE, CACHEABLE, manifest payload only — the
+    anti-conclusion guard keeps finding-shaped substance out of the store
+    by design), stage-launch consumption (pre-barrier CODEX access to the
+    OPUS private manifest is denied and the launch refuses on any serve;
+    input manifests reuse only while valid against the frozen run
+    identity), and report provenance. Remaining boundaries are unchanged
+    and stated: payloads under `<run>/evidence/objects/` remain readable
+    by any in-root reader (store API law, not filesystem enforcement);
+    canonical phase artifacts remain the authoritative record; interactive
+    auditor-side evidence recording remains protocol-enforced. AUCDEV-017
+    minimal path exercised; broader lifecycle migration remains open.

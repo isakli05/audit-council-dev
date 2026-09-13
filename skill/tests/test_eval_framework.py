@@ -25,8 +25,6 @@ import unittest
 import unittest.mock
 from pathlib import Path
 
-PYTHON = "/usr/bin/python3"  # NEVER sys.executable (AppImage shim here)
-
 TESTS = Path(__file__).resolve().parent
 SKILL = TESTS.parent
 EVAL = SKILL / "eval"
@@ -34,6 +32,12 @@ if str(SKILL) not in sys.path:
     sys.path.insert(0, str(SKILL))
 
 from eval import scoring, tier1_harness, tier2_fixtures, tier3_replay  # noqa: E402
+
+# C3: the child interpreter is resolved through the same deterministic,
+# probe-verified ladder the harness itself uses (an AppImage-mounted
+# sys.executable is skipped; unresolvable fails explicitly) — never a
+# machine-specific absolute path.
+PYTHON = tier1_harness.resolve_python()
 
 FIFTH_RUN_DIR = tier3_replay.TIER3_SEEDS["fifth"]["run_dir"]
 VALID_APPROVAL = {"operator_approval": True, "approver": "eval-test",
@@ -170,6 +174,70 @@ class TestTier1LiveMatrix(unittest.TestCase):
         failing = sorted(k for k, v in results.items() if not v)
         self.assertEqual(failing, [],
                          "environment matrix regressions: %s" % failing)
+
+
+class TestResolvePython(unittest.TestCase):
+    """C3: deterministic, probe-verified child-interpreter resolution.
+
+    Contract: fixed candidate ladder; AppImage self-mounts skipped
+    (documented host quirk); every accepted candidate mechanically probed
+    as CPython 3; no candidate -> explicit Tier1InterpreterError, never a
+    silent unrelated runtime."""
+
+    def test_resolves_real_cpython3_deterministically(self):
+        path = tier1_harness.resolve_python()
+        identity = tier1_harness._probe_interpreter(path)
+        self.assertIsNotNone(identity)
+        self.assertEqual(identity[0], "cpython")
+        self.assertEqual(identity[1][0], 3)
+        self.assertNotIn("/.mount_", os.path.realpath(path))
+        # stable across calls on the same machine
+        self.assertEqual(tier1_harness.resolve_python(), path)
+
+    def test_appimage_mounted_current_interpreter_is_skipped(self):
+        # a current interpreter resolving inside an AppImage self-mount is
+        # skipped; the ladder falls through to the next candidate
+        appimage = "/tmp/.mount_zcode/usr/bin/python3"
+        calls = []
+
+        def probe(path):
+            calls.append(path)
+            if path == appimage:
+                return ("cpython", (3, 14))  # would be accepted if tried
+            return ("cpython", (3, 14))
+
+        resolved = tier1_harness.resolve_python(probe=probe,
+                                                executable=appimage)
+        self.assertNotIn(appimage, calls)
+
+    def test_first_verified_candidate_wins_and_later_not_probed(self):
+        order = []
+
+        def probe(path):
+            order.append(path)
+            return ("cpython", (3, 14))
+
+        resolved = tier1_harness.resolve_python(probe=probe,
+                                                executable="/an/executable")
+        self.assertEqual(resolved, "/an/executable")
+        self.assertEqual(order, ["/an/executable"])
+
+    def test_non_cpython_or_non_py3_rejected(self):
+        # a probe that only ever reports a non-CPython family rejects every
+        # candidate: explicit failure, never a silent unrelated runtime
+        with self.assertRaises(tier1_harness.Tier1InterpreterError):
+            tier1_harness.resolve_python(probe=lambda p: ("pypy", (3, 11)),
+                                         executable="/an/executable")
+        # same for a python-2-shaped probe result
+        with self.assertRaises(tier1_harness.Tier1InterpreterError):
+            tier1_harness.resolve_python(probe=lambda p: ("cpython", (2, 7)),
+                                         executable="/an/executable")
+
+    def test_unresolvable_interpreter_fails_explicitly(self):
+        with self.assertRaises(tier1_harness.Tier1InterpreterError) as ctx:
+            tier1_harness.resolve_python(probe=lambda p: None,
+                                         executable="/missing/interpreter")
+        self.assertIn("no mechanically verifiable CPython 3", str(ctx.exception))
 
 
 class TestHarnessSuiteParsing(unittest.TestCase):

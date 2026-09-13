@@ -8,13 +8,17 @@ Runs, with NO model calls:
 then emits a tier-1 scorecard via `scoring.score_tier1`.
 
 This module is a PURE LIBRARY plus a CLI hook: nothing here writes files.
-Children are spawned strictly via /usr/bin/python3 (host quirk: the
-`python3` shim's sys.executable is the ZCode AppImage).
+Children are spawned through `resolve_python()`: a deterministic,
+mechanically probed interpreter ladder (see its docstring for the host
+AppImage concern it preserves). No machine-specific absolute interpreter
+is assumed, and an unresolvable interpreter fails explicitly instead of
+silently selecting an unrelated runtime.
 """
 from __future__ import annotations
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 from typing import Any, Callable
@@ -26,7 +30,83 @@ if __package__ in (None, "") or __package__ == "eval":  # direct execution
 else:  # pragma: no cover - alternate import spelling
     from . import scoring
 
-PYTHON = "/usr/bin/python3"
+class Tier1InterpreterError(RuntimeError):
+    """No usable tier-1 child interpreter could be established. Raised
+    explicitly rather than falling back to an unrelated runtime."""
+
+
+def _is_appimage_mount(path: str) -> bool:
+    """True when the path resolves inside an AppImage transient self-mount
+    (the documented host quirk this resolver preserves: on some hosts the
+    `python3` shim's sys.executable IS a ZCode AppImage — workable
+    interactively, but not a stable child-spawn target)."""
+    return "/.mount_" in os.path.realpath(path)
+
+
+def _probe_interpreter(path: str) -> tuple[str, tuple[int, int]] | None:
+    """Mechanically verify a candidate: spawn it once with a no-side-effect
+    identity probe and return (implementation, (major, minor)); None on ANY
+    failure (missing, non-executable, wrong family, crash, timeout)."""
+    try:
+        proc = subprocess.run(
+            [path, "-c",
+             "import sys; print(sys.implementation.name, "
+             "'%d.%d' % sys.version_info[:2])"],
+            capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    parts = proc.stdout.split()
+    if len(parts) != 2 or "." not in parts[1]:
+        return None
+    try:
+        major, minor = (int(x) for x in parts[1].split("."))
+    except ValueError:
+        return None
+    return parts[0], (major, minor)
+
+
+def resolve_python(
+        probe: Callable[[str], tuple[str, tuple[int, int]] | None]
+        | None = None,
+        executable: str | None = None) -> str:
+    """Deterministically resolve the interpreter for child test runs.
+
+    Candidate ladder, each mechanically probed (must report CPython 3.x):
+      1. the current interpreter (default sys.executable, injectable via
+         `executable`), SKIPPED when it resolves inside an AppImage
+         self-mount (documented host quirk — see _is_appimage_mount);
+      2. /usr/bin/python3 when it exists;
+      3. shutil.which("python3"), same AppImage skip.
+    The first verified candidate wins; on a fixed machine the result is
+    deterministic and the ladder order is part of the tested contract.
+    When NO candidate can be established, Tier1InterpreterError is raised —
+    never a silent fallback to an unrelated runtime.
+
+    `probe` exists for hermetic tests; production callers never pass it.
+    """
+    verify = probe or _probe_interpreter
+    candidates: list[str] = []
+    current = executable or sys.executable
+    if current and not _is_appimage_mount(current):
+        candidates.append(current)
+    if os.path.isfile("/usr/bin/python3"):
+        candidates.append("/usr/bin/python3")
+    on_path = shutil.which("python3")
+    if on_path and on_path not in candidates \
+            and not _is_appimage_mount(on_path):
+        candidates.append(on_path)
+    for candidate in candidates:
+        identity = verify(candidate)
+        if identity is not None and identity[0] == "cpython" \
+                and identity[1][0] == 3:
+            return candidate
+    raise Tier1InterpreterError(
+        "no mechanically verifiable CPython 3 interpreter for tier-1 "
+        "children (candidates probed: %s)" % (candidates or ["<none>"]))
+
+
 EVAL_DIR = os.path.dirname(os.path.realpath(__file__))
 SKILL_DIR = os.path.dirname(EVAL_DIR)
 DEFAULT_TESTS_DIR = os.path.join(SKILL_DIR, "tests")
@@ -202,13 +282,13 @@ def run_env_matrix(tests_dir: str = DEFAULT_TESTS_DIR,
     parsed from unittest's stderr so exactly the affected cases go False.
     Conservative: rc != 0 with NO parseable failing names marks ALL cases
     False; unmapped cases always count as NOT PASSING; timeout -> all
-    False. Runs with cwd=skill/ via /usr/bin/python3.
+    False. Runs with cwd=skill/ via the resolved tier-1 interpreter.
     """
     discovery = discover_env_matrix(tests_dir)
     results: dict[str, bool] = {}
     try:
         proc = subprocess.run(
-            [PYTHON, "-m", "unittest", *ENV_MATRIX_MODULES],
+            [resolve_python(), "-m", "unittest", *ENV_MATRIX_MODULES],
             cwd=SKILL_DIR, capture_output=True, text=True, timeout=timeout)
         rc, err = proc.returncode, proc.stderr
     except subprocess.TimeoutExpired:
@@ -260,7 +340,7 @@ def run_harness_suite(tests_dir: str | None = None,
     start = tests_dir if tests_dir is not None else "tests"
     try:
         proc = subprocess.run(
-            [PYTHON, "-m", "unittest", "discover", "-s", start],
+            [resolve_python(), "-m", "unittest", "discover", "-s", start],
             cwd=SKILL_DIR, capture_output=True, text=True, timeout=timeout)
         out = proc.stdout + proc.stderr
         rc = proc.returncode

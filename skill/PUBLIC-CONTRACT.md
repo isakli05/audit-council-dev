@@ -95,9 +95,11 @@ canonical artifacts.
 
 Successful Codex stages <= 1 per phase, <= 3 total; <= 3 attempts per
 phase; 1 repair per phase; specialists 0 (normal cap 2, hard cap 3, 2
-turns each); <= 4 dynamic probes; cached evidence reused when valid;
-release gates always fresh. The governor may never skip a mandatory
-independent pass, hide a material dispute, or promote PARTIAL to
+turns each); <= 4 dynamic probes; cached evidence reused when valid
+(enforced at stage-launch consumption through the per-run evidence store:
+CACHEABLE records serve only when still valid against the frozen run
+identity); release gates always fresh. The governor may never skip a
+mandatory independent pass, hide a material dispute, or promote PARTIAL to
 COMPLETE; every budget-driven omission is recorded in run metrics.
 
 ## What is NEVER modified
@@ -116,8 +118,10 @@ RELEASE/HISTORICAL prepare a detached isolated worktree at the exact
 requested HEAD, freeze the environment binding for THAT worktree, stage
 only authorized evidence (both modes; realpath-resolved, deny-list
 enforced) into the run-owned `staged-evidence/` dir — visible
-identically to Opus and the bubblewrapped Codex — and start the run;
-the live source tree is never touched. Every codex launch is preceded by
+identically to Opus and the bubblewrapped Codex, and recorded as
+provenance-bound FRESH_REQUIRED evidence-store entries (retained for
+provenance and access accounting, never served from cache) — and start
+the run; the live source tree is never touched. Every codex launch is preceded by
 a zero-inference sandbox preflight (eight probes through the exact
 production wrapper); a failing preflight stops before any model attempt
 is counted (INVALID_AUDIT_ENVIRONMENT:SANDBOX_PREFLIGHT). At completion the run is archived before the ephemeral
@@ -144,9 +148,15 @@ worktree is removed via git.
   beyond it; it hardens detection, it is not a sandbox. The hook command
   resolves its interpreter and skill path mechanically and FAILS CLOSED
   (deny) when either cannot be established.
-- The evidence-store visibility classes and access log are a LIBRARY API,
-  not yet wired into the production stage pipeline; no production control
-  is claimed for them.
+- The evidence-store visibility classes, freshness law and access log are
+  wired into the production stage path (staged-evidence provenance at
+  prepare, first-pass artifact identity manifests at checkpoint,
+  stage-launch consumption and input-manifest reuse-when-valid, report
+  provenance); they govern the STORE API only — payloads under
+  `<run>/evidence/objects/` remain readable by any in-root reader,
+  canonical phase artifacts (not store records) remain the authoritative
+  record, and evidence recording by the interactive auditor side remains
+  protocol-enforced.
 - First-pass independence is mechanical only on the codex side (sandbox
   artifact masking); the interactive opus side remains protocol-enforced.
 - Specialists are default-off until eval-proven.

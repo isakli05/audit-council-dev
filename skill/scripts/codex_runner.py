@@ -400,10 +400,14 @@ def _sandbox_preflight_errors(run_dir: str, repo_root: str,
 
 # B-003: first-pass independence for the codex INDEPENDENT stage is
 # mechanically enforced inside the sandbox: the peer first-pass artifact is
-# shadowed (ro-bound /dev/null) so the codex auditor cannot read Opus's
+# shadowed (ro-bind /dev/null) so the codex auditor cannot read Opus's
 # already-checkpointed findings through the run-dir bind. Cross-examination
 # and adjudication are post-barrier by design and are not masked.
 PEER_FIRSTPASS_ARTIFACT = "10-opus-independent.json"
+
+# F-A-12 / AUCDEV-017: the EvidenceStore record tool identity for a stage
+# launch's input manifest (prompt/schema/codex-binary identities).
+STAGE_INPUT_TOOL = {"name": "codex_runner.stage-input", "version": "2.0"}
 
 
 def _independence_blind_paths(run_dir: str, phase: str) -> list:
@@ -411,6 +415,85 @@ def _independence_blind_paths(run_dir: str, phase: str) -> list:
         return []
     peer = os.path.join(run_dir, PEER_FIRSTPASS_ARTIFACT)
     return [peer] if os.path.isfile(peer) else []
+
+
+def _evidence_stage_io(run_dir: str, phase: str, prompt_path: str,
+                       schema_path: str, codex_bin: str) -> dict:
+    """Production EvidenceStore wiring at stage launch (F-A-12 / AUCDEV-017).
+
+    CONSUMER: for the independent phase, the OPUS first-pass identity
+    manifest is looked up and served to consumer CODEX through the store's
+    full law — pre-barrier this MUST be denied (barrier_closed, access
+    logged); a serve before the barrier is a first-pass-independence
+    violation and raises, refusing the launch (defense in depth behind the
+    B-003 sandbox masking: the cache can never become a barrier bypass).
+
+    PRODUCER: the launch's input manifest (prompt/schema/codex-binary
+    identities) is recorded SHARED_MECHANICAL + CACHEABLE; a prior manifest
+    for the same phase is REUSED only when serve_run_evidence still
+    validates it against the frozen run identity — the governor's
+    cached-evidence REUSE_WHEN_VALID policy, enforced here.
+
+    A run without a provable frozen identity (v1-era migration path,
+    mirroring the env-gate precedent) records that honestly and touches no
+    store. Any store failure raises (EvidenceStoreError/OSError): the
+    caller aborts the launch with zero model attempts consumed.
+    """
+    import evidence_store
+    try:
+        store = evidence_store.open_run_store(run_dir)
+        fingerprint, binding = evidence_store.frozen_run_identity(run_dir)
+    except evidence_store.EvidenceStoreError:
+        return {"status": "unbound_run_no_evidence_store"}
+
+    note: dict = {"status": "ok"}
+
+    if phase == "independent":
+        peer_ids = store.find_records(
+            producer="OPUS",
+            command_or_query="first-pass-artifact:%s" % PEER_FIRSTPASS_ARTIFACT)
+        if peer_ids:
+            ref = evidence_store.serve_run_evidence(
+                store, run_dir, peer_ids[-1], "CODEX")
+            if ref is not None:
+                raise evidence_store.EvidenceStoreError(
+                    "first-pass independence violated through the evidence "
+                    "store: the OPUS private manifest was servable to CODEX "
+                    "before the barrier opened (%s)" % peer_ids[-1])
+            note["peer_firstpass_store_access"] = "denied_pre_barrier"
+        else:
+            note["peer_firstpass_store_access"] = "no_record"
+
+    with open(prompt_path, "rb") as fh:
+        prompt_bytes = fh.read()
+    with open(schema_path, "rb") as fh:
+        schema_bytes = fh.read()
+    manifest = {
+        "phase": phase,
+        "prompt_sha256": state_store.sha256_bytes(prompt_bytes),
+        "prompt_bytes": len(prompt_bytes),
+        "schema_sha256": state_store.sha256_bytes(schema_bytes),
+        "codex_bin": codex_bin,
+    }
+    prior = store.find_records(command_or_query="stage-input:%s" % phase)
+    reused = None
+    for evidence_id in reversed(prior):
+        ref = evidence_store.serve_run_evidence(
+            store, run_dir, evidence_id, "HARNESS", include_content=True)
+        if ref is not None and ref.get("result") == manifest:
+            reused = evidence_id
+            break
+    if reused is not None:
+        note["stage_input_evidence"] = {"evidence_id": reused,
+                                        "reused": True}
+    else:
+        evidence_id = store.put(evidence_store.stage_input_record(
+            phase, manifest, fingerprint=fingerprint,
+            binding_digest=binding, tool=STAGE_INPUT_TOOL,
+            produced_at=utc_now()))
+        note["stage_input_evidence"] = {"evidence_id": evidence_id,
+                                        "reused": False}
+    return note
 
 
 def cmd_start(args) -> int:
@@ -512,6 +595,17 @@ def cmd_start(args) -> int:
         print("error: %s" % exc, file=sys.stderr)
         return 3
 
+    # F-A-12 / AUCDEV-017: evidence-store consumer/producer wiring — runs
+    # strictly BEFORE the child spawns, so any store failure aborts the
+    # launch with zero model attempts consumed.
+    import evidence_store as _evidence_store
+    try:
+        evidence_note = _evidence_stage_io(run_dir, phase, prompt_path,
+                                           schema_path, codex_bin)
+    except (OSError, _evidence_store.EvidenceStoreError) as exc:
+        print("error: evidence store: %s" % exc, file=sys.stderr)
+        return 3
+
     attempt_number = 1 + sum(
         1 for j in state.get("codex", {}).get("jobs", [])
         if j.get("phase") == phase)
@@ -521,6 +615,7 @@ def cmd_start(args) -> int:
                  session_id, job_id,
                  {"attempt_number": attempt_number,
                   "codex_argv": argv,  # exact codex argv (unwrapped)
+                  "evidence": evidence_note,
                   "sandbox": {"wrapper": "bwrap" if sandbox_active else None,
                               "active": sandbox_active,
                               "doc": "docs/A0-CODEX-CONFINEMENT.md"},

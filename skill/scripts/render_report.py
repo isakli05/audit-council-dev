@@ -42,6 +42,7 @@ FINAL_SECTION_ORDER = [
     "Residual risks",
     "Audit limitations",
     "Model provenance",
+    "Evidence store provenance",
     "Run metrics",
 ]
 
@@ -58,6 +59,21 @@ def _load_optional(path):
         except (ValueError, OSError):
             return None
     return None
+
+
+def _load_jsonl(path):
+    """Read a JSONL file (evidence index / access log); a missing file
+    reads as empty so callers can state absence honestly."""
+    entries = []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    entries.append(json.loads(line))
+    except (OSError, ValueError):
+        return []
+    return entries
 
 
 def _escape(text) -> str:
@@ -438,8 +454,44 @@ def _render_final(data: dict, run_dir: str) -> str:
     else:
         lines.extend("- %s" % _provenance_line(f) for f in findings)
 
-    # 14 Run metrics
+    # 14 Evidence store provenance (F-A-12 / AUCDEV-017: store provenance
+    # survives report generation; access decisions are summarized, never
+    # replayed as content)
     section(FINAL_SECTION_ORDER[13])
+    ev_records = _load_jsonl(os.path.join(run_dir, "evidence", "index.jsonl"))
+    if not ev_records:
+        add("(no evidence-store records for this run)")
+    else:
+        by_vis: dict = {}
+        by_fresh: dict = {}
+        for rec in ev_records:
+            vis = rec.get("visibility", "n/a")
+            fresh = (rec.get("freshness_policy") or {}).get("class", "n/a")
+            by_vis[vis] = by_vis.get(vis, 0) + 1
+            by_fresh[fresh] = by_fresh.get(fresh, 0) + 1
+            add("- `%s` %s / %s / %s — %s" % (
+                rec.get("evidence_id", "n/a"), rec.get("kind", "n/a"),
+                vis, fresh, rec.get("command_or_query", "n/a")))
+        add("")
+        add("- Records: %d (visibility: %s; freshness: %s)" % (
+            len(ev_records),
+            ", ".join("%s=%d" % kv for kv in sorted(by_vis.items())),
+            ", ".join("%s=%d" % kv for kv in sorted(by_fresh.items()))))
+        ev_log = _load_jsonl(os.path.join(run_dir, "evidence",
+                                          "access-log.jsonl"))
+        served = sum(1 for e in ev_log if e.get("served"))
+        denied: dict = {}
+        for entry in ev_log:
+            if not entry.get("served"):
+                reason = entry.get("reason", "n/a")
+                denied[reason] = denied.get(reason, 0) + 1
+        add("- Access decisions: %d served, %d denied (%s)" % (
+            served, len(ev_log) - served,
+            ", ".join("%s=%d" % kv for kv in sorted(denied.items()))
+            or "none"))
+
+    # 15 Run metrics
+    section(FINAL_SECTION_ORDER[14])
     metrics = _load_optional(os.path.join(run_dir, "99-run-metrics.json"))
     if not metrics:
         add("(no run metrics recorded)")

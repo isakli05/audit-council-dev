@@ -243,8 +243,9 @@ class TestSkipVocabularyAgreement(unittest.TestCase):
     CLI operation can never persist a schema-invalid skip record."""
 
     def test_skippable_phases_equal_schema_enum(self):
-        schema = json.load(open(os.path.join(
-            SKILL_DIR, "schemas", "state.schema.json")))
+        with open(os.path.join(SKILL_DIR, "schemas", "state.schema.json"),
+                  encoding="UTF-8") as fh:
+            schema = json.load(fh)
         enum = schema["properties"]["phase_skips"]["items"]["properties"][
             "skipped_phase"]["enum"]
         self.assertEqual(sorted(state_store.SKIPPABLE_PHASES), sorted(enum))
@@ -636,7 +637,8 @@ class TestV2EvidenceFieldAlignment(unittest.TestCase):
 
     def test_no_legacy_lines_instruction(self):
         for rel in self.FILES:
-            text = open(os.path.join(SKILL_DIR, rel), encoding="utf-8").read()
+            with open(os.path.join(SKILL_DIR, rel), encoding="utf-8") as fh:
+                text = fh.read()
             # an instruction of the legacy shape (field list containing
             # `lines` as a sibling of path/symbol) must not appear
             for m in re.finditer(r"\{kind,[^}]*\}", text):
@@ -647,8 +649,9 @@ class TestV2EvidenceFieldAlignment(unittest.TestCase):
             self.assertNotIn("`lines` (format", text, rel)
 
     def test_schema_uses_line_ranges_exclusively(self):
-        schema = json.load(open(os.path.join(
-            SKILL_DIR, "schemas", "finding.schema.json")))
+        with open(os.path.join(SKILL_DIR, "schemas", "finding.schema.json"),
+                  encoding="UTF-8") as fh:
+            schema = json.load(fh)
         props = schema["properties"]["evidence"]["items"]["properties"]
         self.assertIn("line_ranges", props)
         self.assertNotIn("lines", props)
@@ -683,8 +686,9 @@ class TestGenericFirstPassValidator(unittest.TestCase):
     )
 
     def _source(self):
-        return open(os.path.join(SCRIPTS, "first_pass_validator.py"),
-                    encoding="utf-8").read()
+        with open(os.path.join(SCRIPTS, "first_pass_validator.py"),
+                  encoding="utf-8") as fh:
+            return fh.read()
 
     def test_no_prior_event_identity_in_validator_bytes(self):
         src = self._source()
@@ -718,8 +722,9 @@ class TestHookCommandFailClosed(unittest.TestCase):
     registration; install docs include hooks/."""
 
     def _frontmatter(self):
-        text = open(os.path.join(SKILL_DIR, "SKILL.md"),
-                    encoding="utf-8").read()
+        with open(os.path.join(SKILL_DIR, "SKILL.md"),
+                  encoding="utf-8") as fh:
+            text = fh.read()
         m = re.match(r"^---\n(.*?)\n---\n", text, re.DOTALL)
         assert m, "SKILL.md frontmatter missing"
         return m.group(1)
@@ -747,8 +752,9 @@ class TestHookCommandFailClosed(unittest.TestCase):
         self.assertEqual(proc.returncode, 2, proc.stderr)
 
     def test_readme_install_contents_include_hooks(self):
-        readme = open(os.path.join(SKILL_DIR, "README.md"),
-                      encoding="utf-8").read()
+        with open(os.path.join(SKILL_DIR, "README.md"),
+                  encoding="utf-8") as fh:
+            readme = fh.read()
         install = readme[readme.index("## Installation"):
                          readme.index("## Requirements")]
         self.assertIn("hooks/", install)
