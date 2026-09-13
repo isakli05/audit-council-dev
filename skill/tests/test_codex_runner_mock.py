@@ -82,11 +82,15 @@ import codex_runner  # noqa: E402
 import render_report  # noqa: E402
 
 
-def make_state(repo_root, run_id="20260903T000000Z-ab01cd"):
+def make_state(repo_root, run_id="20260903T000000Z-ab01cd",
+               phase="OPUS_INDEPENDENT_COMPLETE"):
+    # B-005 fixture: the default state sits at the canonical entry phase
+    # for the codex independent stage (the state-machine launch gate in
+    # state_store.check_stage_launch is authoritative)
     return {
         "schema_version": 1,
         "run_id": run_id,
-        "phase": "CONTRACT_FROZEN",
+        "phase": phase,
         "completeness_state": "RUNNING",
         "created_at": "2026-09-03T00:00:00Z",
         "timestamps": {},
@@ -101,6 +105,15 @@ def make_state(repo_root, run_id="20260903T000000Z-ab01cd"):
         "phase_attempts": {},
         "failure_reason": None,
     }
+
+
+# canonical state-machine entry phase per codex stage (mirrors
+# state_store.STAGE_ENTRY_PHASE for fixture placement)
+STAGE_ENTRY_PHASE = {
+    "independent": "OPUS_INDEPENDENT_COMPLETE",
+    "cross_examination": "OPUS_CROSS_EXAM_COMPLETE",
+    "adjudication": "LEDGER_COMPLETE",
+}
 
 
 class Harness(unittest.TestCase):
@@ -127,6 +140,9 @@ class Harness(unittest.TestCase):
         self.base_env["FAKE_CODEX_MODE"] = "ok"
         # test-only fast polling; production default (2s) is unchanged
         self.base_env["CODEX_RUNNER_POLL_INTERVAL"] = "0.02"
+        # F-A-06: hermetic preflight — resolver probe against localhost
+        # (no network dependence); the fixture codex serves the probes
+        self.base_env["AC_SANDBOX_DNS_PROBE_HOST"] = "localhost"
         if _STUB_DIR:
             self.base_env["PYTHONPATH"] = _STUB_DIR
 
@@ -139,11 +155,36 @@ class Harness(unittest.TestCase):
         env["FAKE_CODEX_MODE"] = mode
         if extra_env:
             env.update(extra_env)
+        # B-001 fixture channel: the production sandbox clears the env, so
+        # the fake codex reads its control knobs from this run-dir file.
+        # Written ONLY for launch commands — rewriting it before wait would
+        # race the already-started fake process.
+        if args and args[0] in ("start", "repair"):
+            self._write_fake_codex_control(env)
         return subprocess.run([PYTHON, RUNNER] + list(args),
                               capture_output=True, text=True, env=env,
                               timeout=timeout)
 
+    _CONTROL_KEYS = {"FAKE_CODEX_MODE": "MODE",
+                     "FAKE_CODEX_SLEEP": "SLEEP",
+                     "FAKE_CODEX_USAGE_FIRST": "USAGE_FIRST",
+                     "FAKE_CODEX_SESSION": "SESSION",
+                     "FAKE_CODEX_FINGERPRINT": "FINGERPRINT"}
+
+    def _write_fake_codex_control(self, env):
+        lines = [f"{mapped}={env[key]}" for key, mapped
+                 in sorted(self._CONTROL_KEYS.items())
+                 if env.get(key) is not None]
+        with open(os.path.join(self.run, "fake-codex-control"), "w") as f:
+            f.write("\n".join(lines) + ("\n" if lines else ""))
+
     def start(self, phase="independent", mode="ok", session=None, expect=0):
+        # B-005 fixture: place the state machine at the stage's canonical
+        # entry phase before launching (the launch gate is authoritative)
+        state = self.state()
+        state["phase"] = STAGE_ENTRY_PHASE[phase]
+        with open(os.path.join(self.run, "state.json"), "w") as f:
+            json.dump(state, f)
         args = ["start", "--run", self.run, "--phase", phase,
                 "--codex-bin", FAKE_CODEX]
         if session:

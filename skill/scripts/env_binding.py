@@ -136,41 +136,89 @@ def _git_facts(repo_root: str) -> dict[str, Any]:
     }
 
 
-def _repo_fingerprint_digest(repo_root: str) -> str:
-    """v1 fingerprint digest algorithm, applied time-independently and
+def _repo_fingerprint_digest(repo_root: str,
+                             algorithm: int = 2) -> str:
+    """Fingerprint digest for the binding, applied time-independently and
     audit-output-stably.
 
     `repo_fingerprint.capture` includes its `captured_at` timestamp inside
-    the v1 digest; the binding identity must not depend on wall-clock time
+    the digest; the binding identity must not depend on wall-clock time
     (pre-freeze clarification 1), so the digest here is computed over the
     fingerprint document minus `captured_at` — same canonical-JSON sha256
     algorithm, same content fields.
 
     The binding identity must ALSO be stable while the audit itself writes
-    its own artifacts: v1's material-change rule excludes `audit-output/`
+    its own artifacts: the material-change rule excludes `audit-output/`
     (stateStore EXCLUDED_PREFIX), so the digest normalizes the fingerprint
     document the same way — porcelain lines and inventory entries under
     `audit-output/` are dropped before hashing. Without this, creating the
     run directory after capture would flip the binding digest and every
     later gate call would misreport WORKTREE_IDENTITY_CHANGED.
-    """
-    doc = repo_fingerprint.capture(repo_root)
+
+    B-004: algorithm 2 (the default for NEW bindings) keeps the v2
+    content-aware untracked entries and the dirty-worktree byte map, so
+    untracked/dirty byte replacements drift the binding identity.
+    Algorithm 1 reproduces the LEGACY {path: size} normalization — used
+    ONLY when verifying a binding frozen before algorithm 2 existed
+    (bindings record `fingerprint_algorithm`; absent means 1)."""
     excluded = repo_fingerprint.EXCLUDED_PREFIX
+    if algorithm < 2:
+        # legacy reproduction: collapsed porcelain (no -uall) and
+        # {path: size} untracked entries — byte-exact with what a v1-era
+        # capture recorded
+        collapsed = _git(repo_root, "status", "--porcelain")
+        if collapsed.returncode != 0:
+            raise EnvironmentBindingError(
+                "GIT_QUERY_FAILED",
+                {"repo": repo_root, "args": ["status", "--porcelain"],
+                 "stderr": collapsed.stderr.strip()})
+        kept = [line for line in collapsed.stdout.splitlines()
+                if line and not line[3:].strip('"').startswith(excluded)]
+        porcelain = "\n".join(kept) + ("\n" if kept else "")
+        untracked: dict[str, Any] = {}
+        for line in kept:
+            if not line.startswith("?? "):
+                continue
+            path = line[3:].strip('"')
+            try:
+                untracked[path] = os.lstat(
+                    os.path.join(repo_root, path)).st_size
+            except OSError:
+                untracked[path] = -1
+        doc = repo_fingerprint.capture(repo_root)
+        tracked = {path: meta for path, meta in
+                   doc.get("tracked_inventory", {}).items()
+                   if not path.startswith(excluded)}
+        body = {k: v for k, v in doc.items()
+                if k not in ("fingerprint_sha256", "captured_at",
+                             "tool_versions", "porcelain",
+                             "untracked_inventory", "dirty_worktree")}
+        body["porcelain"] = porcelain
+        body["tracked_inventory"] = tracked
+        body["untracked_inventory"] = untracked
+        return sha256_bytes(
+            repo_fingerprint.canonical_json(body).encode("utf-8"))
+
+    doc = repo_fingerprint.capture(repo_root)
     kept = [line for line in doc.get("porcelain", "").splitlines()
             if line and not line[3:].strip('"').startswith(excluded)]
     porcelain = "\n".join(kept) + ("\n" if kept else "")
     tracked = {path: meta for path, meta in
                doc.get("tracked_inventory", {}).items()
                if not path.startswith(excluded)}
-    untracked = {path: size for path, size in
+    untracked = {path: entry for path, entry in
                  doc.get("untracked_inventory", {}).items()
                  if not path.startswith(excluded)}
+    dirty = {path: digest for path, digest in
+             doc.get("dirty_worktree", {}).items()
+             if not path.startswith(excluded)}
     body = {k: v for k, v in doc.items()
             if k not in ("fingerprint_sha256", "captured_at",
                          "tool_versions")}
     body["porcelain"] = porcelain
     body["tracked_inventory"] = tracked
     body["untracked_inventory"] = untracked
+    body["dirty_worktree"] = dirty
     return sha256_bytes(repo_fingerprint.canonical_json(body).encode("utf-8"))
 
 
@@ -190,7 +238,8 @@ def _build_binding(repo_root: str, brief_sha256: str,
                    brief_target: dict[str, Any],
                    allowed_disposable_roots: list[str],
                    expected_head: str | None,
-                   frozen_at: str) -> dict[str, Any]:
+                   frozen_at: str,
+                   fingerprint_algorithm: int = 2) -> dict[str, Any]:
     facts = _git_facts(repo_root)
     linked = facts["git_dir_realpath"] != facts["git_common_dir_realpath"]
     doc: dict[str, Any] = {
@@ -214,8 +263,15 @@ def _build_binding(repo_root: str, brief_sha256: str,
         "expected_head": expected_head or facts["head_sha"],
         "allowed_disposable_roots": list(dict.fromkeys(
             _canonical(r) for r in allowed_disposable_roots)),
-        "repo_fingerprint_sha256": _repo_fingerprint_digest(repo_root),
+        # B-004: 2 = content-aware fingerprint (untracked sha256 +
+        # dirty-worktree byte map). Bindings frozen before this field
+        # exists have no entry and verify under the legacy algorithm 1
+        # (reproduced byte-exactly, key omitted for them).
+        "repo_fingerprint_sha256": _repo_fingerprint_digest(
+            repo_root, algorithm=fingerprint_algorithm),
     }
+    if fingerprint_algorithm >= 2:
+        doc["fingerprint_algorithm"] = fingerprint_algorithm
     doc["binding_digest"] = digest(doc)
     return doc
 
@@ -269,14 +325,18 @@ _IDENTITY_FIELDS = ("repo_root_realpath", "git_toplevel_realpath",
 
 def _capture_live(binding: dict[str, Any]) -> dict[str, Any]:
     """Recompute the binding for the frozen root, carrying over the
-    run-owned inputs (brief hash/target, allowed roots, expectations)."""
+    run-owned inputs (brief hash/target, allowed roots, expectations) and
+    the frozen fingerprint algorithm (B-004: a pre-algorithm-2 binding
+    verifies under the legacy algorithm it was frozen with)."""
     return _build_binding(
         binding["repo_root_realpath"],
         binding["brief_sha256"],
         _normalize_brief_target(binding.get("brief_target")),
         list(binding.get("allowed_disposable_roots") or []),
         expected_head=binding.get("expected_head"),
-        frozen_at=binding.get("frozen_at", ""))
+        frozen_at=binding.get("frozen_at", ""),
+        fingerprint_algorithm=binding.get("fingerprint_algorithm")
+        if isinstance(binding.get("fingerprint_algorithm"), int) else 1)
 
 
 def verify_frozen(binding: dict[str, Any]) -> dict[str, Any]:
@@ -404,5 +464,7 @@ def reconstruct(run_dir: str) -> dict[str, Any]:
         _normalize_brief_target(binding.get("brief_target")),
         list(binding.get("allowed_disposable_roots") or []),
         expected_head=binding.get("expected_head"),
-        frozen_at=utc_now_iso())
+        frozen_at=utc_now_iso(),
+        fingerprint_algorithm=binding.get("fingerprint_algorithm")
+        if isinstance(binding.get("fingerprint_algorithm"), int) else 1)
     return live

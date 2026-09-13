@@ -320,9 +320,18 @@ class TestDetachedWorktreeE2E(EnvLifecycleBase):
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
 
         # full fake-codex stage: launch + wait COMPLETE inside the worktree
-        os.environ["FAKE_CODEX_FINGERPRINT"] = self.state(run_dir)[
-            "repo_fingerprint_sha256"]
+        # B-005 fixture: place the state machine at the codex independent
+        # stage's canonical entry phase; B-001 fixture channel: the
+        # fingerprint knob goes through the run-dir control file (the
+        # production sandbox clears the environment)
+        st = self.state(run_dir)
+        st["phase"] = "OPUS_INDEPENDENT_COMPLETE"
+        with open(os.path.join(run_dir, "state.json"), "w") as fh:
+            json.dump(st, fh)
+        with open(os.path.join(run_dir, "fake-codex-control"), "w") as fh:
+            fh.write("FINGERPRINT=%s\n" % st["repo_fingerprint_sha256"])
         os.environ["CODEX_RUNNER_POLL_INTERVAL"] = "0.05"
+        os.environ["AC_SANDBOX_DNS_PROBE_HOST"] = "localhost"  # F-A-06
         try:
             proc = self.cr("start", "--run", run_dir, "--phase", "independent",
                            "--prompt", "-", "--codex-bin", FAKE_CODEX,
@@ -335,8 +344,8 @@ class TestDetachedWorktreeE2E(EnvLifecycleBase):
                 self.state(run_dir)["codex"]["stage_counts"]["independent"],
                 1)
         finally:
-            os.environ.pop("FAKE_CODEX_FINGERPRINT", None)
             os.environ.pop("CODEX_RUNNER_POLL_INTERVAL", None)
+            os.environ.pop("AC_SANDBOX_DNS_PROBE_HOST", None)
 
 
 class TestNoGitDirSniffing(unittest.TestCase):

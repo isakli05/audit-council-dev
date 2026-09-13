@@ -58,8 +58,12 @@ verdict.
   `codex exec resume <explicit-id>`, read-only sandbox; subscription auth only — PAYG keys fail preflight.
 
 Independence rules: a first-pass barrier means neither auditor sees the other's findings before both
-independent audits complete; cross-examination is falsification, not validation; no forced consensus —
-disagreements are preserved in the ledger and resolved (or left explicitly unresolved) by bounded adjudication.
+independent audits complete — MECHANICAL on the codex side (the sandboxed codex independent stage cannot
+read the peer first-pass artifact: its path is shadowed by an empty ro-bind inside the bubblewrap wrapper
+on every launch, recorded in the job record) and PROCEDURAL on the interactive opus side (instructed, not
+OS-enclosed — a disclosed boundary, never claimed as mechanical). Cross-examination is falsification, not
+validation; no forced consensus — disagreements are preserved in the ledger and resolved (or left
+explicitly unresolved) by bounded adjudication.
 
 ## Evidence model (line_ranges)
 
@@ -124,7 +128,7 @@ worktree is removed via git.
 | Guarantee | Classification |
 |---|---|
 | Codex cannot WRITE the audited repo | OS-enforced (codex read-only sandbox AND bubblewrap ro bind) |
-| Codex cannot READ outside the bind set (other repos, home data, ~/.ssh, other runs, /tmp) | OS-enforced by the bubblewrap wrapper on every launch (fresh + resume); bind set = repo(ro), run dir(rw), ~/.codex(rw), resolved toolchain roots(ro), /etc+/usr+/lib(ro), authorized fixture roots(ro), /tmp = fresh tmpfs |
+| Codex cannot READ outside the bind set (other repos, home data, ~/.ssh, other runs, /tmp, host /proc roots, host environment) | OS-enforced by the bubblewrap wrapper on every launch (fresh + resume); bind set = repo(ro), run dir(rw), ~/.codex(rw), resolved toolchain roots(ro), /etc+/usr+/lib(ro), authorized fixture roots(ro), /tmp = fresh tmpfs; PID+IPC+UTS namespaces unshared (net shared by design) and environment cleared to an explicit minimal set (HOME/PATH/TERM/LANG) |
 | Codex reads of SYSTEM dirs (/etc, /usr) | not confined (documented — required for CA certs/resolver/toolchain) |
 | Codex read confinement WITHOUT bubblewrap (`AC_CODEX_BWRAP=0` or missing) | not enforced / accepted residual (runner validates argv + output only) |
 | Codex access to `~/.codex` (auth + session state) | accepted AUTH-BOUNDARY residual: read-write inside the bind set because subscription auth and explicit-session resume require it — not path confinement, never claimed as such |
@@ -137,7 +141,14 @@ worktree is removed via git.
   (accepted residual); with it, system directories remain readable by
   design.
 - The Claude hook is a no-inference lexical layer: encoded payloads are
-  beyond it; it hardens detection, it is not a sandbox.
+  beyond it; it hardens detection, it is not a sandbox. The hook command
+  resolves its interpreter and skill path mechanically and FAILS CLOSED
+  (deny) when either cannot be established.
+- The evidence-store visibility classes and access log are a LIBRARY API,
+  not yet wired into the production stage pipeline; no production control
+  is claimed for them.
+- First-pass independence is mechanical only on the codex side (sandbox
+  artifact masking); the interactive opus side remains protocol-enforced.
 - Specialists are default-off until eval-proven.
 - Historical replay is approval-gated; benchmarks are never re-run implicitly.
 

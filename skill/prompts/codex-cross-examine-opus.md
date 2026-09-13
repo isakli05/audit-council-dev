@@ -52,9 +52,13 @@ shape):
     PARTIALLY_CONFIRMED means the core is real but claim/scope/severity/cause must be
     narrowed — state exactly what survives; REJECTED requires concrete counter-evidence;
     INSUFFICIENT_EVIDENCE when it cannot be established or refuted)
-  - "counter_evidence": array of evidence items ({kind, path, symbol, lines,
-    requirement_ref, test_ref, command_ref, artifact_hash, description}) — same evidence
-    discipline as your independent audit; never invent line numbers
+  - "counter_evidence": array of evidence items ({kind, path, symbol,
+    line_ranges, requirement_ref, test_ref, command_ref, artifact_hash,
+    description}) — same evidence discipline as your independent audit;
+    never invent line numbers. line_ranges is the TYPED v2 citation shape:
+    an array of {"start": N, "end": N} objects (integers >= 1, end >=
+    start, <= 32 disjoint ranges, sorted); zero ranges = document-level
+    evidence
   - "reasoning_summary"
   - "severity_recalibration": an object {"original": <the finding's current severity>,
     "revised": <corrected severity>, "justification": <why>} — when no recalibration is

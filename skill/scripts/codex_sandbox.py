@@ -16,7 +16,17 @@ OS-ENFORCED-BLOCKED:
   rw:  the run dir (codex -o output + run artifacts)
   ro:  explicitly authorized fixture roots (allowed_disposable_roots)
   tmpfs: /tmp (everything else under /tmp is absent)
+  pid+ipc+uts namespaces: unshared (F-A-01/B-001) — /proc inside the
+       sandbox shows only sandbox processes, so /proc/<pid>/root can no
+       longer be used to reach the host filesystem, and process state
+       (host PIDs, IPC objects, hostname) is not exposed
+  env:  CLEARED, then explicitly set (HOME/PATH/TERM/LANG) — the host
+       environment does not flow into the sandbox (B-001)
   net:  deliberately NOT unshared (subscription API must work)
+
+Blind paths (B-003): `blind_paths` ro-binds /dev/null OVER a path inside
+the run dir, so a first-pass codex auditor cannot read the peer auditor's
+already-checkpointed artifact through the rw run-dir bind.
 
 Opt-out: AC_CODEX_BWRAP=0 (or bwrap absent) → confinement degrades to the
 runner policy/detection posture, recorded per job as sandbox.active=false.
@@ -130,13 +140,25 @@ def _tool_file(codex_bin: str) -> str | None:
 
 def build_sandbox_argv(codex_argv: list, repo_root: str, run_dir: str,
                        allowed_roots: list[str] | None = None,
-                       bwrap: str | None = None) -> list:
-    """Wrap codex_argv in a bubblewrap confinement invocation."""
+                       bwrap: str | None = None,
+                       blind_paths: list[str] | None = None) -> list:
+    """Wrap codex_argv in a bubblewrap confinement invocation.
+
+    F-A-01/B-001: PID+IPC+UTS namespaces are unshared (net stays shared by
+    design) and the environment is cleared to an explicit minimal set —
+    see the module docstring for the exact advertised boundary.
+    B-003: paths in `blind_paths` are shadowed with an empty ro-bound
+    /dev/null so the sandboxed process cannot read them (first-pass
+    independence for the codex independent stage).
+    """
     bwrap = bwrap or bwrap_available()
     if not bwrap:
         return list(codex_argv)
     home = os.path.expanduser("~")
     argv = [bwrap]
+    # F-A-01: namespaces must be unshared BEFORE /proc is mounted so the
+    # in-sandbox procfs describes only the sandbox's PID namespace
+    argv += ["--unshare-pid", "--unshare-ipc", "--unshare-uts"]
     argv += ["--ro-bind", "/usr", "/usr"]
     for lib in ("/lib", "/lib64", "/lib32"):
         if os.path.isdir(lib):
@@ -173,9 +195,16 @@ def build_sandbox_argv(codex_argv: list, repo_root: str, run_dir: str,
     # the run dir sits inside the repo (audit-output/...) and must be the
     # ONE writable subtree of the repository
     argv += ["--bind", run_dir, run_dir]
+    # B-003: blind AFTER the run-dir rw bind so the mask shadows it
+    for blind in (blind_paths or []):
+        argv += ["--ro-bind", "/dev/null", os.path.abspath(blind)]
     for root in (allowed_roots or []):
         argv += ["--ro-bind", root, root]
     argv += ["--dev", "/dev", "--proc", "/proc"]
+    # B-001: the host environment does NOT flow into the sandbox — clear
+    # it, then set exactly what the toolchain needs (auth state is on disk
+    # in ~/.codex, never in env vars)
+    argv += ["--clearenv"]
     argv += ["--setenv", "HOME", home]
     # da27c0 fix: the resolved toolchain bin dirs MUST lead PATH — bare
     # `codex` / `env node` inside the sandbox previously resolved to
@@ -183,12 +212,15 @@ def build_sandbox_argv(codex_argv: list, repo_root: str, run_dir: str,
     tool_bins = _toolchain_bindirs(tool_dirs)
     path = os.pathsep.join(tool_bins + ["/usr/bin", "/bin"])
     argv += ["--setenv", "PATH", path]
+    argv += ["--setenv", "TERM", "dumb"]
+    argv += ["--setenv", "LANG", "C.UTF-8"]
     argv += codex_argv
     return argv
 
 
 def wrap_codex_argv(codex_argv: list, repo_root: str, run_dir: str,
-                    allowed_roots: list[str] | None = None) -> tuple:
+                    allowed_roots: list[str] | None = None,
+                    blind_paths: list[str] | None = None) -> tuple:
     """Decision helper for the runner: returns (argv, active_flag).
     R5 NEW-2: the run dir must REALLY live under the repo root at wrap
     time (realpath containment) — a symlinked/moved run dir must not turn
@@ -203,7 +235,7 @@ def wrap_codex_argv(codex_argv: list, repo_root: str, run_dir: str,
             f"refusing to launch: run dir {real_run} is not under the "
             f"frozen repo root {real_repo}")
     return build_sandbox_argv(codex_argv, repo_root, run_dir,
-                              allowed_roots), True
+                              allowed_roots, blind_paths=blind_paths), True
 
 
 def probe(bwrap: str | None = None) -> dict:
@@ -278,30 +310,71 @@ def _cleanup_probe_fixtures(created: list) -> None:
             pass
 
 
+def _first_existing_repo_file(repo_root: str) -> str | None:
+    """An EXISTING regular file inside repo_root for the read probe (no
+    repository byte is ever created or written by preflight). Prefer
+    .git/HEAD (present in every git worktree — a file in plain repos, a
+    gitdir pointer in linked worktrees), else the first regular file of a
+    deterministic bounded walk that skips .git and audit-output."""
+    head = os.path.join(repo_root, ".git", "HEAD")
+    try:
+        if os.path.isfile(head):
+            return head
+    except OSError:
+        pass
+    visited = 0
+    for dirpath, dirnames, filenames in os.walk(repo_root):
+        dirnames[:] = sorted(d for d in dirnames
+                             if d not in (".git", "audit-output"))
+        for name in sorted(filenames):
+            cand = os.path.join(dirpath, name)
+            try:
+                if os.path.isfile(cand):
+                    return cand
+            except OSError:
+                continue
+        visited += 1
+        if visited > 500:  # bounded walk; repos always have shallow files
+            break
+    return None
+
+
 def sandbox_preflight(repo_root: str, run_dir: str,
                       allowed_roots: list[str] | None = None,
-                      timeout: int = 60) -> dict:
+                      timeout: int = 60,
+                      codex_bin: str = "codex",
+                      dns_probe_host: str = "chatgpt.com") -> dict:
     """da27c0 hardening: ZERO-INFERENCE viability proof of the exact
     production bubblewrap environment, BEFORE any frontier invocation is
-    launched or counted. Eight probes, all through build_sandbox_argv
-    with the resolved qualified toolchain:
+    launched or counted. Nine probes, all through build_sandbox_argv:
 
-      1 codex executable works          (codex --version)
+      1 codex executable works          (<codex_bin> --version)
       2 intended node runtime works     (node --version; NOT /usr/bin/node)
       3 codex login status succeeds     (subscription auth)
       4 chatgpt.com resolution works    (resolver, incl. symlinked conf)
-      5 repo read succeeds
-      6 repo write FAILS                (read-only bind)
-      7 outside-root user-data read FAILS
-      8 run-dir output write succeeds
+      5 repo read succeeds              (an EXISTING repo file)
+      6 repo write FAILS                (read-only bind; attempted creation
+                                         of .ac-sbx-write-probe at the repo
+                                         root must be refused by the OS)
+      7 outside-root read FAILS         (preflight-owned tempdir sentinel)
+      7b /proc/<pid>/root escape FAILS  (PID namespace confinement)
+      8 run-dir output write succeeds   (inside the sanctioned writable
+                                         subtree only)
 
-    F-A1 hardening: every probe fixture is created atomically and
-    exclusively (O_CREAT|O_EXCL [+O_NOFOLLOW]) and tracked by inode
-    identity — a pre-existing symlink or regular file at any predictable
-    probe pathname is the sanctioned preflight_probe_conflict (never
-    followed, truncated, or unlinked), and cleanup removes only objects
-    this invocation created. The run-dir probe is host-created too, so
-    probe 8 proves the rw bind by truncating a file the preflight owns.
+    F-A-02/B-002: preflight creates NO probe file in the frozen repository
+    or in the operator's home. The repo-read probe reads an existing file;
+    the only created fixtures are (a) the outside sentinel in a
+    preflight-owned `tempfile.mkdtemp` and (b) the run-dir probe inside the
+    run's own sanctioned writable directory. The repo-write probe attempts
+    to CREATE `<repo_root>/.ac-sbx-write-probe` and requires the OS to
+    refuse; the only situation in which that file can appear is an already
+    broken read-only bind, which is itself the reported failure.
+
+    F-A-03: every probe is an argv VECTOR — no shell string concatenation,
+    so whitespace in any path can never vacate a proof.
+
+    F-A-06: probes 1 and 3 use `codex_bin` — the exact binary the run will
+    launch — never an implicitly host-PATH-resolved codex.
 
     Returns {"ok": bool, "failures": [names], "details": {...}}. A
     failure is an Audit Council environment/harness failure
@@ -317,100 +390,142 @@ def sandbox_preflight(repo_root: str, run_dir: str,
                                     "confinement degraded posture; "
                                     "preflight cannot prove viability"}}
 
-    home = os.path.expanduser("~")
-    probe_outside = os.path.join(home, ".audit-council-sbx-probe-secret")
-    repo_file = os.path.join(repo_root, ".ac-sbx-probe")
-    run_file = os.path.join(run_dir, ".ac-sbx-probe")
+    resolved_codex = shutil.which(codex_bin) or codex_bin
+    # the node-runtime probe validates the PRODUCTION toolchain (the
+    # PATH-resolved codex and its node). When the run launches an
+    # explicitly supplied alternative binary (e.g. a test fixture), that
+    # binary's runtime is its own business and the probe is recorded as
+    # not applicable instead of fabricating a host-node dependence.
+    default_codex = shutil.which("codex")
+    node_probe_applies = (codex_bin == "codex"
+                          or (default_codex is not None
+                              and os.path.realpath(resolved_codex)
+                              == os.path.realpath(default_codex)))
+    # operator-visible probe-host override (default chatgpt.com; the
+    # subscription API domain the launch needs to resolve)
+    dns_host = os.environ.get("AC_SANDBOX_DNS_PROBE_HOST") or dns_probe_host
+    repo_candidate = _first_existing_repo_file(repo_root)
+    if repo_candidate is None:
+        return {"ok": False,
+                "failures": ["repo_read_no_candidate"],
+                "details": {"note": "no existing regular file found in "
+                                    "the repo root to read-probe with"}}
 
-    def run(payload):
-        argv = build_sandbox_argv(payload, repo_root, run_dir,
-                                  allowed_roots or [])
-        return subprocess.run(argv, capture_output=True, text=True,
-                              timeout=timeout)
+    import tempfile
+    with tempfile.TemporaryDirectory(prefix="ac-sbx-probe-") as probe_root:
+        outside = os.path.join(probe_root, "outside-secret.txt")
+        run_file = os.path.join(run_dir, ".ac-sbx-probe")
+        repo_write_probe = os.path.join(repo_root, ".ac-sbx-write-probe")
 
-    # fresh probe fixtures — atomic, exclusive, ownership-tracked (F-A1)
-    created: list = []
-    try:
+        def run(payload, input_text=None):
+            argv = build_sandbox_argv(payload, repo_root, run_dir,
+                                      allowed_roots or [])
+            return subprocess.run(argv, capture_output=True, text=True,
+                                  timeout=timeout, input=input_text,
+                                  stdin=subprocess.DEVNULL
+                                  if input_text is None else None)
+
+        # fresh probe fixtures — atomic, exclusive, ownership-tracked (F-A1)
+        created: list = []
         try:
-            _create_probe_fixture(repo_file, b"repo-probe\n", created)
-            _create_probe_fixture(probe_outside, b"user-data-probe\n",
-                                  created)
-            _create_probe_fixture(run_file, b"run-probe\n", created)
-        except OSError as exc:
-            # v2.0.1 N1 / F-A1: a planted or conflicting probe path
-            # (symlink OR regular file) must produce a sanctioned
-            # preflight failure — never a traceback, never a
-            # write-through or truncation of the pre-existing object
-            return {"ok": False,
-                    "failures": ["preflight_probe_conflict"],
-                    "details": {"probe_error": repr(exc)[:120]}}
+            try:
+                _create_probe_fixture(outside, b"outside-probe\n", created)
+                _create_probe_fixture(run_file, b"run-probe\n", created)
+            except OSError as exc:
+                # v2.0.1 N1 / F-A1: a planted or conflicting probe path
+                # (symlink OR regular file) must produce a sanctioned
+                # preflight failure — never a traceback, never a
+                # write-through or truncation of the pre-existing object
+                return {"ok": False,
+                        "failures": ["preflight_probe_conflict"],
+                        "details": {"probe_error": repr(exc)[:120]}}
 
-        try:
-            p = run(["codex", "--version"])
-            details["codex_version"] = p.stdout.strip()[:60]
-            if p.returncode != 0 or "codex-cli" not in p.stdout:
+            try:
+                p = run([resolved_codex, "--version"])
+                details["codex_version"] = p.stdout.strip()[:60]
+                if p.returncode != 0 or "codex-cli" not in p.stdout:
+                    failures.append("codex_executable")
+            except Exception as exc:
                 failures.append("codex_executable")
-        except Exception as exc:
-            failures.append("codex_executable"); details["codex_version"] = repr(exc)[:80]
+                details["codex_version"] = repr(exc)[:80]
 
-        try:
-            p = run(["sh", "-c", "command -v node && node --version"])
-            details["node"] = p.stdout.strip().replace("\n", " ")[:100]
-            resolved = p.stdout.splitlines()[0].strip() if p.stdout else ""
-            if p.returncode != 0 or resolved == "/usr/bin/node":
-                failures.append("node_runtime")
-        except Exception as exc:
-            failures.append("node_runtime"); details["node"] = repr(exc)[:80]
+            try:
+                if node_probe_applies:
+                    p = run(["sh", "-c", "command -v node && node --version"])
+                    details["node"] = p.stdout.strip().replace("\n", " ")[:100]
+                    resolved = p.stdout.splitlines()[0].strip() if p.stdout else ""
+                    if p.returncode != 0 or resolved == "/usr/bin/node":
+                        failures.append("node_runtime")
+                else:
+                    details["node"] = ("not applicable: non-default "
+                                       "codex binary (its runtime is its "
+                                       "own)")
+            except Exception as exc:
+                if node_probe_applies:
+                    failures.append("node_runtime")
+                    details["node"] = repr(exc)[:80]
 
-        try:
-            p = run(["codex", "login", "status"])
-            details["login"] = (p.stdout + p.stderr).strip()[:80]
-            if p.returncode != 0 or "Logged in" not in (p.stdout + p.stderr):
-                failures.append("codex_login")
-        except Exception as exc:
-            failures.append("codex_login"); details["login"] = repr(exc)[:80]
+            try:
+                p = run([resolved_codex, "login", "status"])
+                details["login"] = (p.stdout + p.stderr).strip()[:80]
+                if p.returncode != 0 or "Logged in" not in (p.stdout + p.stderr):
+                    failures.append("codex_login")
+            except Exception as exc:
+                failures.append("codex_login"); details["login"] = repr(exc)[:80]
 
-        try:
-            p = run(["/usr/bin/python3", "-c",
-                     "import socket,sys;"
-                     "sys.stdout.write(socket.gethostbyname("
-                     "'chatgpt.com'))"])
-            details["dns"] = p.stdout.strip()[:60]
-            if p.returncode != 0 or not p.stdout.strip():
-                failures.append("dns_resolution")
-        except Exception as exc:
-            failures.append("dns_resolution"); details["dns"] = repr(exc)[:80]
+            try:
+                p = run(["python3", "-c",
+                         "import socket,sys;"
+                         "sys.stdout.write(socket.gethostbyname("
+                         + repr(dns_host) + "))"])
+                details["dns"] = p.stdout.strip()[:60]
+                if p.returncode != 0 or not p.stdout.strip():
+                    failures.append("dns_resolution")
+            except Exception as exc:
+                failures.append("dns_resolution"); details["dns"] = repr(exc)[:80]
 
-        try:
-            p = run(["cat", repo_file])
-            if p.returncode != 0:
+            try:
+                p = run(["cat", repo_candidate])
+                if p.returncode != 0:
+                    failures.append("repo_read")
+            except Exception:
                 failures.append("repo_read")
-        except Exception:
-            failures.append("repo_read")
 
-        try:
-            p = run(["sh", "-c", "echo x >> " + repo_file])
-            if p.returncode == 0:
-                failures.append("repo_write_must_fail")
-        except Exception:
-            pass  # an exception here means no write happened: pass
+            try:
+                p = run(["touch", repo_write_probe])
+                if p.returncode == 0:
+                    failures.append("repo_write_must_fail")
+            except Exception:
+                pass  # an exception here means no write happened: pass
 
-        try:
-            p = run(["cat", probe_outside])
-            if p.returncode == 0:
-                failures.append("outside_read_must_fail")
-        except Exception:
-            pass
+            try:
+                p = run(["cat", outside])
+                if p.returncode == 0:
+                    failures.append("outside_read_must_fail")
+            except Exception:
+                pass
 
-        try:
-            p = run(["sh", "-c", "echo x > " + run_file])
-            if p.returncode != 0:
+            try:
+                # F-A-01: a mount-namespace-only sandbox without PID
+                # isolation exposes the HOST root through /proc/1/root;
+                # with --unshare-pid the escape path must be absent.
+                # (`outside` is absolute, so plain concatenation — join
+                # would discard the /proc/1/root prefix.)
+                p = run(["cat", "/proc/1/root" + outside])
+                if p.returncode == 0:
+                    failures.append("proc_root_escape_must_fail")
+            except Exception:
+                pass
+
+            try:
+                p = run(["tee", run_file], input_text="x\n")
+                if p.returncode != 0:
+                    failures.append("run_dir_write")
+            except Exception:
                 failures.append("run_dir_write")
-        except Exception:
-            failures.append("run_dir_write")
-    finally:
-        # F-A1: remove ONLY fixtures this invocation created, by inode
-        # identity — never a path merely because its name is predictable
-        _cleanup_probe_fixtures(created)
+        finally:
+            # F-A1: remove ONLY fixtures this invocation created, by inode
+            # identity — never a path merely because its name is predictable
+            _cleanup_probe_fixtures(created)
 
     return {"ok": not failures, "failures": failures, "details": details}

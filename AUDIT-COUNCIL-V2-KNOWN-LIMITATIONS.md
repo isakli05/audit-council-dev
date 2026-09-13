@@ -1,16 +1,28 @@
 # Audit Council v2.0 — Known Limitations
 
-Current review: **2026-09-05**, v2.0.1-equivalent source
-`8ae33444f349ce73c1359b963722e2d16acba630`. This is the canonical limitations
-document. Numbered historical dispositions remain; items 24–30 and the correction
-to item 21 describe newly reconciled current-state gaps. See the
-[backlog](docs/chatgpt-project/AUCDEV-BACKLOG.md) for ownership and acceptance criteria.
+Current review basis: **this stabilization candidate itself** (the
+qualification-exit stabilization changes shipping in the same commit as
+this document — sandbox namespace/env isolation, host-write-free preflight,
+content-aware fingerprint v2, bound skip records, run-state locking,
+stage-launch gating, v2 evidence-field alignment, generic first-pass
+validator, hermetic suite; see the AUCDEV-010 qualification-exit
+stabilization record). A commit cannot contain its own final hash, so the
+exact candidate SHA is established by the containing commit's parent chain
+(recorded in the stabilization report), not by this file. This candidate
+has had NO independent audit yet: a fresh external audit of its exact SHA
+is required before any qualification claim. The last INDEPENDENTLY
+reviewed basis remains the 2026-09-05 review of v2.0.1-equivalent source
+`8ae33444f349ce73c1359b963722e2d16acba630` (audited targets since then,
+including `c8dda1d0…`, carry their own audit records). Items below
+describe THIS candidate's tree truthfully; items 31+ state the
+stabilization deltas. See the
+[backlog](docs/chatgpt-project/AUCDEV-BACKLOG.md) for ownership and
+acceptance criteria.
 
-Date: 2026-09-04 (final release-qualification revision; reflects the tree
-after SIX independent adversarial verification rounds and the wired
-fake-model Tier-2 harness). Items marked INHERENT are accepted design
-boundaries, not defects; RESOLVED items record what closed them; the rest
-are concrete residuals with documented risk.
+Date: 2026-09-13 (qualification-exit stabilization revision). Items marked
+INHERENT are accepted design boundaries, not defects; RESOLVED items
+record what closed them; the rest are concrete residuals with documented
+risk.
 
 ## Path confinement (A0.3) — Claude side (pre-tool, mechanically denied)
 
@@ -188,3 +200,71 @@ are concrete residuals with documented risk.
 30. Installed current bytes match 8ae3344 but the committed verified installation
     cites 579e39a. A distinct independent v2.0.1 qualification/install reference
     is unresolved (AUCDEV-010); passing deterministic tests is not qualification.
+
+## Qualification-exit stabilization deltas — 2026-09-13 (candidate review basis)
+
+31. F-A-01/B-001: the bwrap wrapper now unshares PID+IPC+UTS namespaces
+    (network shared by design) and clears the environment to an explicit
+    minimal set (HOME/PATH/TERM/LANG). The preflight proves the
+    /proc/<pid>/root escape is closed and that a host environment marker
+    does not leak. The module docstring and the public contract state the
+    exact namespace/env boundary; system dirs (/etc, /usr) remain readable
+    by design; the ~/.codex auth-boundary residual (item 8) is unchanged.
+32. F-A-02/B-002/F-A-03: the sandbox preflight no longer creates ANY probe
+    file in the frozen repository root or the operator home — the repo read
+    probe reads an existing file, the outside sentinel lives in a
+    preflight-owned tempdir, and the only created fixtures are the outside
+    sentinel and the run-dir probe (inside the sanctioned writable
+    subtree). All probes are argv vectors (no shell string concatenation).
+    The repo-write probe attempts creation of `.ac-sbx-write-probe` and
+    requires the OS to refuse it; that file can only ever appear when the
+    read-only bind is already broken (which is the reported failure).
+33. B-003: first-pass independence is now MECHANICAL on the codex side —
+    the sandboxed codex independent stage cannot read the peer first-pass
+    artifact (shadowed by an empty ro-bind; recorded in the job record).
+    The interactive opus side remains protocol-enforced (disclosed; item 24
+    partially superseded).
+34. F-A-08/B-004: fingerprint v2 is content-aware (`-uall` untracked
+    inventory with per-file sha256; dirty-worktree byte map; no untracked
+    directory collapse). The write guard and verify inherit it. Bindings
+    frozen before algorithm 2 record no `fingerprint_algorithm` and verify
+    under the legacy algorithm 1 (reproduced byte-exactly); their blind
+    spot is historical and closed only for new runs.
+35. F-A-04/F-A-10: the CLI skip vocabulary now equals the state.schema.json
+    enum exactly (SKIPPABLE_PHASES single source, drift-tested), save_state
+    refuses schema-invalid skip records, and every skip record is bound to
+    the exact from→to transition that consumes it and consumed on use;
+    legacy unbound records no longer authorize any new transition.
+36. F-A-05: run-state mutations (state.json + checksums ledger) serialize
+    on a per-run flock; concurrent writers can no longer interleave
+    read-modify-write cycles.
+37. B-005: model-stage launch is mechanically gated by the authoritative
+    state-machine phase (`state_store.check_stage_launch`); the runner
+    consults the gate and holds no phase-order policy of its own.
+38. B-006/F-A-12 (executable-instruction half): all active executable
+    instructions (evidence policy + both codex prompts) now cite the v2
+    typed `line_ranges` shape, matching finding.schema.json
+    (additionalProperties:false). The evidence-store visibility classes
+    remain a library API not wired into production stages — now stated as
+    such everywhere a claim could be read (no production control claimed).
+39. B-008: the product ships a GENERIC first-pass structural validator
+    (`scripts/first_pass_validator.py`) — parameter-driven identity,
+    generic self-description, no baked event constants. Frozen binding-v2
+    validator bytes remain immutable historical evidence for their event.
+40. F-A-11/B-007: `repo_fingerprint.py identity-manifest` emits a
+    files-only-verifiable full-target identity document (head/tree sha,
+    per-file blob sha + worktree sha256, untracked content digest) with a
+    `verify-manifest-files` check an isolated auditor can run against
+    handed-off bytes alone.
+41. F-A-06: the deterministic suite is hermetic in a clean environment —
+    preflight probes use the run's own codex binary (fixture-served), the
+    resolver probe defaults to localhost under test injection, the fixture
+    codex receives its control knobs via a run-dir file (the sandbox clears
+    the environment), and genuinely external conditions (bwrap, production
+    codex toolchain, DNS, archived run evidence) are explicitly classified
+    skip conditions with reasons rather than silent host state.
+42. F-A-07: the PreToolUse hook command resolves interpreter and skill
+    directory mechanically and fails CLOSED (deny) when either cannot be
+    established; the documented install contents now include `hooks/`.
+    F-A-13: the fingerprint-mismatch helper honors its list return
+    contract.

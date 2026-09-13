@@ -11,7 +11,12 @@ hooks:
     - matcher: "Bash|Read|Grep|Glob"
       hooks:
         - type: command
-          command: /usr/bin/python3 "${CLAUDE_SKILL_DIR:-$HOME/.claude/skills/audit-council}/hooks/path_guard_hook.py"
+          # F-A-07: interpreter and skill dir are resolved mechanically
+          # (PATH python3; ${CLAUDE_SKILL_DIR} with the standard install
+          # location as fallback) and the deny layer FAILS CLOSED (exit 2
+          # = deny) when either cannot be established — never silently
+          # inert. It stays fast-exit-0 when no audit run is active.
+          command: 'sh -c ''p="$(command -v python3)" || { echo "path_guard_hook: interpreter unavailable — deny layer failing closed" >&2; exit 2; }; d="${CLAUDE_SKILL_DIR:-$HOME/.claude/skills/audit-council}"; h="$d/hooks/path_guard_hook.py"; [ -f "$h" ] || { echo "path_guard_hook: skill path not established at $d — deny layer failing closed" >&2; exit 2; }; exec "$p" "$h"'''
 ---
 
 # Audit Council — Orchestrator Instructions

@@ -19,15 +19,19 @@ an INFERENCE as an OBSERVED_FACT.
 
 ## Reference fields (finding.schema.json evidence items)
 
-Use whichever apply: `path`, `symbol`, `lines` (format `N` or `N-M`), `requirement_ref`,
-`test_ref`, `command_ref`, `artifact_hash`, plus a human `description`.
+Use whichever apply: `path`, `symbol`, `line_ranges` (typed v2 citations:
+an array of `{"start": N, "end": N}` objects, integers >= 1 with
+`end >= start`, up to 32 disjoint ranges, canonically sorted — the exact
+shape of schemas/finding.schema.json; a bare `lines` string is NOT valid v2
+and will fail schema validation), `requirement_ref`, `test_ref`,
+`command_ref`, `artifact_hash`, plus a human `description`.
 
 Hard rules:
 
 - Never invent or guess a line number. If you did not open the file at that location, cite
   no lines.
 - Never cite a file you did not actually inspect.
-- Prefer `path` + `symbol` + `lines` for code; `requirement_ref` for requirement material;
+- Prefer `path` + `symbol` + `line_ranges` for code; `requirement_ref` for requirement material;
   `test_ref` for tests; `command_ref` (+ captured result location or `artifact_hash`) for
   commands you actually ran.
 - Evidence that repo content says something (docs, comments, instruction files) is

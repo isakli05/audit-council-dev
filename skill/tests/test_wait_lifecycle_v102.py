@@ -45,7 +45,8 @@ class ZombieLifecycle(unittest.TestCase):
             os.makedirs(os.path.join(self.run_dir, sub), exist_ok=True)
         self.state = {
             "schema_version": 1, "run_id": "20260903T000000Z-aa01bb",
-            "phase": "CONTRACT_FROZEN", "completeness_state": "RUNNING",
+            "phase": "OPUS_INDEPENDENT_COMPLETE",  # B-005: canonical entry phase
+            "completeness_state": "RUNNING",
             "created_at": "2026-09-03T00:00:00Z", "timestamps": {},
             "repo_fingerprint_sha256": "deadbeefdeadbeef",
             "repo_root": self.repo,
@@ -76,9 +77,16 @@ class ZombieLifecycle(unittest.TestCase):
         prompt = os.path.join(self.run_dir, "prompts", "codex-independent.md")
         with open(prompt, "w") as f:
             f.write("prompt\n")
-        env = dict(os.environ, FAKE_CODEX_MODE=mode,
+        # B-005 fixture: canonical entry phase + a repo file for the
+        # sandbox preflight read probe; B-001 fixture channel: control
+        # knobs via the run-dir file (the sandbox clears the environment)
+        with open(os.path.join(self.repo, "audit-brief.md"), "w") as f:
+            f.write("# brief\n")
+        with open(os.path.join(self.run_dir, "fake-codex-control"), "w") as f:
+            f.write("MODE=%s\nSLEEP=5\n" % mode)
+        env = dict(os.environ,
                    CODEX_RUNNER_POLL_INTERVAL="0.02",
-                   FAKE_CODEX_SLEEP="5")
+                   AC_SANDBOX_DNS_PROBE_HOST="localhost")  # F-A-06
         proc = subprocess.run(
             [PYTHON, os.path.join(SCRIPTS, "codex_runner.py"),
              "start", "--run", self.run_dir, "--phase", "independent",

@@ -18,7 +18,42 @@ import os
 import sys
 import time
 
-SESSION = os.environ.get("FAKE_CODEX_SESSION", "fake-session-123")
+
+def _control_file_values():
+    """B-001 fixture channel: the production sandbox clears the
+    environment (--clearenv), so test control knobs are delivered via a
+    <run-dir>/fake-codex-control KEY=VALUE file (written by the test
+    harness next to the -o output path) instead of env vars. Env vars
+    remain supported for direct, unsandboxed invocations."""
+    ctrl = {}
+    argv = sys.argv[1:]
+    for i, a in enumerate(argv):
+        if a in ("-o", "--output-last-message") and i + 1 < len(argv):
+            run_dir = os.path.dirname(os.path.dirname(
+                os.path.abspath(argv[i + 1])))
+            path = os.path.join(run_dir, "fake-codex-control")
+            try:
+                with open(path, "r", encoding="utf-8") as fh:
+                    for line in fh:
+                        if "=" in line:
+                            key, val = line.strip().split("=", 1)
+                            if key and val:
+                                ctrl[key] = val
+            except OSError:
+                pass
+            break
+    return ctrl
+
+
+_CTRL = _control_file_values()
+SESSION = _CTRL.get("SESSION") or os.environ.get(
+    "FAKE_CODEX_SESSION", "fake-session-123")
+MODE = _CTRL.get("MODE") or os.environ.get("FAKE_CODEX_MODE", "ok")
+FINGERPRINT = _CTRL.get("FINGERPRINT") or os.environ.get(
+    "FAKE_CODEX_FINGERPRINT")
+USAGE_FIRST = _CTRL.get("USAGE_FIRST") or os.environ.get(
+    "FAKE_CODEX_USAGE_FIRST")
+SLEEP = _CTRL.get("SLEEP") or os.environ.get("FAKE_CODEX_SLEEP")
 
 
 def out_path_from_argv(argv):
@@ -55,8 +90,7 @@ def valid_output(kind):
         }]}
     doc = {
         "model": "gpt-5.6-sol",
-        "repository_fingerprint_sha256": os.environ.get(
-            "FAKE_CODEX_FINGERPRINT", "deadbeefdeadbeef"),
+        "repository_fingerprint_sha256": FINGERPRINT or "deadbeefdeadbeef",
         "audit_summary": "fake independent audit",
         "findings": [],
     }
@@ -76,19 +110,28 @@ def emit_events(partial=False):
 
 def main():
     argv = sys.argv[1:]
-    mode = os.environ.get("FAKE_CODEX_MODE", "ok")
+    mode = MODE
     # consume stdin (the prompt) so the parent never blocks on the pipe
     try:
         sys.stdin.buffer.read()
     except Exception:
         pass
 
+    # F-A-06: serve the sandbox-preflight probes deterministically so the
+    # suite never depends on a host-installed, logged-in real codex
+    if argv[:1] == ["--version"]:
+        sys.stdout.write("codex-cli 0.153.4 (fake)\n")
+        return 0
+    if argv[:2] == ["login", "status"]:
+        sys.stdout.write("Logged in using ChatGPT subscription (fake)\n")
+        return 0
+
     if mode == "slow":
-        time.sleep(float(os.environ.get("FAKE_CODEX_SLEEP", "2")))
+        time.sleep(float(SLEEP or "2"))
         mode = "ok"
 
     if mode == "quota":
-        if os.environ.get("FAKE_CODEX_USAGE_FIRST"):
+        if USAGE_FIRST:
             # real-world shape: a completed usage-bearing turn, THEN quota
             emit_events()
         sys.stderr.write("codex: usage limit reached for your plan (429)\n")

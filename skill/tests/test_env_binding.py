@@ -62,6 +62,8 @@ BINDING_FIELDS = {
     "head_sha", "detached_head", "worktree_identity",
     "source_repository_identity", "brief_sha256", "brief_target",
     "expected_head", "allowed_disposable_roots", "repo_fingerprint_sha256",
+    # B-004: new bindings record the content-aware fingerprint algorithm
+    "fingerprint_algorithm",
 }
 
 

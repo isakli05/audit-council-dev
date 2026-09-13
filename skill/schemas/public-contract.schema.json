@@ -34,22 +34,42 @@
       "maxItems": 4,
       "items": {
         "type": "string",
-        "enum": ["AUTO", "CURRENT", "RELEASE", "HISTORICAL"]
+        "enum": [
+          "AUTO",
+          "CURRENT",
+          "RELEASE",
+          "HISTORICAL"
+        ]
       }
     },
     "model_roles": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["opus", "codex"],
+      "required": [
+        "opus",
+        "codex"
+      ],
       "properties": {
         "opus": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["model", "role", "independent_pass"],
+          "required": [
+            "model",
+            "role",
+            "independent_pass"
+          ],
           "properties": {
-            "model": {"type": "string", "minLength": 1},
-            "role": {"type": "string", "minLength": 1},
-            "independent_pass": {"const": true}
+            "model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "role": {
+              "type": "string",
+              "minLength": 1
+            },
+            "independent_pass": {
+              "const": true
+            }
           }
         },
         "codex": {
@@ -63,11 +83,24 @@
             "independent_pass"
           ],
           "properties": {
-            "model": {"type": "string", "minLength": 1},
-            "reasoning_effort": {"type": "string", "minLength": 1},
-            "role": {"type": "string", "minLength": 1},
-            "read_only_sandbox": {"const": true},
-            "independent_pass": {"const": true}
+            "model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "reasoning_effort": {
+              "type": "string",
+              "minLength": 1
+            },
+            "role": {
+              "type": "string",
+              "minLength": 1
+            },
+            "read_only_sandbox": {
+              "const": true
+            },
+            "independent_pass": {
+              "const": true
+            }
           }
         }
       }
@@ -75,7 +108,10 @@
     "independence_rules": {
       "type": "array",
       "minItems": 3,
-      "items": {"type": "string", "minLength": 1}
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
     },
     "artifact_semantics": {
       "type": "object",
@@ -94,8 +130,13 @@
             "pattern": "^[0-9]{2}-[a-z0-9-]+\\.json$"
           }
         },
-        "evidence_model": {"type": "string", "minLength": 1},
-        "raw_outputs_preserved": {"const": true}
+        "evidence_model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "raw_outputs_preserved": {
+          "const": true
+        }
       }
     },
     "completeness_states": {
@@ -116,7 +157,10 @@
         "zero_model_calls_on_environment_failure"
       ],
       "properties": {
-        "binding": {"type": "string", "minLength": 1},
+        "binding": {
+          "type": "string",
+          "minLength": 1
+        },
         "failure_taxonomy": {
           "type": "array",
           "minItems": 9,
@@ -125,8 +169,12 @@
             "pattern": "^[A-Z][A-Z_]*$"
           }
         },
-        "environment_failure_yields_product_verdict": {"const": false},
-        "zero_model_calls_on_environment_failure": {"const": true}
+        "environment_failure_yields_product_verdict": {
+          "const": false
+        },
+        "zero_model_calls_on_environment_failure": {
+          "const": true
+        }
       }
     },
     "governor_constraints": {
@@ -147,27 +195,71 @@
         "omissions"
       ],
       "properties": {
-        "max_successful_stages_per_phase": {"type": "integer", "minimum": 0},
-        "max_total_successful_stages": {"type": "integer", "minimum": 0},
-        "max_attempts_per_phase": {"type": "integer", "minimum": 0},
-        "max_repairs_per_phase": {"type": "integer", "minimum": 0},
-        "specialists_default": {"type": "integer", "minimum": 0},
-        "specialists_normal_cap": {"type": "integer", "minimum": 0},
-        "specialists_hard_cap": {"type": "integer", "minimum": 0},
-        "max_specialist_turns": {"type": "integer", "minimum": 0},
-        "max_dynamic_probes": {"type": "integer", "minimum": 0},
-        "cached_evidence_policy": {"type": "string", "minLength": 1},
-        "force_fresh_release_gates": {"type": "boolean"},
-        "omissions": {"type": "string", "minLength": 1}
+        "max_successful_stages_per_phase": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_total_successful_stages": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_attempts_per_phase": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_repairs_per_phase": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "specialists_default": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "specialists_normal_cap": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "specialists_hard_cap": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_specialist_turns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_dynamic_probes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cached_evidence_policy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "force_fresh_release_gates": {
+          "type": "boolean"
+        },
+        "omissions": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "brief_target_metadata": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["format", "prose_paths_are"],
+      "required": [
+        "format",
+        "prose_paths_are"
+      ],
       "properties": {
-        "format": {"type": "string", "minLength": 1},
-        "prose_paths_are": {"type": "string", "minLength": 1}
+        "format": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prose_paths_are": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "runtime_capabilities": {
@@ -185,21 +277,53 @@
         "write_scope"
       ],
       "properties": {
-        "codex_invocation": {"type": "string", "minLength": 1},
-        "auth": {"type": "string", "minLength": 1},
-        "claude_path_confinement": {"type": "string", "minLength": 1},
-        "codex_write_confinement": {"type": "string", "minLength": 1},
-        "codex_read_confinement": {"type": "string", "minLength": 1},
-        "resumable": {"const": true},
-        "write_scope": {"type": "string", "minLength": 1},
-        "sandbox_preflight": {"type": "string", "minLength": 1},
-        "evidence_staging": {"type": "string", "minLength": 1}
+        "codex_invocation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "auth": {
+          "type": "string",
+          "minLength": 1
+        },
+        "claude_path_confinement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "codex_write_confinement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "codex_read_confinement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resumable": {
+          "const": true
+        },
+        "write_scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sandbox_preflight": {
+          "type": "string",
+          "minLength": 1
+        },
+        "full_target_identity_manifest": {
+          "type": "string"
+        },
+        "evidence_staging": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "known_limitations": {
       "type": "array",
       "minItems": 4,
-      "items": {"type": "string", "minLength": 1}
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
     }
   }
 }

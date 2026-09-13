@@ -186,6 +186,44 @@
           },
           "recorded_at": {
             "type": "string"
+          },
+          "from_phase": {
+            "enum": [
+              "CREATED",
+              "PREFLIGHT_COMPLETE",
+              "CONTRACT_FROZEN",
+              "OPUS_INDEPENDENT_COMPLETE",
+              "CODEX_INDEPENDENT_COMPLETE",
+              "NORMALIZED",
+              "OPUS_CROSS_EXAM_COMPLETE",
+              "CODEX_CROSS_EXAM_COMPLETE",
+              "LEDGER_COMPLETE",
+              "ADJUDICATION_COMPLETE",
+              "FINALIZED",
+              "COMPLETE"
+            ]
+          },
+          "to_phase": {
+            "enum": [
+              "CREATED",
+              "PREFLIGHT_COMPLETE",
+              "CONTRACT_FROZEN",
+              "OPUS_INDEPENDENT_COMPLETE",
+              "CODEX_INDEPENDENT_COMPLETE",
+              "NORMALIZED",
+              "OPUS_CROSS_EXAM_COMPLETE",
+              "CODEX_CROSS_EXAM_COMPLETE",
+              "LEDGER_COMPLETE",
+              "ADJUDICATION_COMPLETE",
+              "FINALIZED",
+              "COMPLETE"
+            ]
+          },
+          "consumed": {
+            "type": "boolean"
+          },
+          "consumed_at": {
+            "type": "string"
           }
         }
       }

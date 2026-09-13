@@ -367,29 +367,50 @@ def cmd_sandbox_preflight(args) -> int:
         except (ValueError, OSError):
             allowed = []
     import codex_sandbox
-    result = codex_sandbox.sandbox_preflight(repo, run_dir, allowed)
+    result = codex_sandbox.sandbox_preflight(
+        repo, run_dir, allowed,
+        codex_bin=getattr(args, "codex_bin", None) or "codex")
     print(json.dumps(result, indent=2))
     return 0 if result["ok"] else 3
 
 
 def _sandbox_preflight_errors(run_dir: str, repo_root: str,
-                              allowed_roots: list) -> list:
+                              allowed_roots: list,
+                              codex_bin: str = "codex") -> list:
     """da27c0 hardening: zero-inference viability proof through the exact
     production bubblewrap wrapper, BEFORE any attempt is counted or any
     process launched. Failure = Audit Council environment/harness
-    failure (never a model attempt, never a product verdict)."""
+    failure (never a model attempt, never a product verdict).
+    F-A-06: the probes run the run's OWN codex binary (codex_bin), not an
+    implicitly host-PATH-resolved codex."""
     import codex_sandbox
     if not codex_sandbox.bwrap_available():
         return []  # degraded posture (AC_CODEX_BWRAP=0/absent), recorded
         # per job as sandbox.active=false; preflight cannot apply
     result = codex_sandbox.sandbox_preflight(repo_root, run_dir,
-                                             allowed_roots)
+                                             allowed_roots,
+                                             codex_bin=codex_bin)
     if result["ok"]:
         return []
     return ["INVALID_AUDIT_ENVIRONMENT:SANDBOX_PREFLIGHT: "
             + ", ".join(result["failures"])
             + " — refusing to launch (no model attempt consumed); "
               "details: " + json.dumps(result["details"])]
+
+
+# B-003: first-pass independence for the codex INDEPENDENT stage is
+# mechanically enforced inside the sandbox: the peer first-pass artifact is
+# shadowed (ro-bound /dev/null) so the codex auditor cannot read Opus's
+# already-checkpointed findings through the run-dir bind. Cross-examination
+# and adjudication are post-barrier by design and are not masked.
+PEER_FIRSTPASS_ARTIFACT = "10-opus-independent.json"
+
+
+def _independence_blind_paths(run_dir: str, phase: str) -> list:
+    if phase != "independent":
+        return []
+    peer = os.path.join(run_dir, PEER_FIRSTPASS_ARTIFACT)
+    return [peer] if os.path.isfile(peer) else []
 
 
 def cmd_start(args) -> int:
@@ -408,7 +429,9 @@ def cmd_start(args) -> int:
         except (ValueError, OSError):
             pre_allowed = []
     preflight_errors = _sandbox_preflight_errors(run_dir, pre_repo,
-                                                 pre_allowed)
+                                                 pre_allowed,
+                                                 codex_bin=args.codex_bin
+                                                 or "codex")
     if preflight_errors:
         print(preflight_errors[0], file=sys.stderr)
         return 3
@@ -417,6 +440,15 @@ def cmd_start(args) -> int:
     env_errors = _env_gate_errors(run_dir)
     if env_errors:
         print(env_errors[0], file=sys.stderr)
+        return 3
+    # B-005: model-stage launch is mechanically gated by the authoritative
+    # state-machine phase — the gate (and the phase-order policy) lives in
+    # state_store, never here
+    try:
+        if hasattr(state_store, "check_stage_launch"):
+            state_store.check_stage_launch(run_dir, phase)
+    except Exception as exc:
+        print("error: %s" % exc, file=sys.stderr)
         return 3
 
     prompt_path = args.prompt or os.path.join(
@@ -474,7 +506,8 @@ def cmd_start(args) -> int:
             _allowed_roots = []
     try:
         argv_exec, sandbox_active = codex_sandbox.wrap_codex_argv(
-            argv, repo_root, run_dir, _allowed_roots)
+            argv, repo_root, run_dir, _allowed_roots,
+            blind_paths=_independence_blind_paths(run_dir, phase))
     except RuntimeError as exc:
         print("error: %s" % exc, file=sys.stderr)
         return 3
@@ -482,6 +515,7 @@ def cmd_start(args) -> int:
     attempt_number = 1 + sum(
         1 for j in state.get("codex", {}).get("jobs", [])
         if j.get("phase") == phase)
+    _blind = _independence_blind_paths(run_dir, phase)
     job = launch(run_dir, phase, argv_exec, prompt_path, out_path,
                  schema_path,
                  session_id, job_id,
@@ -489,7 +523,13 @@ def cmd_start(args) -> int:
                   "codex_argv": argv,  # exact codex argv (unwrapped)
                   "sandbox": {"wrapper": "bwrap" if sandbox_active else None,
                               "active": sandbox_active,
-                              "doc": "docs/A0-CODEX-CONFINEMENT.md"}})
+                              "doc": "docs/A0-CODEX-CONFINEMENT.md"},
+                  **({"blindness": {
+                      "masked_paths": _blind,
+                      "mechanism": "bwrap-ro-bind-/dev/null",
+                      "scope": "first-pass independence (B-003): the peer "
+                               "first-pass artifact is unreadable inside "
+                               "the sandbox"}} if _blind else {})})
     job_path = os.path.join(run_dir, "logs", "jobs", "%s.json" % job_id)
 
     # stage_counts is bumped only when the stage COMPLETES successfully (in
@@ -1012,6 +1052,14 @@ def cmd_repair(args) -> int:
     phase = job["phase"]
     state = load_state(run_dir)
 
+    # B-005: repair is also a model-stage launch — same authoritative gate
+    try:
+        if hasattr(state_store, "check_stage_launch"):
+            state_store.check_stage_launch(run_dir, phase)
+    except Exception as exc:
+        print("error: %s" % exc, file=sys.stderr)
+        return 3
+
     # da27c0: identical sandbox preflight for repair — same valid
     # execution environment as fresh/resume, before attempt accounting
     pre_repo = state.get("repo_root") or detect_repo_root(run_dir)
@@ -1023,8 +1071,11 @@ def cmd_repair(args) -> int:
                 "allowed_disposable_roots") or []
         except (ValueError, OSError):
             pre_allowed = []
+    _repair_codex_bin = (job.get("codex_argv") or job.get("argv")
+                         or ["codex"])[0]
     preflight_errors = _sandbox_preflight_errors(run_dir, pre_repo,
-                                                 pre_allowed)
+                                                 pre_allowed,
+                                                 codex_bin=_repair_codex_bin)
     if preflight_errors:
         print(preflight_errors[0], file=sys.stderr)
         return 3
@@ -1080,10 +1131,12 @@ def cmd_repair(args) -> int:
     _repo_root = state.get("repo_root") or detect_repo_root(run_dir)
     try:
         argv_exec, sandbox_active = codex_sandbox.wrap_codex_argv(
-            base_argv, _repo_root, run_dir, _allowed_roots)
+            base_argv, _repo_root, run_dir, _allowed_roots,
+            blind_paths=_independence_blind_paths(run_dir, phase))
     except RuntimeError as exc:
         print("error: %s" % exc, file=sys.stderr)
         return 3
+    _blind = _independence_blind_paths(run_dir, phase)
     new_job = launch(run_dir, phase, argv_exec,
                      repair_prompt, out_path, job["schema_path"], session_id, job_id,
                      {"repair_of": job["job_id"], "repair": True,
@@ -1091,7 +1144,13 @@ def cmd_repair(args) -> int:
                       "codex_argv": base_argv,
                       "sandbox": {"wrapper": "bwrap" if sandbox_active else None,
                                   "active": sandbox_active,
-                                  "doc": "docs/A0-CODEX-CONFINEMENT.md"}})
+                                  "doc": "docs/A0-CODEX-CONFINEMENT.md"},
+                      **({"blindness": {
+                          "masked_paths": _blind,
+                          "mechanism": "bwrap-ro-bind-/dev/null",
+                          "scope": "first-pass independence (B-003): the "
+                                   "peer first-pass artifact is unreadable "
+                                   "inside the sandbox"}} if _blind else {})})
     job_path = os.path.join(run_dir, "logs", "jobs", "%s.json" % job_id)
 
     # same stage: no stage_counts bump; mark original stage entry as repaired
@@ -1131,6 +1190,9 @@ def main(argv=None) -> int:
     p.add_argument("--run", required=True,
                    help="zero-inference viability proof of the production "
                         "bwrap environment (no model attempt consumed)")
+    p.add_argument("--codex-bin", default=None,
+                   help="codex binary the run will launch (default: the "
+                        "PATH-resolved codex)")
     p.set_defaults(func=cmd_sandbox_preflight)
 
     p = sub.add_parser("start")

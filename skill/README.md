@@ -11,7 +11,10 @@ Personal skill, available in all projects:
 
     ~/.claude/skills/audit-council/
 
-(Contents: SKILL.md, README.md, protocols/, schemas/, prompts/, scripts/, tests/.)
+(Contents: SKILL.md, README.md, protocols/, schemas/, prompts/, scripts/,
+hooks/, tests/. The `hooks/` directory is part of the installed product:
+it carries the PreToolUse path-confinement hook declared in SKILL.md's
+frontmatter — installed copies that omit it silently lose the deny layer.)
 
 ## Requirements
 
@@ -135,9 +138,14 @@ files; remove them yourself if desired.
   hooks/path_guard_hook.py) the moment /audit-council is invoked; it
   denies out-of-root tool calls before execution while a run is active
   and is inert otherwise (zero impact on sessions that never invoke the
-  skill). An optional belt-and-suspenders GLOBAL registration
-  (~/.claude/settings.json PreToolUse, same command) can still be added
-  by the operator, but is NOT required for release/historical audits.
+  skill). The hook command resolves its interpreter and skill directory
+  mechanically (PATH-resolved `python3`; `${CLAUDE_SKILL_DIR}` with the
+  standard install location as fallback) and FAILS CLOSED (exit 2, tool
+  call denied) when either cannot be established — a broken deny layer is
+  never silently inert. An optional belt-and-suspenders GLOBAL
+  registration (~/.claude/settings.json PreToolUse, same command) can
+  still be added by the operator, but is NOT required for
+  release/historical audits.
 - **Codex OS confinement**: every codex launch (fresh and resume) runs
   inside a bubblewrap boundary — repo read-only, run dir writable,
   `~/.codex` and toolchain readable, everything else outside the bind

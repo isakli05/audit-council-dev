@@ -819,6 +819,7 @@ def _fingerprint_mismatches(run_dir: str, name: str, doc: dict) -> list[str]:
         return [f"INVALID_ARTIFACT: {name} claims repository fingerprint "
                 f"{claimed!r} but the frozen run fingerprint is {frozen!r}; "
                 f"a model-provided fingerprint may not override run state"]
+    return []  # F-A-13: honor the list return contract on the success path
 
 
 def cmd_advance(args: argparse.Namespace) -> int:
@@ -851,10 +852,12 @@ def cmd_advance(args: argparse.Namespace) -> int:
     skip_entries = []
     for raw in getattr(args, "skip", None) or []:
         phase, sep, reason = raw.partition("=")
-        if not sep or phase not in state_store.PHASE_INDEX \
+        if not sep or phase not in state_store.SKIPPABLE_PHASES \
                 or not reason.strip():
-            _fail(f"invalid --skip {raw!r}: expected PHASE='reason' "
-                  f"with a known phase and a non-empty reason")
+            _fail(f"invalid --skip {raw!r}: expected PHASE='reason' where "
+                  f"PHASE is a skippable artifact phase "
+                  f"{sorted(state_store.SKIPPABLE_PHASES)} (the "
+                  f"state.schema.json enum) and the reason is non-empty")
             return EXIT_FAIL
         skip_entries.append({"skipped_phase": phase,
                              "reason": reason.strip()})
@@ -904,7 +907,12 @@ def cmd_advance(args: argparse.Namespace) -> int:
         artifact = os.path.abspath(args.artifact)
     if skip_entries:
         try:
-            state_store.record_phase_skips(run_dir, skip_entries)
+            # F-A-10: bind each skip record to the transition that will
+            # consume it (from -> to); a later, different transition can
+            # never be authorized by these records
+            state_store.record_phase_skips(run_dir, skip_entries,
+                                           from_phase=cur_phase,
+                                           to_phase=target)
         except StateError as exc2:
             _fail(str(exc2))
             return EXIT_FAIL
@@ -1368,6 +1376,15 @@ PUBLIC_CONTRACT: dict[str, Any] = {
     "independence_rules": [
         "first-pass independence barrier: neither auditor sees the other's "
         "findings before both independent audits complete",
+        "MECHANICAL for the codex first pass: the sandboxed codex "
+        "independent stage cannot read the peer first-pass artifact "
+        "(10-opus-independent.json) — its path is shadowed by an empty "
+        "ro-bind inside the bubblewrap wrapper on every fresh/resume/"
+        "repair launch, recorded in the job record",
+        "PROCEDURAL for the interactive opus side: the running session is "
+        "instructed not to read codex output before its own first pass is "
+        "checkpointed; no OS boundary encloses the interactive session "
+        "(disclosed boundary, not a mechanical claim)",
         "cross-examination is falsification, not validation",
         "no forced consensus; disagreements preserved in the ledger",
     ],
@@ -1456,17 +1473,34 @@ PUBLIC_CONTRACT: dict[str, Any] = {
             "OS-enforced EXCLUSION outside the bwrap bind set (repo ro, run "
             "dir rw, ~/.codex, resolved toolchain roots, system dirs "
             "/etc+/usr+/lib, authorized fixture roots; /tmp is a fresh "
-            "tmpfs). System directories remain readable by design. Without "
-            "bubblewrap (AC_CODEX_BWRAP=0 or missing): not enforced / "
-            "accepted residual — runner validates argv and output only"),
+            "tmpfs). PID+IPC+UTS namespaces are unshared (net stays shared "
+            "by design) and the environment is cleared to an explicit "
+            "minimal set, so /proc/<pid>/root cannot reach the host "
+            "filesystem and host environment variables do not flow into "
+            "the sandbox. System directories remain readable by design. "
+            "Without bubblewrap (AC_CODEX_BWRAP=0 or missing): not "
+            "enforced / accepted residual — runner validates argv and "
+            "output only"),
         "resumable": True,
         "write_scope": "audit-output/audit-council/<run-id>/ only",
         "sandbox_preflight": (
-            "zero-inference viability proof (codex exec, intended node, "
-            "login, chatgpt.com DNS, repo read, repo-write-denied, "
-            "outside-read-denied, run-dir write) through the exact "
-            "production bubblewrap wrapper BEFORE any model attempt is "
-            "counted; failure = INVALID_AUDIT_ENVIRONMENT:SANDBOX_PREFLIGHT"),
+            "zero-inference viability proof (the run's OWN codex binary "
+            "--version/login, intended node for the default toolchain, "
+            "chatgpt.com DNS, repo read of an EXISTING file, repo-write-"
+            "denied, outside-read-denied, /proc-root-escape-denied, "
+            "run-dir write) through the exact production bubblewrap "
+            "wrapper BEFORE any model attempt is counted; preflight "
+            "creates NO probe file in the frozen repository or the "
+            "operator home (fixtures live only in a preflight-owned "
+            "tempdir and the run dir); failure = "
+            "INVALID_AUDIT_ENVIRONMENT:SANDBOX_PREFLIGHT"),
+        "full_target_identity_manifest": (
+            "repo_fingerprint.py identity-manifest emits a files-only-"
+            "verifiable identity document (head/tree sha, per-file blob "
+            "sha + worktree sha256, untracked content digest); an "
+            "isolated auditor verifies handed-off bytes with "
+            "verify-manifest-files without any inaccessible repository "
+            "state"),
         "evidence_staging": (
             "RELEASE and HISTORICAL both stage allow-listed evidence "
             "(realpath-resolved; containment + deny-list re-applied) into "
@@ -1488,6 +1522,14 @@ PUBLIC_CONTRACT: dict[str, Any] = {
         "encoded/dynamically-constructed payloads are beyond it; it "
         "hardens on top of detection (fingerprint + write-guard + binding "
         "verification), not a sandbox",
+        "the evidence-store visibility classes and access log are a "
+        "LIBRARY API (evidence_store.py), not yet wired into the "
+        "production stage pipeline: no production control is claimed for "
+        "them; payloads under <run>/evidence/objects/ remain readable by "
+        "any in-root reader",
+        "first-pass independence is mechanical only on the codex side "
+        "(sandbox artifact masking); the interactive opus side remains "
+        "protocol-enforced",
         "specialists are default-off until eval-proven; activation requires "
         "a pre-frozen documented reason recorded before first-pass "
         "completion",

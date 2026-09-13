@@ -65,8 +65,11 @@ shape):
   - "confidence": HIGH | MEDIUM | LOW
   - "claim": precise factual claim of the defect
   - "status": "PROVISIONAL"
-  - "evidence": array of {kind, path, symbol, lines, requirement_ref, test_ref,
-    command_ref, artifact_hash, description} — at least one item per finding
+  - "evidence": array of {kind, path, symbol, line_ranges, requirement_ref,
+    test_ref, command_ref, artifact_hash, description} — at least one item
+    per finding; line_ranges is the TYPED v2 citation shape: an array of
+    {"start": N, "end": N} objects (integers >= 1, end >= start, <= 32
+    disjoint ranges, sorted); zero ranges = document-level evidence
   - "counter_evidence": evidence found that could argue against the finding, if any
   - "requirement_refs", "source_refs": references into contract sources
   - "reasoning_summary", "failure_scenario", "impact", "root_cause",

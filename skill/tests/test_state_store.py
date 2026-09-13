@@ -59,11 +59,12 @@ class TestRunId(unittest.TestCase):
 
 class TestTransitions(unittest.TestCase):
     @staticmethod
-    def scaffold_skips(run_dir, *phases):
-        # v2: jumping over artifact phases requires explicit skip records
+    def scaffold_skips(run_dir, *phases, to_phase="LEDGER_COMPLETE"):
+        # v2: jumping over artifact phases requires explicit skip records;
+        # F-A-10: records are bound to the transition that consumes them
         state_store.record_phase_skips(run_dir, [
             {"skipped_phase": p, "reason": "test scaffold jump"}
-            for p in phases])
+            for p in phases], from_phase="CREATED", to_phase=to_phase)
 
     def test_forward_chain_ok(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -117,7 +118,8 @@ class TestTransitions(unittest.TestCase):
             self.scaffold_skips(
                 run_dir, "CONTRACT_FROZEN", "OPUS_INDEPENDENT_COMPLETE",
                 "CODEX_INDEPENDENT_COMPLETE", "NORMALIZED",
-                "OPUS_CROSS_EXAM_COMPLETE")
+                "OPUS_CROSS_EXAM_COMPLETE",
+                to_phase="CODEX_CROSS_EXAM_COMPLETE")
             state_store.apply_transition(run_dir, "CODEX_CROSS_EXAM_COMPLETE")
             # would skip LEDGER_COMPLETE and ADJUDICATION_COMPLETE
             with self.assertRaises(state_store.StateError):
@@ -190,8 +192,11 @@ class TestCheckTransition(unittest.TestCase):
             state = state_store.load_state(run_dir)
             self.assertNotIn("phase_skips", state)
             # recording the same skips for real then lets the authoritative
-            # commit path accept the identical transition
-            state_store.record_phase_skips(run_dir, entries)
+            # commit path accept the identical transition (F-A-10: bound to
+            # the exact from -> to context)
+            state_store.record_phase_skips(
+                run_dir, entries, from_phase="CREATED",
+                to_phase="CODEX_INDEPENDENT_COMPLETE")
             state_store.apply_transition(
                 run_dir, "CODEX_INDEPENDENT_COMPLETE")
 
