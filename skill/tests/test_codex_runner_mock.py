@@ -288,7 +288,8 @@ class TestClassification(Harness):
 
     def test_h_malformed_json_invalid_then_repair_once(self):
         job_path = self.start(mode="malformed_json")
-        job = json.load(open(job_path))
+        with open(job_path) as fh:
+            job = json.load(fh)
         raw = job["output_path"]  # per-job raw wire output (v1.0.3)
         proc = self.wait(job_path)
         self.assertEqual(proc.returncode, 6)
@@ -414,7 +415,8 @@ class TestFingerprintRejection(Harness):
         job_path = self.start()
         proc = self.cli("wait", job_path, "--timeout", "30")
         self.assertEqual(proc.returncode, 6, proc.stdout + proc.stderr)
-        job = json.load(open(job_path))
+        with open(job_path) as fh:
+            job = json.load(fh)
         self.assertEqual(job["status"], "INVALID_OUTPUT")
         self.assertIn("INVALID_ARTIFACT", job.get("error", ""))
         self.assertTrue(job.get("raw_output_preserved"))

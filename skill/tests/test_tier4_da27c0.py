@@ -286,7 +286,8 @@ class TestReleaseStagingAndBindingLinkage(unittest.TestCase):
                               "notes.md")
         self.assertTrue(os.path.isfile(staged),
                         "RELEASE staged evidence missing from run dir")
-        content = open(staged).read()
+        with open(staged) as fh:
+            content = fh.read()
         self.assertIn("authorized evidence payload", content)
 
     @unittest.skipUnless(codex_sandbox.bwrap_available(),
@@ -317,11 +318,13 @@ class TestReleaseStagingAndBindingLinkage(unittest.TestCase):
         # production divergence: binding d7b0498f… vs record f2f59adc…
         doc = self._prepare("--mode", "RELEASE", "--ref", self.head)
         run_dir = doc["run"]
-        binding = json.load(open(os.path.join(
-            run_dir, "01-environment-binding.json")))
+        with open(os.path.join(
+                run_dir, "01-environment-binding.json")) as fh:
+            binding = json.load(fh)
         state = state_store.load_state(run_dir)
-        record = json.load(open(os.path.join(
-            run_dir, "environment-record.json")))
+        with open(os.path.join(
+                run_dir, "environment-record.json")) as fh:
+            record = json.load(fh)
         self.assertEqual(binding["binding_digest"],
                          state["env_binding_digest"])
         self.assertEqual(binding["binding_digest"],
@@ -383,8 +386,10 @@ class TestProductionArchivePreserved(unittest.TestCase):
     """The archive stays read-only; its divergence is understood."""
 
     def test_digest_divergence_documented(self):
-        binding = json.load(open(RUN_DA27C0 / "01-environment-binding.json"))
-        record = json.load(open(RUN_DA27C0 / "environment-record.json"))
+        with open(RUN_DA27C0 / "01-environment-binding.json") as fh:
+            binding = json.load(fh)
+        with open(RUN_DA27C0 / "environment-record.json") as fh:
+            record = json.load(fh)
         # pre-fix divergence (the defect this patch closes for new runs);
         # the historical run itself is never rewritten
         self.assertNotEqual(binding["binding_digest"],

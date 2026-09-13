@@ -697,7 +697,8 @@ def read_exit_code_once(job: dict):
     if not os.path.isfile(path):
         return None
     try:
-        return int(open(path, "r", encoding="utf-8").read().strip())
+        with open(path, "r", encoding="utf-8") as fh:
+            return int(fh.read().strip())
     except (ValueError, OSError):
         return None
 

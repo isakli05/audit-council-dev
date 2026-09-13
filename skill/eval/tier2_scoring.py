@@ -243,8 +243,9 @@ def run_fixture(name: str, root: str) -> dict[str, Any]:
         return {"fixture": name, "error": "no run dir"}
     import state_store
     st = state_store.load_state(run_dir)
-    binding = json.load(open(os.path.join(
-        run_dir, "01-environment-binding.json")))
+    with open(os.path.join(
+        run_dir, "01-environment-binding.json")) as fh:
+        binding = json.load(fh)
     contract = {
         "objective": "o", "scope": ["src/"], "exclusions": [],
         "authoritative_sources": ["brief.md"],

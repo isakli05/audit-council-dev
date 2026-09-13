@@ -110,8 +110,10 @@ class TestAttemptAccounting(Harness):
         self.assertEqual(len(ids), len(set(ids)))
         self.assertEqual(m["aggregates"]["invocation_count"], 2)
         by_id = {i["job_id"]: i for i in m["invocations"]}
-        orig = by_id[json.load(open(job_path))["job_id"]]
-        rep = by_id[json.load(open(repair_job))["job_id"]]
+        with open(job_path) as fh:
+            orig = by_id[json.load(fh)["job_id"]]
+        with open(repair_job) as fh:
+            rep = by_id[json.load(fh)["job_id"]]
         self.assertEqual(orig["status"], "INVALID_OUTPUT")
         self.assertEqual(rep["status"], "COMPLETE")
         self.assertEqual(rep["repair_of"], orig["job_id"])
@@ -189,7 +191,10 @@ class TestAttemptAccounting(Harness):
         errs = sorted(l for l in logs if l.endswith(".stderr.log"))
         self.assertEqual(len(jsonls), 2)
         self.assertEqual(len(errs), 2)
-        j1 = json.load(open(job1)); j2 = json.load(open(job2))
+        with open(job1) as fh:
+            j1 = json.load(fh)
+        with open(job2) as fh:
+            j2 = json.load(fh)
         self.assertNotEqual(j1["stdout_path"], j2["stdout_path"])
         self.assertNotEqual(j1["stderr_path"], j2["stderr_path"])
         self.assertNotEqual(j1["output_path"], j2["output_path"])
@@ -198,7 +203,8 @@ class TestAttemptAccounting(Harness):
         job_path = self.start(mode="slow")
         self.cli("cancel", job_path)
         logs = os.listdir(os.path.join(self.run, "logs"))
-        j = json.load(open(job_path))
+        with open(job_path) as fh:
+            j = json.load(fh)
         self.assertTrue(os.path.isfile(j["stdout_path"]))
         self.assertIn(os.path.basename(j["stdout_path"]), logs)
         m = metrics(self.run)
@@ -208,11 +214,13 @@ class TestAttemptAccounting(Harness):
         # v1.0.3 review F3: elapsed is computed once at first finalize
         job_path = self.start()
         self.wait(job_path)
-        first = json.load(open(job_path))["elapsed_sec"]
+        with open(job_path) as fh:
+            first = json.load(fh)["elapsed_sec"]
         import time as _t
         _t.sleep(0.3)
         self.wait(job_path)  # idempotent re-wait
-        again = json.load(open(job_path))["elapsed_sec"]
+        with open(job_path) as fh:
+            again = json.load(fh)["elapsed_sec"]
         self.assertEqual(first, again)
 
     def test_wait_after_cancel_returns_cancelled(self):
@@ -232,7 +240,8 @@ class TestAttemptAccounting(Harness):
         proc = self.cli("cancel", job_path)
         out = json.loads(proc.stdout.strip().splitlines()[-1])
         self.assertEqual(out["status"], "COMPLETE")
-        j = json.load(open(job_path))
+        with open(job_path) as fh:
+            j = json.load(fh)
         self.assertEqual(j["status"], "COMPLETE")
         self.assertEqual(self.state()["codex"]["stage_counts"]
                          ["independent"], 1)

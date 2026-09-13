@@ -47,8 +47,9 @@ class TestTier2FakeModelScoring(unittest.TestCase):
         fp_fixture = next(f for f in self.card["fixtures"]
                           if f["fixture"] != "clean-idioms")
         import json
-        final = json.load(open(
-            f"{fp_fixture['run_dir']}/90-final-findings.json"))
+        with open(
+                f"{fp_fixture['run_dir']}/90-final-findings.json") as fh:
+            final = json.load(fh)
         rejected = " ".join(r["title"] for r in
                             final.get("rejected_appendix", []))
         self.assertIn("FP-1", rejected)
@@ -57,7 +58,8 @@ class TestTier2FakeModelScoring(unittest.TestCase):
         ci = next(f for f in self.card["fixtures"]
                   if f["fixture"] == "clean-idioms")
         import json
-        final = json.load(open(f"{ci['run_dir']}/90-final-findings.json"))
+        with open(f"{ci['run_dir']}/90-final-findings.json") as fh:
+            final = json.load(fh)
         rejected = " ".join(r["title"] for r in
                             final.get("rejected_appendix", []))
         self.assertIn("NEG-1", rejected)

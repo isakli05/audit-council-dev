@@ -85,8 +85,9 @@ class TestElapsedOnEveryTerminal(unittest.TestCase):
         with open(job["stdout_path"], "w") as fh:
             fh.write("")
         status, cli = codex_runner.classify_and_finalize(rd, job, exit_code)
-        rec = json.load(open(os.path.join(
-            rd, "logs", "jobs", f"{job['job_id']}.json")))
+        with open(os.path.join(
+                rd, "logs", "jobs", f"{job['job_id']}.json")) as fh:
+            rec = json.load(fh)
         return status, cli, rec
 
     def test_quota_attempt_has_stable_elapsed(self):
@@ -120,12 +121,14 @@ class TestElapsedOnEveryTerminal(unittest.TestCase):
                      '"output_tokens":5}}\n')
         status, cli = codex_runner.classify_and_finalize(rd, job, 0)
         self.assertEqual((status, cli), ("INVALID_OUTPUT", 6))
-        rec = json.load(open(os.path.join(
-            rd, "logs", "jobs", f"{job['job_id']}.json")))
+        with open(os.path.join(
+                rd, "logs", "jobs", f"{job['job_id']}.json")) as fh:
+            rec = json.load(fh)
         self.assertIsInstance(rec.get("elapsed_sec"), float)
         self.assertFalse(rec["successful_stage_counted"])
         # tokens + invocation + elapsed counted, stage not
-        metrics = json.load(open(os.path.join(rd, "99-run-metrics.json")))
+        with open(os.path.join(rd, "99-run-metrics.json")) as fh:
+            metrics = json.load(fh)
         inv = metrics["invocations"][0]
         self.assertEqual(inv["status"], "INVALID_OUTPUT")
         self.assertEqual(inv["tokens"]["input_tokens"], 10)
@@ -148,8 +151,9 @@ class TestElapsedOnEveryTerminal(unittest.TestCase):
         import argparse
         codex_runner.cmd_cancel(argparse.Namespace(job=os.path.join(
             rd, "logs", "jobs", f"{job['job_id']}.json")))
-        rec = json.load(open(os.path.join(
-            rd, "logs", "jobs", f"{job['job_id']}.json")))
+        with open(os.path.join(
+                rd, "logs", "jobs", f"{job['job_id']}.json")) as fh:
+            rec = json.load(fh)
         self.assertEqual(rec["status"], "CANCELLED")
         self.assertIsInstance(rec.get("elapsed_sec"), float)
 
@@ -289,10 +293,12 @@ class TestBudgets(unittest.TestCase):
                 os.path.join(rd, "logs", "jobs", f"{job['job_id']}.json"),
                 job)
             m1 = codex_runner.rebuild_metrics(rd)
-            raw1 = open(os.path.join(rd, "99-run-metrics.json")).read()
+            with open(os.path.join(rd, "99-run-metrics.json")) as fh:
+                raw1 = fh.read()
             os.unlink(os.path.join(rd, "99-run-metrics.json"))
             codex_runner.rebuild_metrics(rd)
-            raw2 = open(os.path.join(rd, "99-run-metrics.json")).read()
+            with open(os.path.join(rd, "99-run-metrics.json")) as fh:
+                raw2 = fh.read()
             self.assertEqual(raw1, raw2)
             self.assertEqual(m1["aggregates"]["invocation_count"], 1)
 

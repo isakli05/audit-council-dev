@@ -101,8 +101,9 @@ class PrepareE2E(unittest.TestCase):
         doc = self.prepare("--mode", "RELEASE", "--ref", self.head_a)
         run_dir = self.run_dir_of(doc)
         self.assertTrue(doc["worktree_root"])
-        binding = json.load(open(os.path.join(
-            run_dir, "01-environment-binding.json")))
+        with open(os.path.join(
+                run_dir, "01-environment-binding.json")) as fh:
+            binding = json.load(fh)
         # EXACT requested HEAD is the audited environment
         self.assertEqual(binding["head_sha"], self.head_a)
         self.assertNotEqual(binding["head_sha"], self.head_b)
@@ -125,11 +126,13 @@ class PrepareE2E(unittest.TestCase):
         run_dir = self.run_dir_of(doc)
         record_path = os.path.join(run_dir, "environment-record.json")
         self.assertTrue(os.path.isfile(record_path))
-        record = json.load(open(record_path))
+        with open(record_path) as fh:
+            record = json.load(fh)
+        with open(os.path.join(
+                SCHEMAS_DIR, "environment-record.schema.json")) as fh:
+            schema = json.load(fh)
         errors = validate_artifact.validate(
-            record, json.load(open(os.path.join(
-                SCHEMAS_DIR, "environment-record.schema.json"))),
-            base_dir=SCHEMAS_DIR)
+            record, schema, base_dir=SCHEMAS_DIR)
         self.assertEqual(errors, [])
         self.assertEqual(record["mode"], "RELEASE")
         self.assertEqual(record["source_repo_realpath"],
@@ -157,11 +160,13 @@ class PrepareE2E(unittest.TestCase):
     def test_resume_uses_same_frozen_worktree_identity(self):
         doc = self.prepare("--mode", "RELEASE", "--ref", self.head_a)
         run_dir = self.run_dir_of(doc)
-        binding = json.load(open(os.path.join(
-            run_dir, "01-environment-binding.json")))
+        with open(os.path.join(
+                run_dir, "01-environment-binding.json")) as fh:
+            binding = json.load(fh)
         self.ac("resume-check", "--run", run_dir)
-        binding2 = json.load(open(os.path.join(
-            run_dir, "01-environment-binding.json")))
+        with open(os.path.join(
+                run_dir, "01-environment-binding.json")) as fh:
+            binding2 = json.load(fh)
         self.assertEqual(binding2["binding_digest"],
                          binding["binding_digest"])
         proc = self.ac("resume-check", "--run", run_dir)
@@ -171,8 +176,9 @@ class PrepareE2E(unittest.TestCase):
     def test_historical_evidence_allow_and_deny_enforced(self):
         doc = self.prepare("--mode", "HISTORICAL", "--ref", self.head_a,
                            "--evidence-allow", "docs/notes.md")
-        record = json.load(open(os.path.join(
-            doc["run"], "environment-record.json")))
+        with open(os.path.join(
+                doc["run"], "environment-record.json")) as fh:
+            record = json.load(fh)
         staged = [e["path"] for e in record.get("staged_evidence") or []]
         self.assertEqual(staged, ["docs/notes.md"])
         # deny-listed paths are always refused, allow-list or not
@@ -191,8 +197,9 @@ class PrepareE2E(unittest.TestCase):
         wt = doc["worktree_root"]
         st = state_store.load_state(run_dir)
         c = contract()
-        binding = json.load(open(os.path.join(
-            run_dir, "01-environment-binding.json")))
+        with open(os.path.join(
+                run_dir, "01-environment-binding.json")) as fh:
+            binding = json.load(fh)
         c["target_repository"] = {
             "root": wt, "head_sha": binding["head_sha"],
             "fingerprint_sha256": st["repo_fingerprint_sha256"],

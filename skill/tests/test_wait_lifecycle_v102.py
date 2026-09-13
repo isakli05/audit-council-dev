@@ -136,7 +136,8 @@ class ZombieLifecycle(unittest.TestCase):
         self.assertEqual(out["status"], "QUOTA", out)
         self.assertEqual(rc, 2)
         # failed stage not counted as successful
-        state = json.load(open(os.path.join(self.run_dir, "state.json")))
+        with open(os.path.join(self.run_dir, "state.json")) as fh:
+            state = json.load(fh)
         self.assertEqual(state["codex"]["stage_counts"]["independent"], 0)
 
     def test_auth_zombie_classifies_auth_error(self):
@@ -144,7 +145,8 @@ class ZombieLifecycle(unittest.TestCase):
         rc, out = self._wait_zombie(job)
         self.assertEqual(out["status"], "AUTH_ERROR", out)
         self.assertEqual(rc, 3)
-        state = json.load(open(os.path.join(self.run_dir, "state.json")))
+        with open(os.path.join(self.run_dir, "state.json")) as fh:
+            state = json.load(fh)
         self.assertEqual(state["codex"]["stage_counts"]["independent"], 0)
 
     def test_failed_zombie_classifies_failed(self):
@@ -180,7 +182,8 @@ class ZombieLifecycle(unittest.TestCase):
         self.assertEqual(last["status"], "FAILED", last)
         self.assertIsNone(last["exit_code"])
         self.assertEqual(rc, 1)
-        state = json.load(open(os.path.join(self.run_dir, "state.json")))
+        with open(os.path.join(self.run_dir, "state.json")) as fh:
+            state = json.load(fh)
         self.assertEqual(state["codex"]["stage_counts"]["independent"], 0)
 
     def test_zombie_without_exit_file_stays_running(self):
@@ -212,10 +215,14 @@ class ZombieLifecycle(unittest.TestCase):
         creates it ~0.5s later -> the grace loop must find it and finalize
         (FAILED for a non-zero code) rather than exhaust or run forever."""
         job = self._launch_fake("crash")
-        code = open(job["exit_code_path"]).read().strip()
+        with open(job["exit_code_path"]) as fh:
+            code = fh.read().strip()
         os.remove(job["exit_code_path"])
-        timer = threading.Timer(0.5, lambda: open(
-            job["exit_code_path"], "w").write(code))
+
+        def _rewrite_exit_code():
+            with open(job["exit_code_path"], "w") as fh:
+                fh.write(code)
+        timer = threading.Timer(0.5, _rewrite_exit_code)
         timer.start()
         ns = mock.Mock(job=self._job_path(job), timeout=10)
         buf = io.StringIO()

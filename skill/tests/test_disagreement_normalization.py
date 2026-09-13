@@ -359,7 +359,8 @@ class TestLedgerAdvanceIntegration(unittest.TestCase):
         return doc
 
     def _run_fingerprint(self):
-        state = json.load(open(os.path.join(self.run_dir, "state.json")))
+        with open(os.path.join(self.run_dir, "state.json")) as fh:
+            state = json.load(fh)
         return state["repo_fingerprint_sha256"]
 
     def _walk_to_cross_exam_complete(self):
@@ -367,8 +368,9 @@ class TestLedgerAdvanceIntegration(unittest.TestCase):
         fp = self._run_fingerprint()
         c = contract()
         # v2 A0.6: contract root/head must match the frozen binding
-        binding = json.load(open(os.path.join(
-            self.run_dir, "01-environment-binding.json")))
+        with open(os.path.join(
+                self.run_dir, "01-environment-binding.json")) as fh:
+            binding = json.load(fh)
         c["target_repository"]["root"] = binding["repo_root_realpath"]
         c["target_repository"]["head_sha"] = binding["head_sha"]
         c["target_repository"]["fingerprint_sha256"] = fp
@@ -415,7 +417,8 @@ class TestLedgerAdvanceIntegration(unittest.TestCase):
                          "--to", "LEDGER_COMPLETE",
                          "--artifact", "-", "--stdin", stdin_doc=ledger())
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
-        state = json.load(open(os.path.join(self.run_dir, "state.json")))
+        with open(os.path.join(self.run_dir, "state.json")) as fh:
+            state = json.load(fh)
         self.assertEqual(state["phase"], "LEDGER_COMPLETE")
 
 

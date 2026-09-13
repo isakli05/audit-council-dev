@@ -125,8 +125,9 @@ class TestReviewFixLifecycle(unittest.TestCase):
     def _freeze(self, run_dir):
         st = state_store.load_state(run_dir)
         c = contract()
-        binding = json.load(open(os.path.join(
-            run_dir, "01-environment-binding.json")))
+        with open(os.path.join(
+                run_dir, "01-environment-binding.json")) as fh:
+            binding = json.load(fh)
         c["target_repository"] = {
             "root": self.repo, "head_sha": binding["head_sha"],
             "fingerprint_sha256": st["repo_fingerprint_sha256"],
@@ -179,8 +180,9 @@ class TestReviewFixLifecycle(unittest.TestCase):
 
     def test_f5_v1_era_run_still_accepts_legacy_lines_artifact(self):
         run_dir = self._init()
-        head = json.load(open(os.path.join(
-            run_dir, "01-environment-binding.json")))["head_sha"]
+        with open(os.path.join(
+                run_dir, "01-environment-binding.json")) as fh:
+            head = json.load(fh)["head_sha"]
         # degrade to a v1-era run: drop binding + digest, fix checksums
         os.unlink(os.path.join(run_dir, "01-environment-binding.json"))
         state = state_store.load_state(run_dir)
@@ -451,7 +453,8 @@ class TestRound3Hardening(unittest.TestCase):
         # in-root binding rewrite with a REGENERATED self-digest: the
         # out-of-root registry pin must catch it
         binding_path = os.path.join(run_dir, "01-environment-binding.json")
-        binding = json.load(open(binding_path))
+        with open(binding_path) as fh:
+            binding = json.load(fh)
         binding["allowed_disposable_roots"] = ["/"]
         sys.path.insert(0, str(SCRIPTS))
         import env_binding
@@ -560,7 +563,8 @@ class TestRound4Hardening(unittest.TestCase):
                    if "audit-output/audit-council/" in l][0]
         # forge phase=FINALIZED directly (in-root write, NO checksum fix)
         spath = os.path.join(run_dir, "state.json")
-        state = json.load(open(spath))
+        with open(spath) as fh:
+            state = json.load(fh)
         state["phase"] = "FINALIZED"
         with open(spath, "w") as fh:
             json.dump(state, fh)

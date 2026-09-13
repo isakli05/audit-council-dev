@@ -158,7 +158,8 @@ class TestCheckTransition(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = make_run(tmp)
             state_store.apply_transition(run_dir, "CONTRACT_FROZEN")
-            before = open(state_store.state_path(run_dir), "rb").read()
+            with open(state_store.state_path(run_dir), "rb") as fh:
+                before = fh.read()
             for bad in ("CONTRACT_FROZEN", "CREATED", "NOT_A_PHASE"):
                 with self.assertRaises(state_store.StateError):
                     state_store.check_transition(run_dir, bad)
@@ -167,8 +168,8 @@ class TestCheckTransition(unittest.TestCase):
             self.assertEqual(previewed["phase"],
                              "OPUS_INDEPENDENT_COMPLETE")
             # pure: state.json byte-identical, no attempt accounting
-            self.assertEqual(
-                open(state_store.state_path(run_dir), "rb").read(), before)
+            with open(state_store.state_path(run_dir), "rb") as fh:
+                self.assertEqual(fh.read(), before)
             state = state_store.load_state(run_dir)
             self.assertEqual(state["phase"], "CONTRACT_FROZEN")
             self.assertNotIn("OPUS_INDEPENDENT_COMPLETE",

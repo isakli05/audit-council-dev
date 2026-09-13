@@ -73,8 +73,9 @@ class TestV1ArtifactCompat(unittest.TestCase):
         # degrade to a v1-ERA run: the in-memory legacy reader is scoped to
         # runs that predate environment bindings (H.4 review F5) — a v2 run
         # may never introduce legacy `lines` artifacts
-        head = json.load(open(os.path.join(
-            run_dir, "01-environment-binding.json")))["head_sha"]
+        with open(os.path.join(
+                run_dir, "01-environment-binding.json")) as fh:
+            head = json.load(fh)["head_sha"]
         os.unlink(os.path.join(run_dir, "01-environment-binding.json"))
         state = state_store.load_state(run_dir)
         state.pop("env_binding_digest", None)
@@ -82,9 +83,11 @@ class TestV1ArtifactCompat(unittest.TestCase):
         # drop the binding's line from the checksum ledger (simulating a
         # run created before v2 ever wrote one)
         cpath = os.path.join(run_dir, "checksums.sha256")
-        lines = [l for l in open(cpath).read().splitlines()
-                 if "01-environment-binding.json" not in l]
-        open(cpath, "w").write("\n".join(lines) + "\n")
+        with open(cpath) as fh:
+            lines = [l for l in fh.read().splitlines()
+                     if "01-environment-binding.json" not in l]
+        with open(cpath, "w") as fh:
+            fh.write("\n".join(lines) + "\n")
         st = state_store.load_state(run_dir)
 
         c = contract()
@@ -109,7 +112,8 @@ class TestV1ArtifactCompat(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
 
         # on-disk bytes still carry the legacy field — NEVER rewritten
-        on_disk = open(os.path.join(run_dir, "10-opus-independent.json")).read()
+        with open(os.path.join(run_dir, "10-opus-independent.json")) as fh:
+            on_disk = fh.read()
         self.assertIn('"lines"', on_disk)
         self.assertNotIn("line_ranges", on_disk)
 
@@ -129,11 +133,12 @@ class TestV1ArtifactCompat(unittest.TestCase):
         for name in os.listdir(run_dir):
             path = os.path.join(run_dir, name)
             if os.path.isfile(path):
-                before[name] = open(path, "rb").read()
+                with open(path, "rb") as fh:
+                    before[name] = fh.read()
         proc = self._cli("resume-check", "--run", run_dir)
         for name, payload in before.items():
-            self.assertEqual(open(os.path.join(run_dir, name), "rb").read(),
-                             payload, name)
+            with open(os.path.join(run_dir, name), "rb") as fh:
+                self.assertEqual(fh.read(), payload, name)
 
 
 if __name__ == "__main__":

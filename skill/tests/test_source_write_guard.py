@@ -84,7 +84,8 @@ class TestSourceWriteGuard(unittest.TestCase):
             self.assertTrue(
                 os.path.exists(os.path.join(self.run_dir, name)),
                 f"missing {name}")
-        state = json.load(open(os.path.join(self.run_dir, "state.json")))
+        with open(os.path.join(self.run_dir, "state.json")) as fh:
+            state = json.load(fh)
         self.assertEqual(state["phase"], "CREATED")
         self.assertEqual(state["completeness_state"], "RUNNING")
 

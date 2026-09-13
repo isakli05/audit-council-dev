@@ -92,8 +92,9 @@ class TestResumeLifecycle(unittest.TestCase):
         self._tmp.cleanup()
 
     def _run_fingerprint(self):
-        return json.load(open(os.path.join(
-            self.run_dir, "state.json")))["repo_fingerprint_sha256"]
+        with open(os.path.join(
+                self.run_dir, "state.json")) as fh:
+            return json.load(fh)["repo_fingerprint_sha256"]
 
     def _freeze_contract_stdin(self):
         head = git(self.repo, "rev-parse", "HEAD").strip()
@@ -156,7 +157,8 @@ class TestResumeLifecycle(unittest.TestCase):
     def test_full_lifecycle_and_resume_point(self):
         frozen = self._freeze_contract_stdin()
         self.assertTrue(frozen["ok"])
-        state = json.load(open(os.path.join(self.run_dir, "state.json")))
+        with open(os.path.join(self.run_dir, "state.json")) as fh:
+            state = json.load(fh)
         self.assertEqual(state["phase"], "CONTRACT_FROZEN")
         self.assertIn("PREFLIGHT_COMPLETE", state["timestamps"])
         self.assertIn("CONTRACT_FROZEN", state["timestamps"])
@@ -179,7 +181,8 @@ class TestResumeLifecycle(unittest.TestCase):
         self.assertIn(doc["earliest_incomplete_phase"],
                       ("OPUS_INDEPENDENT_COMPLETE",
                        "CODEX_INDEPENDENT_COMPLETE"))
-        state = json.load(open(os.path.join(self.run_dir, "state.json")))
+        with open(os.path.join(self.run_dir, "state.json")) as fh:
+            state = json.load(fh)
         self.assertEqual(state["phase"], "OPUS_INDEPENDENT_COMPLETE")
         self.assertEqual(state["completeness_state"], "RUNNING")
         # state intact: the recorded phases are still timestamped
@@ -197,7 +200,8 @@ class TestResumeLifecycle(unittest.TestCase):
         self.assertEqual(doc["problems"], [])
         self.assertIn(doc["earliest_incomplete_phase"],
                       ("CONTRACT_FROZEN", "OPUS_INDEPENDENT_COMPLETE"))
-        state = json.load(open(os.path.join(self.run_dir, "state.json")))
+        with open(os.path.join(self.run_dir, "state.json")) as fh:
+            state = json.load(fh)
         self.assertEqual(state["phase"], "CONTRACT_FROZEN")
 
         # resuming works: the next advance succeeds from the mid-state
@@ -218,18 +222,20 @@ class TestResumeLifecycle(unittest.TestCase):
         request carries DIFFERENT schema-valid bytes on stdin."""
         self._freeze_contract_stdin()
         self._advance_opus_stdin()
-        art_before = open(os.path.join(
-            self.run_dir, "10-opus-independent.json"), "rb").read()
+        with open(os.path.join(
+                self.run_dir, "10-opus-independent.json"), "rb") as fh:
+            art_before = fh.read()
         proc = cli("advance", "--run", self.run_dir,
                    "--to", "CONTRACT_FROZEN",
                    "--artifact", os.path.join(
                        self.run_dir, "02-audit-contract.json"))
         self.assertEqual(proc.returncode, 1)
         self.assertFalse(json.loads(proc.stdout)["ok"])
-        self.assertEqual(
-            open(os.path.join(self.run_dir, "10-opus-independent.json"),
-                 "rb").read(), art_before)
-        state = json.load(open(os.path.join(self.run_dir, "state.json")))
+        with open(os.path.join(self.run_dir, "10-opus-independent.json"),
+                  "rb") as fh:
+            self.assertEqual(fh.read(), art_before)
+        with open(os.path.join(self.run_dir, "state.json")) as fh:
+            state = json.load(fh)
         self.assertEqual(state["phase"], "OPUS_INDEPENDENT_COMPLETE")
 
         # B-001/GREEN-3: backward target with DIFFERENT valid stdin bytes
@@ -250,7 +256,8 @@ class TestResumeLifecycle(unittest.TestCase):
         self.assertEqual(self._checksum_entry("02-audit-contract.json"),
                          entry_before)
         self.assertEqual(self._snap("10-opus-independent.json"), art_before)
-        state = json.load(open(os.path.join(self.run_dir, "state.json")))
+        with open(os.path.join(self.run_dir, "state.json")) as fh:
+            state = json.load(fh)
         self.assertEqual(state["phase"], "OPUS_INDEPENDENT_COMPLETE")
 
     def test_repeated_freeze_rejected_preserves_frozen_contract(self):
@@ -281,7 +288,8 @@ class TestResumeLifecycle(unittest.TestCase):
         code, doc = resume_check(self.run_dir)
         self.assertEqual(code, 0, doc)
         self.assertEqual(doc["problems"], [])
-        state = json.load(open(os.path.join(self.run_dir, "state.json")))
+        with open(os.path.join(self.run_dir, "state.json")) as fh:
+            state = json.load(fh)
         self.assertEqual(state["phase"], "CONTRACT_FROZEN")
         # the only permitted state.json change: failed-attempt accounting
         self.assertEqual(state["phase_attempts"]["CONTRACT_FROZEN"], 2)
@@ -310,7 +318,8 @@ class TestResumeLifecycle(unittest.TestCase):
         code, doc = resume_check(self.run_dir)
         self.assertEqual(code, 0, doc)
         self.assertEqual(doc["problems"], [])
-        state = json.load(open(os.path.join(self.run_dir, "state.json")))
+        with open(os.path.join(self.run_dir, "state.json")) as fh:
+            state = json.load(fh)
         self.assertEqual(state["phase"], "OPUS_INDEPENDENT_COMPLETE")
         self.assertEqual(state["phase_attempts"]["OPUS_INDEPENDENT_COMPLETE"],
                          2)
@@ -325,13 +334,14 @@ class TestTamperDetected(unittest.TestCase):
         self.repo = make_repo(self._tmp.name)
         self.run_dir = init_run(self.repo, self._tmp.name)
         doc = contract()
-        binding = json.load(open(os.path.join(
-            self.run_dir, "01-environment-binding.json")))
+        with open(os.path.join(
+                self.run_dir, "01-environment-binding.json")) as fh:
+            binding = json.load(fh)
         doc["target_repository"]["root"] = binding["repo_root_realpath"]
         doc["target_repository"]["head_sha"] = binding["head_sha"]
-        doc["target_repository"]["fingerprint_sha256"] = \
-            json.load(open(os.path.join(
-                self.run_dir, "state.json")))["repo_fingerprint_sha256"]
+        with open(os.path.join(self.run_dir, "state.json")) as fh:
+            doc["target_repository"]["fingerprint_sha256"] = \
+                json.load(fh)["repo_fingerprint_sha256"]
         proc = cli("freeze-contract", "--run", self.run_dir,
                    "--contract", "-", "--stdin",
                    stdin=json.dumps(doc).encode())
@@ -431,7 +441,8 @@ class TestRunIdCollision(unittest.TestCase):
         finally:
             state_store.new_run_id = real
         self.assertEqual(rc, 1)  # refused
-        self.assertIn("do not clobber", open(sentinel).read())
+        with open(sentinel) as fh:
+            self.assertIn("do not clobber", fh.read())
         self.assertEqual(os.listdir(existing_dir), ["sentinel.txt"])
 
     def test_init_run_retries_to_fresh_dir_when_generator_respects_existing(self):

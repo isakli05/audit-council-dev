@@ -69,7 +69,8 @@ class Fixture(unittest.TestCase):
         run_dir = proc.stdout.strip()
         # pin the frozen fingerprint to a known value for these tests
         spath = os.path.join(run_dir, "state.json")
-        state = json.load(open(spath))
+        with open(spath) as fh:
+            state = json.load(fh)
         state["repo_fingerprint_sha256"] = FROZEN
         with open(spath, "w") as f:
             json.dump(state, f)
@@ -78,8 +79,9 @@ class Fixture(unittest.TestCase):
     def freeze_contract(self, run_dir, fingerprint=FROZEN):
         # v2 A0.6: contract root/head must match the frozen environment
         # binding (placeholder values are now rejected)
-        head = json.load(open(os.path.join(
-            run_dir, "01-environment-binding.json")))["head_sha"]
+        with open(os.path.join(
+                run_dir, "01-environment-binding.json")) as fh:
+            head = json.load(fh)["head_sha"]
         contract = {
             "objective": "o", "scope": ["a.txt"], "exclusions": [],
             "authoritative_sources": ["brief.md"],
@@ -123,7 +125,8 @@ class TestFingerprintInvariant(Fixture):
         proc = self.opus_audit(run_dir, fingerprint=WRONG)
         self.assertNotEqual(proc.returncode, 0)
         self.assertIn("INVALID_ARTIFACT", proc.stderr + proc.stdout)
-        state = json.load(open(os.path.join(run_dir, "state.json")))
+        with open(os.path.join(run_dir, "state.json")) as fh:
+            state = json.load(fh)
         self.assertNotEqual(state["phase"], "OPUS_INDEPENDENT_COMPLETE")
 
     def test_correct_frozen_sha_accepted(self):
@@ -131,7 +134,8 @@ class TestFingerprintInvariant(Fixture):
         self.assertEqual(self.freeze_contract(run_dir).returncode, 0)
         proc = self.opus_audit(run_dir, fingerprint=FROZEN)
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        state = json.load(open(os.path.join(run_dir, "state.json")))
+        with open(os.path.join(run_dir, "state.json")) as fh:
+            state = json.load(fh)
         self.assertEqual(state["phase"], "OPUS_INDEPENDENT_COMPLETE")
 
     def test_contract_fingerprint_mismatch_rejected(self):
@@ -148,16 +152,20 @@ class TestFingerprintInvariant(Fixture):
         # checksum so ONLY the semantic check can catch it
         self.assertEqual(self.opus_audit(run_dir, fingerprint=FROZEN).returncode, 0)
         art_path = os.path.join(run_dir, "10-opus-independent.json")
-        doc = json.load(open(art_path))
+        with open(art_path) as fh:
+            doc = json.load(fh)
         doc["repository_fingerprint_sha256"] = WRONG
         with open(art_path, "w") as f:
             json.dump(doc, f)
         cs = os.path.join(run_dir, "checksums.sha256")
-        lines = [l for l in open(cs) if not l.endswith(
-            " 10-opus-independent.json\n")]
-        digest = hashlib.sha256(open(art_path, "rb").read()).hexdigest()
+        with open(cs) as fh:
+            lines = [l for l in fh if not l.endswith(
+                " 10-opus-independent.json\n")]
+        with open(art_path, "rb") as fh:
+            digest = hashlib.sha256(fh.read()).hexdigest()
         lines.append("%s  10-opus-independent.json\n" % digest)
-        open(cs, "w").writelines(lines)
+        with open(cs, "w") as fh:
+            fh.writelines(lines)
         proc = run_cli(["resume-check", "--run", run_dir])
         self.assertEqual(proc.returncode, 9)  # EXIT_INVALID_ARTIFACT
         self.assertIn("INVALID_ARTIFACT", proc.stdout + proc.stderr)
@@ -183,7 +191,8 @@ class TestFingerprintInvariant(Fixture):
         self.assertNotIn("INVALID_ARTIFACT", proc.stderr + proc.stdout)
         self.assertFalse(os.path.isfile(
             os.path.join(run_dir, "90-final-findings.json")))
-        state = json.load(open(os.path.join(run_dir, "state.json")))
+        with open(os.path.join(run_dir, "state.json")) as fh:
+            state = json.load(fh)
         self.assertEqual(state["phase"], "OPUS_INDEPENDENT_COMPLETE")
         # (2) fingerprint invariant on the eligible path: move the run to
         # its legitimately eligible pre-finalization phase via the
@@ -204,9 +213,11 @@ class TestFingerprintInvariant(Fixture):
         # rejected before any finalize can consume it
         self.assertNotEqual(proc.returncode, 0)
         self.assertIn("INVALID_ARTIFACT", proc.stderr + proc.stdout)
-        state = json.load(open(os.path.join(run_dir, "state.json")))
+        with open(os.path.join(run_dir, "state.json")) as fh:
+            state = json.load(fh)
         self.assertEqual(state["phase"], "LEDGER_COMPLETE")
-        cs = open(os.path.join(run_dir, "checksums.sha256")).read()
+        with open(os.path.join(run_dir, "checksums.sha256")) as fh:
+            cs = fh.read()
         self.assertNotIn("90-final-findings.json", cs)
 
     def test_invalid_output_diagnosable_not_canonical(self):
@@ -218,9 +229,11 @@ class TestFingerprintInvariant(Fixture):
         # advance and the artifact was never recorded as canonical checksum
         staged = os.path.join(run_dir, "10-opus-independent.json")
         self.assertTrue(os.path.isfile(staged))
-        state = json.load(open(os.path.join(run_dir, "state.json")))
+        with open(os.path.join(run_dir, "state.json")) as fh:
+            state = json.load(fh)
         self.assertEqual(state["phase"], "CONTRACT_FROZEN")
-        cs = open(os.path.join(run_dir, "checksums.sha256")).read()
+        with open(os.path.join(run_dir, "checksums.sha256")) as fh:
+            cs = fh.read()
         self.assertNotIn("10-opus-independent.json", cs)
 
 
@@ -242,9 +255,11 @@ class TestSmokeDocConsistency(unittest.TestCase):
                          and os.path.isfile(SMOKE_RECORD),
                          "smoke artifacts not present on this machine")
     def test_record_finding_count_matches_canonical_artifact(self):
-        doc = json.load(open(SMOKE_ARTIFACT))
+        with open(SMOKE_ARTIFACT) as fh:
+            doc = json.load(fh)
         ids = [f["id"] for f in doc.get("findings", [])]
-        text = open(SMOKE_RECORD).read()
+        with open(SMOKE_RECORD) as fh:
+            text = fh.read()
         # every canonical finding id is mentioned, and the record states the
         # canonical count; the canonical artifact wins over any prose claim
         for cid in ids:
@@ -263,7 +278,8 @@ class TestInlineBrief(Fixture):
     def test_file_brief_still_works(self):
         run_dir = self.init_run()
         self.assertTrue(os.path.isdir(run_dir))
-        man = json.load(open(os.path.join(run_dir, "00-run-manifest.json")))
+        with open(os.path.join(run_dir, "00-run-manifest.json")) as fh:
+            man = json.load(fh)
         self.assertEqual(man["brief_source"], "file")
         self.assertEqual(man["brief_path"],
                          os.path.join(self.repo, "brief.md"))
@@ -276,24 +292,29 @@ class TestInlineBrief(Fixture):
         run_dir = proc.stdout.strip()
         mat = os.path.join(run_dir, "inputs", "original-audit-brief.md")
         self.assertTrue(os.path.isfile(mat), "materialized brief missing")
-        self.assertEqual(open(mat).read(), text)
+        with open(mat) as fh:
+            self.assertEqual(fh.read(), text)
 
     def test_inline_brief_checksum_persisted(self):
         text = "# inline\nbody\n"
         run_dir = run_cli(["init-run", "--repo", self.repo,
                            "--brief-inline"], stdin_text=text).stdout.strip()
         mat = os.path.join(run_dir, "inputs", "original-audit-brief.md")
-        digest = hashlib.sha256(open(mat, "rb").read()).hexdigest()
-        man = json.load(open(os.path.join(run_dir, "00-run-manifest.json")))
+        with open(mat, "rb") as fh:
+            digest = hashlib.sha256(fh.read()).hexdigest()
+        with open(os.path.join(run_dir, "00-run-manifest.json")) as fh:
+            man = json.load(fh)
         self.assertEqual(man["brief_sha256"], digest)
         self.assertEqual(man["brief_source"], "inline")
-        cs = open(os.path.join(run_dir, "checksums.sha256")).read()
+        with open(os.path.join(run_dir, "checksums.sha256")) as fh:
+            cs = fh.read()
         self.assertIn(digest, cs)
 
     def test_resume_references_materialized_copy(self):
         run_dir = run_cli(["init-run", "--repo", self.repo,
                            "--brief-inline"], stdin_text="b\n").stdout.strip()
-        man = json.load(open(os.path.join(run_dir, "00-run-manifest.json")))
+        with open(os.path.join(run_dir, "00-run-manifest.json")) as fh:
+            man = json.load(fh)
         self.assertTrue(man["brief_path"].startswith(run_dir))
         # resume-check validates checksums incl. the materialized brief
         proc = run_cli(["resume-check", "--run", run_dir])
@@ -304,7 +325,8 @@ class TestInlineBrief(Fixture):
         run_dir = run_cli(["init-run", "--repo", self.repo, "--brief-inline"],
                           stdin_text=text).stdout.strip()
         mat = os.path.join(run_dir, "inputs", "original-audit-brief.md")
-        self.assertEqual(open(mat, encoding="utf-8").read(), text)
+        with open(mat, encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), text)
 
     def test_nonexistent_path_not_silently_inline(self):
         proc = run_cli(["init-run", "--repo", self.repo, "--brief",
@@ -339,19 +361,22 @@ class TestInlineBrief(Fixture):
 class TestWriteGuaranteeDocs(unittest.TestCase):
 
     def test_readme_distinguishes_prevention_from_detection(self):
-        text = open(os.path.join(SKILL_ROOT, "README.md")).read()
+        with open(os.path.join(SKILL_ROOT, "README.md")) as fh:
+            text = fh.read()
         self.assertIn("mechanically PREVENTED", text)
         self.assertIn("DETECT", text)
         self.assertIn("detection, not an", text)
 
     def test_skill_md_distinguishes_prevention_from_detection(self):
-        text = open(os.path.join(SKILL_ROOT, "SKILL.md")).read()
+        with open(os.path.join(SKILL_ROOT, "SKILL.md")) as fh:
+            text = fh.read()
         self.assertIn("mechanically PREVENTED", text)
         self.assertIn("DETECT", text)
 
     def test_no_os_sandbox_claim_for_claude(self):
         for name in ("README.md", "SKILL.md"):
-            text = open(os.path.join(SKILL_ROOT, name)).read()
+            with open(os.path.join(SKILL_ROOT, name)) as fh:
+                text = fh.read()
             self.assertNotIn("Claude has an OS-level read-only sandbox",
                              text)
             self.assertNotIn("Claude runs in a read-only sandbox", text)

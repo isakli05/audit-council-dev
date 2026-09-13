@@ -118,11 +118,13 @@ class TestBindingLifecycle(EnvLifecycleBase):
         run_dir = self.init_run()
         binding_path = os.path.join(run_dir, "01-environment-binding.json")
         self.assertTrue(os.path.isfile(binding_path))
-        binding = json.load(open(binding_path))
+        with open(binding_path) as fh:
+            binding = json.load(fh)
+        with open(os.path.join(
+                SCHEMAS_DIR, "env-binding.schema.json")) as fh:
+            schema = json.load(fh)
         errors = validate_artifact.validate(
-            binding, json.load(open(os.path.join(
-                SCHEMAS_DIR, "env-binding.schema.json"))),
-            base_dir=SCHEMAS_DIR)
+            binding, schema, base_dir=SCHEMAS_DIR)
         self.assertEqual(errors, [])
         self.assertEqual(binding["repo_root_realpath"],
                          os.path.realpath(self.repo))
@@ -135,7 +137,8 @@ class TestBindingLifecycle(EnvLifecycleBase):
         # the active-run registry file carries the run dir path
         reg = os.path.join(self.cache_root, "active-runs",
                            self.active_run_files()[0])
-        lines = open(reg).read().strip().splitlines()
+        with open(reg) as fh:
+            lines = fh.read().strip().splitlines()
         self.assertEqual(lines[0], run_dir)
         self.assertEqual(lines[1], binding["binding_digest"])
         # binding is checksummed
@@ -150,8 +153,9 @@ class TestBindingLifecycle(EnvLifecycleBase):
                      + self.legacy + '", "expected_head": "'
                      + self.legacy_head + '"}}\n```\nAudit.\n')
         run_dir = self.init_run(brief)
-        binding = json.load(open(os.path.join(run_dir,
-                                              "01-environment-binding.json")))
+        with open(os.path.join(run_dir,
+                               "01-environment-binding.json")) as fh:
+            binding = json.load(fh)
         self.assertEqual(binding["brief_target"]["declared_repository_root"],
                          self.legacy)
 
@@ -215,10 +219,12 @@ class TestBindingLifecycle(EnvLifecycleBase):
         # opus artifact + final), then finalize
         st = self.state(run_dir)
         c = contract()
+        with open(os.path.join(
+                run_dir, "01-environment-binding.json")) as fh:
+            binding_head = json.load(fh)["head_sha"]
         c["target_repository"] = {
             "root": self.repo,
-            "head_sha": json.load(open(os.path.join(
-                run_dir, "01-environment-binding.json")))["head_sha"],
+            "head_sha": binding_head,
             "fingerprint_sha256": st["repo_fingerprint_sha256"],
             "branch": "main", "dirty": False,
         }
@@ -267,10 +273,12 @@ class TestBindingLifecycle(EnvLifecycleBase):
         run_dir = self.init_run()
         st = self.state(run_dir)
         c = contract()
+        with open(os.path.join(
+                run_dir, "01-environment-binding.json")) as fh:
+            binding_head = json.load(fh)["head_sha"]
         c["target_repository"] = {
             "root": self.legacy,  # points at the WRONG repository
-            "head_sha": json.load(open(os.path.join(
-                run_dir, "01-environment-binding.json")))["head_sha"],
+            "head_sha": binding_head,
             "fingerprint_sha256": st["repo_fingerprint_sha256"],
             "branch": "main", "dirty": False,
         }
@@ -311,8 +319,9 @@ class TestDetachedWorktreeE2E(EnvLifecycleBase):
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         run_dir = [line.strip() for line in proc.stdout.decode().splitlines()
                    if "audit-output/audit-council/" in line][0]
-        binding = json.load(open(os.path.join(run_dir,
-                                              "01-environment-binding.json")))
+        with open(os.path.join(run_dir,
+                               "01-environment-binding.json")) as fh:
+            binding = json.load(fh)
         self.assertTrue(binding["detached_head"])
 
         # environment gate passes for the correct detached worktree
