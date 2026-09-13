@@ -698,7 +698,7 @@ def check_tool_call(tool: str, tool_input: dict[str, Any],
                 # pattern-INITIAL root: "/*" and "//" enumerate / even
                 # though their first literal chunk is bare separators
                 if pattern.startswith("/") or pattern.startswith("~"):
-                    head = re.split(r"[*?\[\]{},]", pattern, 1)[0] \
+                    head = re.split(r"[*?\[\]{},]", pattern, maxsplit=1)[0] \
                         or pattern[:1]
                     reason = _classify_path(head, os.getcwd(), frozen,
                                             allowed)
