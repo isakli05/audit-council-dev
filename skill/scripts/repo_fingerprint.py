@@ -333,7 +333,10 @@ def identity_manifest(repo: str) -> dict[str, Any]:
       - `file_count` / `total_bytes`: fast cross-checks.
 
     Deterministic: two invocations on an unchanged tree produce identical
-    documents except `generated_at`.
+    documents except `generated_at`, and `manifest_sha256` is a pure
+    function of the identity-bearing content — the volatile `generated_at`
+    stamp is NOT part of its digest input (a second-boundary crossing
+    between two calls changes only `generated_at`, never the digest).
     """
     repo = os.path.abspath(repo)
     if not _is_git_worktree(repo):
@@ -379,7 +382,8 @@ def identity_manifest(repo: str) -> dict[str, Any]:
     }
     doc["manifest_sha256"] = sha256_bytes(
         canonical_json({k: v for k, v in doc.items()
-                        if k != "manifest_sha256"}).encode("utf-8"))
+                        if k not in ("manifest_sha256", "generated_at")})
+        .encode("utf-8"))
     return doc
 
 

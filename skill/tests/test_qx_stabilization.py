@@ -17,6 +17,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SKILL_DIR = os.path.dirname(HERE)
@@ -591,15 +592,39 @@ class TestIdentityManifest(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def test_manifest_covers_every_tracked_file_and_is_deterministic(self):
-        m1 = repo_fingerprint.identity_manifest(self.repo)
-        m2 = repo_fingerprint.identity_manifest(self.repo)
-        self.assertEqual(m1["manifest_sha256"], m2["manifest_sha256"])
+        # Determinism must NOT depend on two calls landing in the same
+        # second: force generated_at across a second boundary (controlled
+        # timestamps — no sleep, no timing luck) and require the identity
+        # digest to hold anyway. Pre-fix bytes (generated_at inside the
+        # digest input) fail exactly here.
+        with mock.patch.object(
+                repo_fingerprint, "utc_now_iso",
+                side_effect=["2026-09-14T00:00:00Z",
+                             "2026-09-14T00:00:01Z"]):
+            m1 = repo_fingerprint.identity_manifest(self.repo)
+            m2 = repo_fingerprint.identity_manifest(self.repo)
+        self.assertNotEqual(m1["generated_at"], m2["generated_at"],
+                            "forced timestamps did not straddle a second "
+                            "boundary — the race is not being exercised")
+        self.assertEqual(m1["manifest_sha256"], m2["manifest_sha256"],
+                         "manifest_sha256 changed across a second "
+                         "boundary: the identity digest is timestamp-bound")
+        for key in ("manifest_kind", "manifest_version", "repo_root",
+                    "head_sha", "tree_sha", "tracked", "tracked_count",
+                    "untracked_inventory", "untracked_digest",
+                    "total_tracked_bytes"):
+            self.assertEqual(m1[key], m2[key], key)
         tracked_paths = git(self.repo, "ls-files").split()
         self.assertEqual(m1["tracked_count"], len(tracked_paths))
         for path in tracked_paths:
             self.assertIn(path, m1["tracked"])
             self.assertTrue(re.fullmatch(
                 r"[0-9a-f]{64}", m1["tracked"][path]["worktree_sha256"]))
+        # per-file identity verification still succeeds on both documents
+        self.assertEqual(repo_fingerprint.verify_files_against_manifest(
+            self.repo, m1), [])
+        self.assertEqual(repo_fingerprint.verify_files_against_manifest(
+            self.repo, m2), [])
 
     def test_isolated_auditor_verification(self):
         # B-007: hand off ONLY the files (a plain copy, no .git) plus the
