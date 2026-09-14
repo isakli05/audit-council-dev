@@ -89,6 +89,9 @@
             "items": {
               "type": "object",
               "additionalProperties": false,
+              "required": [
+                "kind"
+              ],
               "properties": {
                 "kind": {
                   "enum": [
@@ -142,7 +145,8 @@
                   "type": "string"
                 }
               }
-            }
+            },
+            "minItems": 1
           },
           "counter_evidence": {
             "type": "array",

@@ -19,7 +19,14 @@ stabilization deltas. See the
 [backlog](docs/chatgpt-project/AUCDEV-BACKLOG.md) for ownership and
 acceptance criteria.
 
-Date: 2026-09-13 (qualification-exit stabilization revision). Items marked
+Date: 2026-09-13 (qualification-exit stabilization revision; 2026-09-14
+AUCDEV-010 R-B001..R-B004 bounded-remediation revision — items 34/36/37
+and the evidence-schema statements below now describe the mechanically
+proven invariants added by that bounded remediation, recorded as
+SOURCE_SUPPORTED_MECHANISM / REMEDIATION_IMPLEMENTED / AWAITING_FRESH
+_AUDIT: nothing in this document closes the independently audited HIGH
+findings at target `68e3b082…`; only a fresh audit of the new candidate
+SHA can). Items marked
 INHERENT are accepted design boundaries, not defects; RESOLVED items
 record what closed them; the rest are concrete residuals with documented
 risk.
@@ -224,27 +231,77 @@ risk.
     artifact (shadowed by an empty ro-bind; recorded in the job record).
     The interactive opus side remains protocol-enforced (disclosed; item 24
     partially superseded).
-34. F-A-08/B-004: fingerprint v2 is content-aware (`-uall` untracked
-    inventory with per-file sha256; dirty-worktree byte map; no untracked
-    directory collapse). The write guard and verify inherit it. Bindings
-    frozen before algorithm 2 record no `fingerprint_algorithm` and verify
-    under the legacy algorithm 1 (reproduced byte-exactly); their blind
-    spot is historical and closed only for new runs.
+34. F-A-08/B-004 (2026-09-14 R-B003 revision): fingerprint v2 is
+    content-aware (`-uall` untracked inventory with per-file sha256;
+    dirty-worktree byte map; no untracked directory collapse), and the
+    write guard now consumes EVERY byte-change category the fingerprint
+    emits — including `changed_untracked` (same-present untracked byte
+    change) and `changed_dirty_worktree` (dirty tracked byte drift with
+    the index blob sha unchanged) — so the guard is never weaker than the
+    fingerprint it inherits. Untracked, dirty-worktree and tracked
+    inventories are parsed from the NUL-separated machine-readable
+    porcelain/`ls-files -z` forms, which never C-quote special filenames:
+    embedded double-quote, backslash, tab and non-ASCII paths are keyed
+    byte-exactly and their byte changes are visible to the fingerprint
+    diff and the write guard. The STORED `porcelain` document field keeps
+    its exact legacy bytes, so bindings frozen before algorithm 2 record
+    no `fingerprint_algorithm` and still verify under the legacy
+    algorithm 1 (reproduced byte-exactly); a historical document frozen
+    with a C-misquoted special path diverges fail-closed (reported as
+    changed), never silently verified. Status for the B-003 successor
+    mechanisms: REMEDIATION_IMPLEMENTED / AWAITING_FRESH_AUDIT.
 35. F-A-04/F-A-10: the CLI skip vocabulary now equals the state.schema.json
     enum exactly (SKIPPABLE_PHASES single source, drift-tested), save_state
     refuses schema-invalid skip records, and every skip record is bound to
     the exact from→to transition that consumes it and consumed on use;
     legacy unbound records no longer authorize any new transition.
-36. F-A-05: run-state mutations (state.json + checksums ledger) serialize
-    on a per-run flock; concurrent writers can no longer interleave
-    read-modify-write cycles.
-37. B-005: model-stage launch is mechanically gated by the authoritative
-    state-machine phase (`state_store.check_stage_launch`); the runner
-    consults the gate and holds no phase-order policy of its own.
+36. F-A-05 (2026-09-14 R-B002 revision): run-state mutations (state.json +
+    checksums ledger) serialize on a per-run flock, and reentrancy is
+    scoped to the OWNING THREAD — a second thread of the same process
+    opens its own file description and blocks on the flock exactly like a
+    separate process, so concurrent same-process writers can no longer
+    interleave read-modify-write cycles. `codex_runner start` performs
+    authoritative state read, budget/phase admission, active-attempt
+    uniqueness, attempt numbering, process spawn and authoritative job
+    persistence as ONE serialized launch transaction under that lock:
+    two concurrent starts for the same run+stage can never both spawn
+    while the first attempt is active, a launched job can never be lost
+    to a stale-state overwrite, and a persistence failure AFTER spawn
+    fails closed (the process group is terminated, the diagnostic job
+    record is preserved, no untracked paid work keeps running). Terminal
+    failed/quota attempts still admit bounded retry under the governor's
+    caps. Status for the B-002 successor mechanisms:
+    REMEDIATION_IMPLEMENTED / AWAITING_FRESH_AUDIT.
+37. B-005 (2026-09-14 R-B001 revision): model-stage launch is mechanically
+    gated by the authoritative state-machine phase
+    (`state_store.check_stage_launch`); the runner consults the gate and
+    holds no phase-order policy of its own. Early launch across passed
+    artifact phases now requires unconsumed skip records BOUND to this
+    launch context — recorded from the CURRENT phase and pointing at a
+    transition that actually crosses the skipped phase — so stale,
+    unbound or mis-bound records authorize nothing. Completeness labels
+    enforce the mandatory-stage invariant mechanically: a run whose Opus
+    or Codex independent completion was skipped can never be labeled
+    COMPLETE or COMPLETE_WITH_RESIDUAL_UNCERTAINTY (a missing independent
+    pass stays a truthful PARTIAL_* state; COMPLETE additionally requires
+    both cross-examinations, the ledger and final synthesis; the
+    documented post-independent quota omission path is preserved), and
+    `finalize` validates BEFORE its irreversible transition to COMPLETE.
+    Status for the B-001 successor mechanisms: REMEDIATION_IMPLEMENTED /
+    AWAITING_FRESH_AUDIT.
 38. B-006/F-A-12 (executable-instruction half): all active executable
     instructions (evidence policy + both codex prompts) now cite the v2
     typed `line_ranges` shape, matching finding.schema.json
-    (additionalProperties:false). The evidence-store visibility classes
+    (additionalProperties:false). 2026-09-14 R-B004 revision: the
+    canonical schemas now MECHANICALLY enforce what
+    protocols/evidence-policy.md always required — `evidence` is an array
+    with `minItems: 1` whose items require a typed `kind`, in both
+    finding.schema.json (inherited by the independent-audit and
+    cross-examination schemas via `$ref`) and final-findings.schema.json,
+    so a canonical finding with `evidence: []` or wholly untyped evidence
+    items can no longer validate; this is enforcement alignment with the
+    already-authoritative policy, not a protocol change. The
+    evidence-store visibility classes
     remain a library API not wired into production stages — now stated as
     such everywhere a claim could be read (no production control claimed).
 39. B-008: the product ships a GENERIC first-pass structural validator

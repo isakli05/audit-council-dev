@@ -77,6 +77,29 @@ STAGE_ENTRY_PHASE = {
 #   - the target is FINALIZED or COMPLETE
 #   - adjudication_skipped=True is recorded in state.json
 ADJUDICATION_SKIP_TARGETS = {"FINALIZED", "COMPLETE"}
+# R-B001 (B-001): completeness states whose DOCUMENTED semantics require the
+# mandatory independent passes (PUBLIC-CONTRACT: COMPLETE = "all phases
+# finished", the full two-model council; COMPLETE_WITH_RESIDUAL_UNCERTAINTY
+# = "full protocol ran" with later bounded uncertainty — protocols/
+# failure-and-resume.md quota rules allow CW_RU only when quota hit AFTER
+# the independent pass; a MISSING independent pass must remain a truthful
+# PARTIAL_* state). Mechanical signal: a phase_skips entry naming a phase
+# means that phase was never honestly completed — transition() admits a
+# skip record only when the machine passes OVER that phase.
+INDEPENDENT_COMPLETION_PHASES = ("OPUS_INDEPENDENT_COMPLETE",
+                                 "CODEX_INDEPENDENT_COMPLETE")
+# Phases whose skip record makes the label a lie. CW_RU additionally
+# requires FINALIZED (final synthesis ran); COMPLETE requires the full
+# documented council (both independent completions, both cross-exams, the
+# ledger, final synthesis); adjudication keeps its own explicit optional
+# skip rule and is deliberately absent from both sets.
+COMPLETENESS_MANDATORY_PHASES = {
+    "COMPLETE": frozenset(INDEPENDENT_COMPLETION_PHASES) | {
+        "OPUS_CROSS_EXAM_COMPLETE", "CODEX_CROSS_EXAM_COMPLETE",
+        "LEDGER_COMPLETE", "FINALIZED"},
+    "COMPLETE_WITH_RESIDUAL_UNCERTAINTY": frozenset(
+        INDEPENDENT_COMPLETION_PHASES) | {"FINALIZED"},
+}
 
 RUN_ID_RE = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{6}$")
 
@@ -145,50 +168,60 @@ def utc_now_iso() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Cross-process run-state lock (F-A-05)
+# Cross-process / cross-thread run-state lock (F-A-05; R-B002/B-002)
 # ---------------------------------------------------------------------------
 # Every read-modify-write of state.json / checksums.sha256 happens under an
-# exclusive flock on <run_dir>/.state.lock. Cross-process writers serialize;
-# nested acquisition inside ONE process (public entry points call save_state
-# and record_checksum, which are themselves lock-aware) is reentrant via the
-# depth counter, so no public helper can deadlock against another.
-_LOCK_REGISTRY: dict[str, int] = {}
+# exclusive flock on <run_dir>/.state.lock. Cross-process writers serialize
+# on the flock; nested acquisition inside ONE THREAD (public entry points
+# call save_state and record_checksum, which are themselves lock-aware) is
+# reentrant via the depth counter. R-B002: reentrancy is scoped to the
+# OWNING THREAD — a second thread of the same process never takes the fast
+# path; it opens its own file description and blocks on the flock (flock
+# conflicts apply between separate open()s even within one process), so
+# same-process threads serialize exactly like separate processes.
+_LOCK_REGISTRY: dict[str, dict[str, int]] = {}
 _LOCK_MUTEX = threading.RLock()
 
 
 @contextlib.contextmanager
 def run_state_lock(run_dir: str | os.PathLike[str]):
-    """Serialize run-state mutation across processes (reentrant per process).
+    """Serialize run-state mutation across processes AND threads.
 
-    Acquires an exclusive flock on <run_dir>/.state.lock. The lock file is
-    run-owned scratch (never part of the checksummed canonical record) and is
-    left in place — flock does not require deletion and deleting it would
-    itself race.
+    Reentrant only for the thread that already holds it; every other caller
+    (any thread, any process) blocks until the holder releases. Acquires an
+    exclusive flock on <run_dir>/.state.lock. The lock file is run-owned
+    scratch (never part of the checksummed canonical record) and is left in
+    place — flock does not require deletion and deleting it would itself
+    race.
     """
     key = os.path.realpath(os.fspath(run_dir))
+    me = threading.get_ident()
     with _LOCK_MUTEX:
-        if key in _LOCK_REGISTRY:
-            _LOCK_REGISTRY[key] += 1
+        entry = _LOCK_REGISTRY.get(key)
+        if entry is not None and entry["owner"] == me:
+            entry["depth"] += 1
             try:
                 yield
             finally:
-                _LOCK_REGISTRY[key] -= 1
-                if _LOCK_REGISTRY[key] <= 0:
-                    del _LOCK_REGISTRY[key]
+                entry["depth"] -= 1
+                if entry["depth"] <= 0:
+                    _LOCK_REGISTRY.pop(key, None)
             return
     lock_path = os.path.join(os.fspath(run_dir), ".state.lock")
     fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX)
         with _LOCK_MUTEX:
-            _LOCK_REGISTRY[key] = _LOCK_REGISTRY.get(key, 0) + 1
+            _LOCK_REGISTRY[key] = {"owner": me, "depth": 1}
         try:
             yield
         finally:
             with _LOCK_MUTEX:
-                _LOCK_REGISTRY[key] -= 1
-                if _LOCK_REGISTRY[key] <= 0:
-                    _LOCK_REGISTRY.pop(key, None)
+                entry = _LOCK_REGISTRY.get(key)
+                if entry is not None and entry["owner"] == me:
+                    entry["depth"] -= 1
+                    if entry["depth"] <= 0:
+                        _LOCK_REGISTRY.pop(key, None)
             fcntl.flock(fd, fcntl.LOCK_UN)
     finally:
         os.close(fd)
@@ -515,13 +548,32 @@ def record_phase_skips(run_dir: str | os.PathLike[str],
         save_state(run_dir, state)
 
 
+def completeness_skip_violations(state: dict[str, Any],
+                                 value: str) -> list[str]:
+    """R-B001 (B-001) mandatory-stage/completeness invariant: the phase_skips
+    entries that make completeness label `value` a lie. Empty list = the
+    label is truthful for the stages actually performed. Skip functionality
+    itself is untouched — truthful PARTIAL_* workflows keep skipping; only
+    over-strong LABELS are refused."""
+    forbidden = COMPLETENESS_MANDATORY_PHASES.get(value)
+    if not forbidden:
+        return []
+    skipped = {s.get("skipped_phase") for s in state.get("phase_skips", [])}
+    return sorted(skipped & forbidden)
+
+
 def check_stage_launch(run_dir: str | os.PathLike[str], stage: str) -> dict:
     """B-005: mechanical launch gate for model stages, authoritative in the
     state layer. A stage may launch only when the state machine is at the
     stage's entry phase (STAGE_ENTRY_PHASE), or earlier with every passed
     artifact phase covered by an explicit unconsumed skip record — and never
-    once the stage's completion phase is already reached. Returns the loaded
-    state; raises StateError on refusal (nothing is written)."""
+    once the stage's completion phase is already reached. R-B001: the launch
+    coverage requires the skip record to be BOUND — unconsumed, recorded
+    from the CURRENT phase, and pointing at a transition that actually
+    passes over the skipped phase (the same binding transition() requires
+    when consuming the record) — so a stale, unbound or mis-bound record
+    authorizes nothing. Returns the loaded state; raises StateError on
+    refusal (nothing is written)."""
     if stage not in STAGE_ENTRY_PHASE:
         raise StateError(f"unknown model stage {stage!r}; expected one of "
                          f"{sorted(STAGE_ENTRY_PHASE)}")
@@ -540,16 +592,24 @@ def check_stage_launch(run_dir: str | os.PathLike[str], stage: str) -> dict:
         raise StateError(
             f"refusing to launch stage {stage!r}: the audit contract must be "
             f"frozen first (current phase {cur})")
-    recorded = {s.get("skipped_phase")
-                for s in state.get("phase_skips", [])
-                if s.get("consumed") is not True}
+    recorded: set[str] = set()
+    for s in state.get("phase_skips", []):
+        if s.get("consumed") is True:
+            continue
+        if s.get("from_phase") != cur:
+            continue  # stale/mis-bound: recorded for a different position
+        to = s.get("to_phase")
+        if to is None or PHASE_INDEX[to] <= PHASE_INDEX[s.get("skipped_phase")]:
+            continue  # unbound legacy / non-crossing binding authorizes nothing
+        recorded.add(s.get("skipped_phase"))
     uncovered = [p for p in PHASE_CHAIN[ci + 1:ei + 1]
                  if p in ARTIFACT_PHASES and p not in recorded]
     if uncovered:
         raise StateError(
             f"refusing to launch stage {stage!r}: the state machine is at "
             f"{cur}, before the stage entry phase {entry}, and phases "
-            f"{uncovered} lack explicit unconsumed skip records")
+            f"{uncovered} lack explicit unconsumed skip records bound to "
+            f"this launch context (from {cur}, crossing the skipped phase)")
     return state
 
 
@@ -557,6 +617,15 @@ def set_completeness(run_dir: str | os.PathLike[str], value: str,
                      failure_reason: str | None = None) -> None:
     with run_state_lock(run_dir):
         state = load_state(run_dir)
+        # R-B001: a run may never be mechanically labeled with a
+        # completeness state stronger than the stages actually performed
+        violations = completeness_skip_violations(state, value)
+        if violations:
+            raise StateError(
+                f"completeness_state {value!r} requires mandatory stages "
+                f"that were skipped: {violations} (a phase_skips record "
+                f"means that stage never ran); use a truthful PARTIAL_*/"
+                f"STALE_REPOSITORY/INVALID_* state instead")
         state["completeness_state"] = value
         if failure_reason is not None:
             state["failure_reason"] = failure_reason

@@ -1116,8 +1116,15 @@ def _write_guard_violations(run_dir: str) -> list[dict[str, str]]:
 
     run_prefix = os.path.join("audit-output", "audit-council")
     violations: list[dict[str, str]] = []
+    # R-B003 (B-003): EVERY byte-change category the content-aware
+    # fingerprint v2 emits is a write-guard violation — including
+    # changed_dirty_worktree (a dirty tracked file's bytes drifted with the
+    # index blob sha unchanged) and changed_untracked (a same-present
+    # untracked file's bytes changed). The guard may not be weaker than the
+    # fingerprint it inherits.
     for kind, key in (
         ("modified", "changed_tracked"),
+        ("modified", "changed_dirty_worktree"),
         ("added", "added_tracked"),
         ("removed", "removed_tracked"),
     ):
@@ -1125,7 +1132,8 @@ def _write_guard_violations(run_dir: str) -> list[dict[str, str]]:
             if path.startswith(run_prefix):
                 continue
             violations.append({"path": path, "kind": kind})
-    for path in diff["added_untracked"] + diff["removed_untracked"]:
+    for path in diff["added_untracked"] + diff["removed_untracked"] \
+            + diff["changed_untracked"]:
         if path.startswith(run_prefix):
             continue
         violations.append({"path": path, "kind": "untracked-change"})
@@ -1377,16 +1385,35 @@ def cmd_finalize(args: argparse.Namespace) -> int:
                            "degraded_telemetry_count": 0},
             "note": "no codex_runner metrics found; synthesized at finalize",
         })
-    state_store.record_checksum(run_dir, metrics)
+    # R-B001 (B-001): completion validation BEFORE the irreversible
+    # transition to COMPLETE, and the checksum-record + transition + label
+    # sequence as ONE serialized mutation — a refused label leaves the run
+    # at FINALIZED, never half-closed
     try:
-        state_store.apply_transition(run_dir, "COMPLETE")
+        with state_store.run_state_lock(run_dir):
+            check_state = state_store.load_state(run_dir)
+            violations = state_store.completeness_skip_violations(
+                check_state, args.completeness)
+            if violations:
+                _fail(f"refusing to finalize: completeness state "
+                      f"{args.completeness!r} requires mandatory stages "
+                      f"that were skipped: {violations} (a phase_skips "
+                      f"record means that stage never ran); use a truthful "
+                      f"PARTIAL_*/STALE_REPOSITORY/INVALID_* state instead")
+                return EXIT_FAIL
+            state_store.record_checksum(run_dir, metrics)
+            try:
+                state_store.apply_transition(run_dir, "COMPLETE")
+            except StateError as exc:
+                state_store.bump_phase_attempt(run_dir, "COMPLETE")
+                _fail(str(exc))
+                return EXIT_FAIL
+            state_store.set_completeness(
+                run_dir, args.completeness,
+                failure_reason=args.failure_reason or None)
     except StateError as exc:
-        state_store.bump_phase_attempt(run_dir, "COMPLETE")
         _fail(str(exc))
         return EXIT_FAIL
-    state_store.set_completeness(
-        run_dir, args.completeness,
-        failure_reason=args.failure_reason or None)
     # a closed run no longer constrains the path-guard hook (A0.4)
     _unregister_active_run(state["run_id"])
     # v2 A1/A2: an isolated run archives its artifacts BEFORE the ephemeral

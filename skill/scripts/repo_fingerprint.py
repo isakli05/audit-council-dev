@@ -80,18 +80,48 @@ def tool_versions() -> dict[str, str]:
 
 
 def _parse_ls_files(out: str) -> dict[str, dict[str, str]]:
-    """`git ls-files -s` lines: `<mode> <sha> <stage>\t<path>`."""
+    """`git ls-files -s -z` entries: `<mode> <sha> <stage>\t<path>`,
+    NUL-terminated. The -z machine-readable form carries every path
+    literally — Git never C-quotes or escapes it — so special filenames
+    (embedded quotes, backslashes, tabs, non-ASCII) key the tracked
+    inventory byte-exactly (R-B003/B-003). Output for ordinary paths is
+    identical to the legacy line-based form."""
     tracked: dict[str, dict[str, str]] = {}
-    for line in out.splitlines():
-        if not line.strip():
+    for record in out.split("\0"):
+        if not record:
             continue
-        meta, _, path = line.partition("\t")
+        meta, sep, path = record.partition("\t")
+        if not sep:
+            continue
         parts = meta.split()
         if len(parts) < 3 or not path:
             continue
         mode, sha, _stage = parts[0], parts[1], parts[2]
         tracked[path] = {"mode": mode, "sha": sha}
     return tracked
+
+
+def _porcelain_records(porcelain_z: str) -> list[tuple[str, str]]:
+    """Parse `git status --porcelain -z -uall` output into (status, path)
+    records. The NUL-separated machine-readable form carries every path
+    literally — Git never C-quotes or escapes it — so special filenames
+    parse byte-exactly instead of vanishing behind C-quoting (R-B003/
+    B-003). A rename/copy record is followed by a second NUL field holding
+    the source path; it is yielded as its own record so both sides of the
+    rename stay visible to the inventories."""
+    records: list[tuple[str, str]] = []
+    fields = porcelain_z.split("\0")
+    i = 0
+    while i < len(fields):
+        field = fields[i]
+        i += 1
+        if len(field) < 3 or field[2] != " ":
+            continue  # not an `XY <path>` entry
+        records.append((field[:2], field[3:]))
+        if field[0] in ("R", "C") and i < len(fields) and fields[i]:
+            records.append((field[:2], fields[i]))
+            i += 1
+    return records
 
 
 def _untracked_entry(repo: str, path: str) -> dict[str, Any]:
@@ -123,30 +153,31 @@ def _untracked_entry(repo: str, path: str) -> dict[str, Any]:
     return entry
 
 
-def _parse_untracked(porcelain: str, repo: str) -> dict[str, Any]:
-    """Untracked entries from porcelain -uall `??` lines: per-FILE,
-    content-addressed (no untracked-directory collapse)."""
+def _parse_untracked(porcelain_z: str, repo: str) -> dict[str, Any]:
+    """Untracked entries from porcelain -z -uall `??` records: per-FILE,
+    content-addressed (no untracked-directory collapse), paths literal
+    (no C-quoting — R-B003/B-003)."""
     untracked: dict[str, Any] = {}
-    for line in porcelain.splitlines():
-        if not line.startswith("?? "):
+    for status, path in _porcelain_records(porcelain_z):
+        if status != "??":
             continue
-        path = line[3:].strip('"')
         if path.startswith(EXCLUDED_PREFIX):
             continue
         untracked[path] = _untracked_entry(repo, path)
     return untracked
 
 
-def _dirty_worktree_bytes(porcelain: str, repo: str) -> dict[str, str]:
+def _dirty_worktree_bytes(porcelain_z: str, repo: str) -> dict[str, str]:
     """sha256 of the CURRENT working-tree bytes of every tracked path
     porcelain flags (F-A-08/B-004): a dirty file's byte edits drift the
     fingerprint even when the git index blob sha is unchanged. Deleted
-    paths (D) are skipped — the porcelain change itself already drifts."""
+    paths (D) are skipped — the porcelain change itself already drifts.
+    Paths come from the NUL-separated machine-readable porcelain form so
+    special filenames are hashed under their real path (R-B003/B-003)."""
     dirty: dict[str, str] = {}
-    for line in porcelain.splitlines():
-        if not line or line.startswith("?? "):
+    for status, path in _porcelain_records(porcelain_z):
+        if status == "??":
             continue
-        path = line[3:].strip('"')
         if path.startswith(EXCLUDED_PREFIX):
             continue
         full = os.path.join(repo, path)
@@ -168,9 +199,16 @@ def capture(repo: str) -> dict[str, Any]:
     if head.returncode != 0:
         raise FingerprintError("repository has no HEAD commit (empty repo?)")
     branch = _git(repo, "rev-parse", "--abbrev-ref", "HEAD")
+    # R-B003/B-003: the STORED `porcelain` document field keeps its exact
+    # legacy `--porcelain -uall` bytes so historical fingerprint/binding
+    # documents compare unchanged; the path MAPS are built from the
+    # NUL-separated machine-readable form, which never C-quotes special
+    # filenames. `ls-files -s -z` keys the tracked inventory literally.
     porcelain = _git(repo, "status", "--porcelain", "-uall")
-    lsfiles = _git(repo, "ls-files", "-s")
-    if branch.returncode or porcelain.returncode or lsfiles.returncode:
+    porcelain_z = _git(repo, "status", "--porcelain", "-z", "-uall")
+    lsfiles = _git(repo, "ls-files", "-s", "-z")
+    if branch.returncode or porcelain.returncode \
+            or porcelain_z.returncode or lsfiles.returncode:
         raise FingerprintError("git inventory commands failed")
 
     doc: dict[str, Any] = {
@@ -181,8 +219,8 @@ def capture(repo: str) -> dict[str, Any]:
         "branch": branch.stdout.strip(),
         "porcelain": porcelain.stdout,
         "tracked_inventory": _parse_ls_files(lsfiles.stdout),
-        "untracked_inventory": _parse_untracked(porcelain.stdout, repo),
-        "dirty_worktree": _dirty_worktree_bytes(porcelain.stdout, repo),
+        "untracked_inventory": _parse_untracked(porcelain_z.stdout, repo),
+        "dirty_worktree": _dirty_worktree_bytes(porcelain_z.stdout, repo),
         "tool_versions": tool_versions(),
     }
     doc["fingerprint_sha256"] = fingerprint_digest(doc)
@@ -343,9 +381,9 @@ def identity_manifest(repo: str) -> dict[str, Any]:
         raise FingerprintError(f"{repo} is not a git worktree")
     head = _git(repo, "rev-parse", "HEAD")
     tree = _git(repo, "rev-parse", "HEAD^{tree}")
-    porcelain = _git(repo, "status", "--porcelain", "-uall")
-    lsfiles = _git(repo, "ls-files", "-s")
-    if head.returncode or tree.returncode or porcelain.returncode \
+    porcelain_z = _git(repo, "status", "--porcelain", "-z", "-uall")
+    lsfiles = _git(repo, "ls-files", "-s", "-z")
+    if head.returncode or tree.returncode or porcelain_z.returncode \
             or lsfiles.returncode:
         raise FingerprintError("git inventory commands failed")
     tracked: dict[str, dict[str, Any]] = {}
@@ -365,7 +403,7 @@ def identity_manifest(repo: str) -> dict[str, Any]:
         except OSError:
             entry["worktree_sha256"] = None
         tracked[path] = entry
-    untracked = _parse_untracked(porcelain.stdout, repo)
+    untracked = _parse_untracked(porcelain_z.stdout, repo)
     doc: dict[str, Any] = {
         "manifest_kind": "audit-council-full-target-identity",
         "manifest_version": 1,

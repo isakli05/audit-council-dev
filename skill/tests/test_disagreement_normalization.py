@@ -68,7 +68,9 @@ def final_finding(cid="CLUSTER-001", final_status="CONFIRMED",
             "final_status": prov_final,
             "adjudication": adjudication,
         },
-        "evidence": [],
+        # R-B004: canonical findings require at least one typed evidence
+        # item (final-findings.schema.json minItems + items.required kind)
+        "evidence": [{"kind": "OBSERVED_FACT"}],
     }
 
 

@@ -116,7 +116,10 @@ def final_doc(evidence=None, counter_evidence=None):
         "cluster_id": "CLUSTER-001", "title": "t", "severity": "HIGH",
         "final_status": "CONFIRMED", "claim": "c",
         "provenance": {"origin": ["OPUS-001"], "final_status": "CONSENSUS"},
-        "evidence": [] if evidence is None else evidence,
+        # R-B004: canonical findings require at least one typed evidence
+        # item (finding.schema.json minItems + items.required kind)
+        "evidence": [{"kind": "OBSERVED_FACT"}] if evidence is None
+        else evidence,
     }
     if counter_evidence is not None:
         f["counter_evidence"] = counter_evidence

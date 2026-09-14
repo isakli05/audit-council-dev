@@ -26,6 +26,7 @@ import re
 import signal
 import subprocess
 import sys
+import threading
 import time
 import uuid
 
@@ -132,7 +133,11 @@ def validate_vs_schema(instance, schema: dict, phase: str):
 # ---------------------------------------------------------------------------
 
 def atomic_write_json(path: str, data) -> None:
-    tmp = path + ".tmp-%d" % os.getpid()
+    # R-B002: the temp name must be unique per EXECUTION CONTEXT, not per
+    # process — two threads of one process share a pid and used to collide
+    # on the same tmp file when concurrently (re)building the shared
+    # run-local codex schema (os.replace raced with a removed tmp).
+    tmp = "%s.tmp-%d-%d" % (path, os.getpid(), threading.get_ident())
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, sort_keys=False)
         f.write("\n")
@@ -293,6 +298,74 @@ WRAP_SCRIPT = '"$@"; rc=$?; printf %s "$rc" > "$0"; exit "$rc"'
 # job argv remains the exact codex argv; stdin/stdout/stderr are the run-owned
 # files passed to Popen.
 
+# R-B002: supervised-children registry. The detached Popen objects are
+# intentionally kept referenced until their job reaches a terminal state so
+# garbage collection cannot flag a still-running supervised child
+# (ResourceWarning) before wait/cancel/classification re-attaches by pid.
+_SUPERVISED_PROCS: dict[str, subprocess.Popen] = {}
+_PROC_MUTEX = threading.Lock()
+
+
+def _supervise(job_id: str, proc: subprocess.Popen) -> None:
+    with _PROC_MUTEX:
+        _SUPERVISED_PROCS[job_id] = proc
+
+
+def _unsupervise(job_id: str) -> None:
+    with _PROC_MUTEX:
+        _SUPERVISED_PROCS.pop(job_id, None)
+
+
+def _active_job_for_stage(state: dict, phase: str) -> dict | None:
+    """R-B002: the one active (STARTING/RUNNING) attempt for this run+stage,
+    if any. Called by cmd_start under the launch transaction's serialization
+    boundary, so two concurrent starts can never both pass admission while
+    the first attempt is active; TERMINAL attempts (failed/quota/auth/...)
+    deliberately do not block — retry stays possible within the budget
+    governor's attempt cap."""
+    for entry in reversed((state.get("codex") or {}).get("jobs", [])):
+        if entry.get("phase") == phase \
+                and entry.get("status") in ("STARTING", "RUNNING"):
+            return entry
+    return None
+
+
+def _terminate_launched_job(run_dir: str, job: dict, reason: str) -> None:
+    """R-B002 fail-closed: authoritative persistence failed AFTER the child
+    spawned — terminate the process group (launch() start_new_session=True
+    made the child its own group leader) so no untracked paid work keeps
+    running, and preserve the diagnostic evidence in the job record. Never
+    raises: the persistence failure is the primary error being reported."""
+    pid = job.get("pid")
+    note = "unreachable"
+    try:
+        os.killpg(pid, signal.SIGKILL)
+        note = "SIGKILL-process-group"
+    except ProcessLookupError:
+        note = "process-already-exited"
+    except OSError:
+        try:
+            os.kill(pid, signal.SIGKILL)
+            note = "SIGKILL-process"
+        except OSError:
+            pass
+    job["status"] = "ABORTED_PERSISTENCE_FAILURE"
+    job["persistence_failure"] = reason
+    job["termination"] = note
+    job["completed_at"] = utc_now()
+    atomic_write_json(os.path.join(run_dir, "logs", "jobs",
+                                   "%s.json" % job["job_id"]), job)
+    # collect the terminated child through its supervised Popen before
+    # dropping the reference: no zombie, returncode recorded
+    with _PROC_MUTEX:
+        proc = _SUPERVISED_PROCS.get(job.get("job_id", ""))
+    if proc is not None:
+        try:
+            proc.wait(timeout=5)
+        except Exception:  # noqa: BLE001 — never mask the primary failure
+            pass
+    _unsupervise(job.get("job_id", ""))
+
 
 def launch(run_dir: str, phase: str, argv: list, prompt_path: str, out_path: str,
            schema_path: str, session_id, job_id: str, extra_job: dict) -> str:
@@ -323,6 +396,7 @@ def launch(run_dir: str, phase: str, argv: list, prompt_path: str, out_path: str
         stdin_fh.close()
         stdout_fh.close()
         stderr_fh.close()
+    _supervise(job_id, proc)
 
     job = {
         "job_id": job_id,
@@ -500,7 +574,8 @@ def cmd_start(args) -> int:
     run_dir = os.path.abspath(args.run)
     phase = args.phase
     # da27c0: sandbox preflight BEFORE attempt accounting (a dead
-    # execution environment must never consume a paid attempt)
+    # execution environment must never consume a paid attempt) — read-only
+    # environment probing, deliberately OUTSIDE the launch transaction
     pre_state = load_state(run_dir)
     pre_repo = pre_state.get("repo_root") or detect_repo_root(run_dir)
     pre_allowed = []
@@ -518,20 +593,9 @@ def cmd_start(args) -> int:
     if preflight_errors:
         print(preflight_errors[0], file=sys.stderr)
         return 3
-    state = load_state(run_dir)
-    governor_check(state, phase, run_dir)  # SystemExit(3-ish msg) on violation; mapped below
     env_errors = _env_gate_errors(run_dir)
     if env_errors:
         print(env_errors[0], file=sys.stderr)
-        return 3
-    # B-005: model-stage launch is mechanically gated by the authoritative
-    # state-machine phase — the gate (and the phase-order policy) lives in
-    # state_store, never here
-    try:
-        if hasattr(state_store, "check_stage_launch"):
-            state_store.check_stage_launch(run_dir, phase)
-    except Exception as exc:
-        print("error: %s" % exc, file=sys.stderr)
         return 3
 
     prompt_path = args.prompt or os.path.join(
@@ -562,87 +626,137 @@ def cmd_start(args) -> int:
         canon, os.path.join(run_dir, "schemas", codex_name)
     )
 
-    repo_root = state.get("repo_root") or detect_repo_root(run_dir)
-    codex_bin = args.codex_bin or "codex"
-
-    session_id = args.session
-    if session_id is None and phase != "independent":
-        session_id = state.get("codex", {}).get("session_id")
-    job_id = "%s-%s" % (phase, uuid.uuid4().hex[:8])
-    out_path = os.path.join(run_dir, "logs",
-                            "%s.%s.final.json" % (phase, job_id))
-    argv = compose_argv(codex_bin, phase, repo_root, schema_path, out_path, session_id)
-    # A0 confinement spike (docs/A0-CODEX-CONFINEMENT.md): wrap every
-    # launch (fresh AND resume) in the bubblewrap OS boundary — repo ro,
-    # run dir rw, ~/.codex rw, toolchain+system ro, /tmp tmpfs, authorized
-    # fixture roots ro. Reads outside the bind set become OS-BLOCKED.
-    # job["codex_argv"] preserves the exact codex argv; job["argv"] is what
-    # actually executes. AC_CODEX_BWRAP=0 or missing bwrap → inactive.
-    import codex_sandbox
-    _allowed_roots = []
-    _binding_path = os.path.join(run_dir, "01-environment-binding.json")
-    if os.path.isfile(_binding_path):
+    # R-B002 (B-002): admission -> paid-process spawn -> authoritative job
+    # persistence is ONE serialized launch transaction under the run-state
+    # lock (cross-process flock; reentrancy scoped to the owning thread).
+    # The authoritative state read, budget admission, phase gate, active-
+    # attempt uniqueness, attempt numbering, spawn and persistence all
+    # happen inside this boundary: two concurrent starts for the same
+    # run+stage can never both spawn, a launched job can never be lost to
+    # a stale-state overwrite, and a persistence failure after spawn fails
+    # closed below.
+    with state_store.run_state_lock(run_dir):
+        state = load_state(run_dir)  # fresh + authoritative, under the lock
+        governor_check(state, phase, run_dir)  # SystemExit(3-ish msg) on violation; mapped below
+        # B-005: model-stage launch is mechanically gated by the
+        # authoritative state-machine phase — the gate (and the
+        # phase-order policy) lives in state_store, never here
         try:
-            _allowed_roots = read_json(_binding_path).get(
-                "allowed_disposable_roots") or []
-        except (ValueError, OSError):
-            _allowed_roots = []
-    try:
-        argv_exec, sandbox_active = codex_sandbox.wrap_codex_argv(
-            argv, repo_root, run_dir, _allowed_roots,
-            blind_paths=_independence_blind_paths(run_dir, phase))
-    except RuntimeError as exc:
-        print("error: %s" % exc, file=sys.stderr)
-        return 3
+            if hasattr(state_store, "check_stage_launch"):
+                state_store.check_stage_launch(run_dir, phase)
+        except Exception as exc:
+            print("error: %s" % exc, file=sys.stderr)
+            return 3
+        # R-B002: exactly one active attempt per run+stage, checked under
+        # the same boundary as admission (terminal attempts do not block —
+        # retry stays possible within the governor's attempt cap)
+        active = _active_job_for_stage(state, phase)
+        if active is not None:
+            print("error: refusing to launch stage %s: attempt %s (job %s, "
+                  "started %s) is already active for this run+stage"
+                  % (phase, active.get("attempt_number", "?"),
+                     active.get("job_id", "?"),
+                     active.get("started_at", "?")), file=sys.stderr)
+            return 3
 
-    # F-A-12 / AUCDEV-017: evidence-store consumer/producer wiring — runs
-    # strictly BEFORE the child spawns, so any store failure aborts the
-    # launch with zero model attempts consumed.
-    import evidence_store as _evidence_store
-    try:
-        evidence_note = _evidence_stage_io(run_dir, phase, prompt_path,
-                                           schema_path, codex_bin)
-    except (OSError, _evidence_store.EvidenceStoreError) as exc:
-        print("error: evidence store: %s" % exc, file=sys.stderr)
-        return 3
+        repo_root = state.get("repo_root") or detect_repo_root(run_dir)
+        codex_bin = args.codex_bin or "codex"
 
-    attempt_number = 1 + sum(
-        1 for j in state.get("codex", {}).get("jobs", [])
-        if j.get("phase") == phase)
-    _blind = _independence_blind_paths(run_dir, phase)
-    job = launch(run_dir, phase, argv_exec, prompt_path, out_path,
-                 schema_path,
-                 session_id, job_id,
-                 {"attempt_number": attempt_number,
-                  "codex_argv": argv,  # exact codex argv (unwrapped)
-                  "evidence": evidence_note,
-                  "sandbox": {"wrapper": "bwrap" if sandbox_active else None,
-                              "active": sandbox_active,
-                              "doc": "docs/A0-CODEX-CONFINEMENT.md"},
-                  **({"blindness": {
-                      "masked_paths": _blind,
-                      "mechanism": "bwrap-ro-bind-/dev/null",
-                      "scope": "first-pass independence (B-003): the peer "
-                               "first-pass artifact is unreadable inside "
-                               "the sandbox"}} if _blind else {})})
-    job_path = os.path.join(run_dir, "logs", "jobs", "%s.json" % job_id)
+        session_id = args.session
+        if session_id is None and phase != "independent":
+            session_id = state.get("codex", {}).get("session_id")
+        job_id = "%s-%s" % (phase, uuid.uuid4().hex[:8])
+        out_path = os.path.join(run_dir, "logs",
+                                "%s.%s.final.json" % (phase, job_id))
+        argv = compose_argv(codex_bin, phase, repo_root, schema_path,
+                            out_path, session_id)
+        # A0 confinement spike (docs/A0-CODEX-CONFINEMENT.md): wrap every
+        # launch (fresh AND resume) in the bubblewrap OS boundary — repo
+        # ro, run dir rw, ~/.codex rw, toolchain+system ro, /tmp tmpfs,
+        # authorized fixture roots ro. Reads outside the bind set become
+        # OS-BLOCKED. job["codex_argv"] preserves the exact codex argv;
+        # job["argv"] is what actually executes. AC_CODEX_BWRAP=0 or
+        # missing bwrap → inactive.
+        import codex_sandbox
+        _allowed_roots = []
+        _binding_path = os.path.join(run_dir, "01-environment-binding.json")
+        if os.path.isfile(_binding_path):
+            try:
+                _allowed_roots = read_json(_binding_path).get(
+                    "allowed_disposable_roots") or []
+            except (ValueError, OSError):
+                _allowed_roots = []
+        try:
+            argv_exec, sandbox_active = codex_sandbox.wrap_codex_argv(
+                argv, repo_root, run_dir, _allowed_roots,
+                blind_paths=_independence_blind_paths(run_dir, phase))
+        except RuntimeError as exc:
+            print("error: %s" % exc, file=sys.stderr)
+            return 3
 
-    # stage_counts is bumped only when the stage COMPLETES successfully (in
-    # _update_state_after_wait); failed/quota attempts may be retried on
-    # resume, bounded by governor_check's per-phase attempts cap
-    state.setdefault("codex", {}).setdefault("jobs", [])
-    state["codex"]["jobs"].append({
-        "job_id": job_id,
-        "phase": phase,
-        "pid": job["pid"],
-        "resumed": job["resumed"],
-        "status": "RUNNING",
-        "started_at": job["started_at"],
-    })
-    if session_id and not state["codex"].get("session_id"):
-        state["codex"]["session_id"] = session_id
-    save_state(run_dir, state)
+        # F-A-12 / AUCDEV-017: evidence-store consumer/producer wiring —
+        # runs strictly BEFORE the child spawns, so any store failure
+        # aborts the launch with zero model attempts consumed.
+        import evidence_store as _evidence_store
+        try:
+            evidence_note = _evidence_stage_io(run_dir, phase, prompt_path,
+                                               schema_path, codex_bin)
+        except (OSError, _evidence_store.EvidenceStoreError) as exc:
+            print("error: evidence store: %s" % exc, file=sys.stderr)
+            return 3
 
+        # R-B002: attempt numbering derives from the authoritative state
+        # under the serialization boundary
+        attempt_number = 1 + sum(
+            1 for j in state.get("codex", {}).get("jobs", [])
+            if j.get("phase") == phase)
+        _blind = _independence_blind_paths(run_dir, phase)
+        job = launch(run_dir, phase, argv_exec, prompt_path, out_path,
+                     schema_path,
+                     session_id, job_id,
+                     {"attempt_number": attempt_number,
+                      "codex_argv": argv,  # exact codex argv (unwrapped)
+                      "evidence": evidence_note,
+                      "sandbox": {"wrapper": "bwrap" if sandbox_active else None,
+                                  "active": sandbox_active,
+                                  "doc": "docs/A0-CODEX-CONFINEMENT.md"},
+                      **({"blindness": {
+                          "masked_paths": _blind,
+                          "mechanism": "bwrap-ro-bind-/dev/null",
+                          "scope": "first-pass independence (B-003): the peer "
+                                   "first-pass artifact is unreadable inside "
+                                   "the sandbox"}} if _blind else {})})
+        job_path = os.path.join(run_dir, "logs", "jobs", "%s.json" % job_id)
+
+        # stage_counts is bumped only when the stage COMPLETES successfully
+        # (in _update_state_after_wait); failed/quota attempts may be
+        # retried on resume, bounded by governor_check's per-phase
+        # attempts cap
+        try:
+            state.setdefault("codex", {}).setdefault("jobs", [])
+            state["codex"]["jobs"].append({
+                "job_id": job_id,
+                "phase": phase,
+                "pid": job["pid"],
+                "resumed": job["resumed"],
+                "status": "RUNNING",
+                "started_at": job["started_at"],
+            })
+            if session_id and not state["codex"].get("session_id"):
+                state["codex"]["session_id"] = session_id
+            save_state(run_dir, state)
+        except Exception as exc:  # noqa: BLE001 — fail closed, never leak
+            # R-B002: spawn succeeded but authoritative persistence failed —
+            # terminate the newly spawned process group and preserve the
+            # diagnostic evidence; never leave untracked paid work running
+            _terminate_launched_job(run_dir, job, str(exc))
+            print("error: authoritative launch persistence failed; the "
+                  "spawned process was terminated and its job record "
+                  "preserved: %s" % exc, file=sys.stderr)
+            return 3
+
+    # a successful return means the launched job is durably represented in
+    # authoritative state AND its job record exists (R-B002)
     print(job_path)
     return 0
 
@@ -879,21 +993,26 @@ def _load_budget_omissions(run_dir: str) -> list[dict]:
 
 
 def _update_state_after_wait(run_dir: str, job: dict, session_id) -> None:
-    state = load_state(run_dir)
-    codex = state.setdefault("codex", {})
-    if session_id:
-        codex["session_id"] = session_id
-    if job.get("status") == "COMPLETE":
-        # budget governor counts successful stages; failures/quota may retry
-        counts = codex.setdefault("stage_counts", {})
-        phase = job["phase"]
-        counts[phase] = min(1, counts.get(phase, 0) + 1)
-    for entry in codex.get("jobs", []):
-        if entry.get("job_id") == job["job_id"]:
-            entry["status"] = job["status"]
-            if session_id:
-                entry["session_id"] = session_id
-    save_state(run_dir, state)
+    # R-B002 (B-002): the post-wait state update is a read-modify-write of
+    # authoritative state — load FRESH under the run-state lock so it can
+    # never clobber a concurrent writer's committed mutation
+    with state_store.run_state_lock(run_dir):
+        state = load_state(run_dir)
+        codex = state.setdefault("codex", {})
+        if session_id:
+            codex["session_id"] = session_id
+        if job.get("status") == "COMPLETE":
+            # budget governor counts successful stages; failures/quota may retry
+            counts = codex.setdefault("stage_counts", {})
+            phase = job["phase"]
+            counts[phase] = min(1, counts.get(phase, 0) + 1)
+        for entry in codex.get("jobs", []):
+            if entry.get("job_id") == job["job_id"]:
+                entry["status"] = job["status"]
+                if session_id:
+                    entry["session_id"] = session_id
+        save_state(run_dir, state)
+    _unsupervise(job.get("job_id", ""))
 
 
 def classify_and_finalize(run_dir: str, job: dict, exit_code) -> tuple:
