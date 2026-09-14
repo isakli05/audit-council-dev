@@ -568,12 +568,14 @@ def check_stage_launch(run_dir: str | os.PathLike[str], stage: str) -> dict:
     stage's entry phase (STAGE_ENTRY_PHASE), or earlier with every passed
     artifact phase covered by an explicit unconsumed skip record — and never
     once the stage's completion phase is already reached. R-B001: the launch
-    coverage requires the skip record to be BOUND — unconsumed, recorded
-    from the CURRENT phase, and pointing at a transition that actually
-    passes over the skipped phase (the same binding transition() requires
-    when consuming the record) — so a stale, unbound or mis-bound record
-    authorizes nothing. Returns the loaded state; raises StateError on
-    refusal (nothing is written)."""
+    coverage requires the skip record to be EXACTLY BOUND to this stage's
+    completion transition — unconsumed, recorded from the CURRENT phase,
+    and with to_phase equal to the exact phase this stage completes into
+    (PHASE_CHAIN[PHASE_INDEX[entry] + 1]; the same exact binding
+    transition() requires when it consumes the record) — so a stale,
+    unbound, mis-bound or merely crossing record (a future transition
+    recorded for another purpose) authorizes nothing. Returns the loaded
+    state; raises StateError on refusal (nothing is written)."""
     if stage not in STAGE_ENTRY_PHASE:
         raise StateError(f"unknown model stage {stage!r}; expected one of "
                          f"{sorted(STAGE_ENTRY_PHASE)}")
@@ -598,9 +600,14 @@ def check_stage_launch(run_dir: str | os.PathLike[str], stage: str) -> dict:
             continue
         if s.get("from_phase") != cur:
             continue  # stale/mis-bound: recorded for a different position
-        to = s.get("to_phase")
-        if to is None or PHASE_INDEX[to] <= PHASE_INDEX[s.get("skipped_phase")]:
-            continue  # unbound legacy / non-crossing binding authorizes nothing
+        if s.get("to_phase") != done:
+            # R-B001 exact binding: launch coverage may only come from a
+            # skip record bound to THIS stage's completion transition
+            # (cur -> done) — the exact binding transition() requires when
+            # it consumes the record. A record bound to any other to_phase
+            # (later, merely crossing the skipped phase, or unbound legacy)
+            # was recorded for a different purpose and authorizes nothing.
+            continue
         recorded.add(s.get("skipped_phase"))
     uncovered = [p for p in PHASE_CHAIN[ci + 1:ei + 1]
                  if p in ARTIFACT_PHASES and p not in recorded]
@@ -609,7 +616,7 @@ def check_stage_launch(run_dir: str | os.PathLike[str], stage: str) -> dict:
             f"refusing to launch stage {stage!r}: the state machine is at "
             f"{cur}, before the stage entry phase {entry}, and phases "
             f"{uncovered} lack explicit unconsumed skip records bound to "
-            f"this launch context (from {cur}, crossing the skipped phase)")
+            f"this launch context (exactly {cur} -> {done})")
     return state
 
 

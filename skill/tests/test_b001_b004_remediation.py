@@ -13,6 +13,16 @@ in the remediation handoff archive.
 Zero model inference: every codex launch uses tests/fixtures/fake_codex.py.
 All concurrency uses synchronization primitives (events / rendezvous
 happens-before chains), never sleep-luck.
+
+Successor correction (2026-09-14, R-B001 exact launch-transition binding):
+the same-from/wrong-to tests in TestRB001SkipLaunchBinding were
+demonstrated RED on the exact pre-fix product bytes of candidate
+ecfece1830… (skill tree fb60425d…, unchanged at live governance base
+b04aa60) BEFORE the state_store.py correction; the frozen RED output is
+in the successor-correction handoff archive. The prior "misbound" test
+covered a wrong from_phase only; the exact-to-phase binding
+(R-B001_STAGE_LAUNCH_EXACT_TO_PHASE_BINDING_INCOMPLETE) needed its own
+regressions.
 """
 from __future__ import annotations
 
@@ -234,7 +244,13 @@ class TestRB001CompletenessIntegrity(unittest.TestCase):
 
 class TestRB001SkipLaunchBinding(unittest.TestCase):
     """B-001: a skip record authorizes check_stage_launch only when bound
-    to the exact current phase and an entry-crossing transition context."""
+    to the exact transition context for the stage being launched — recorded
+    from the CURRENT phase (from_phase == current) AND pointing at the
+    EXACT phase that stage completes into (to_phase == stage completion;
+    PHASE_CHAIN[PHASE_INDEX[STAGE_ENTRY_PHASE[stage]] + 1]). A record bound
+    to ANY other to_phase — later, merely crossing the skipped phase, or
+    unbound legacy — authorizes nothing: the launch gate must not borrow
+    authority from a future transition recorded for another purpose."""
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="rb001b-",
@@ -273,6 +289,99 @@ class TestRB001SkipLaunchBinding(unittest.TestCase):
             to_phase="CODEX_INDEPENDENT_COMPLETE")
         state = state_store.check_stage_launch(run_dir, "independent")
         self.assertEqual(state["phase"], "CONTRACT_FROZEN")
+
+    # -- R-B001 successor: EXACT to-phase launch binding -------------------
+    def test_rb001_same_from_wrong_to_finalized_cannot_authorize_launch(self):
+        # same from_phase (the CURRENT phase), but the record is bound to
+        # CONTRACT_FROZEN -> FINALIZED — a well-formed future transition
+        # recorded for another purpose that merely CROSSES the skipped
+        # phase. The exact independent-stage completion transition is
+        # CONTRACT_FROZEN -> CODEX_INDEPENDENT_COMPLETE; a record bound to
+        # any other to_phase must authorize nothing.
+        run_dir = make_run(self.tmp, self.repo, phase="CONTRACT_FROZEN")
+        state_store.record_phase_skips(run_dir, [
+            {"skipped_phase": "OPUS_INDEPENDENT_COMPLETE",
+             "reason": "future-jump record bound to a different purpose"}],
+            from_phase="CONTRACT_FROZEN",
+            to_phase="FINALIZED")
+        with self.assertRaises(state_store.StateError):
+            state_store.check_stage_launch(run_dir, "independent")
+
+    def test_rb001_same_from_wrong_to_normalized_cannot_authorize_launch(self):
+        # second same-from/wrong-to shape: another well-formed later
+        # to_phase that crosses the skipped phase but is NOT the
+        # independent-stage completion transition
+        run_dir = make_run(self.tmp, self.repo, phase="CONTRACT_FROZEN")
+        state_store.record_phase_skips(run_dir, [
+            {"skipped_phase": "OPUS_INDEPENDENT_COMPLETE",
+             "reason": "record bound to the normalization transition"}],
+            from_phase="CONTRACT_FROZEN",
+            to_phase="NORMALIZED")
+        with self.assertRaises(state_store.StateError):
+            state_store.check_stage_launch(run_dir, "independent")
+
+    def test_rb001_consumed_exact_binding_cannot_authorize_launch(self):
+        # the exact stage-completion binding, but already consumed by its
+        # own transition — consumed records never re-authorize
+        run_dir = make_run(self.tmp, self.repo, phase="CONTRACT_FROZEN")
+        state_store.record_phase_skips(run_dir, [
+            {"skipped_phase": "OPUS_INDEPENDENT_COMPLETE",
+             "reason": "opus pass unavailable; codex independent authorized"}],
+            from_phase="CONTRACT_FROZEN",
+            to_phase="CODEX_INDEPENDENT_COMPLETE")
+        state = state_store.load_state(run_dir)
+        state["phase_skips"][0]["consumed"] = True
+        state_store.save_state(run_dir, state)
+        with self.assertRaises(state_store.StateError):
+            state_store.check_stage_launch(run_dir, "independent")
+
+    def test_rb001_at_entry_launch_needs_no_skip(self):
+        # the ordinary at-entry launch stays admitted with no skip records
+        run_dir = make_run(self.tmp, self.repo,
+                           phase="OPUS_INDEPENDENT_COMPLETE")
+        state = state_store.check_stage_launch(run_dir, "independent")
+        self.assertEqual(state["phase"], "OPUS_INDEPENDENT_COMPLETE")
+
+    def test_rb001_completed_stage_launch_still_refused(self):
+        # once the state machine has reached the stage's completion phase,
+        # the stage may not launch again
+        run_dir = make_run(self.tmp, self.repo,
+                           phase="CODEX_INDEPENDENT_COMPLETE")
+        with self.assertRaises(state_store.StateError):
+            state_store.check_stage_launch(run_dir, "independent")
+
+    def test_rb001_cross_exam_exact_binding_early_launch_admitted(self):
+        # analogous early-launch form for the other skip-gated model stage:
+        # every passed artifact phase covered by an unconsumed skip bound
+        # to the EXACT stage completion transition
+        # CODEX_INDEPENDENT_COMPLETE -> CODEX_CROSS_EXAM_COMPLETE
+        run_dir = make_run(self.tmp, self.repo,
+                           phase="CODEX_INDEPENDENT_COMPLETE")
+        state_store.record_phase_skips(run_dir, [
+            {"skipped_phase": "NORMALIZED",
+             "reason": "normalization covered elsewhere"},
+            {"skipped_phase": "OPUS_CROSS_EXAM_COMPLETE",
+             "reason": "opus cross-exam unavailable; codex cross authorized"}],
+            from_phase="CODEX_INDEPENDENT_COMPLETE",
+            to_phase="CODEX_CROSS_EXAM_COMPLETE")
+        state = state_store.check_stage_launch(run_dir, "cross_examination")
+        self.assertEqual(state["phase"], "CODEX_INDEPENDENT_COMPLETE")
+
+    def test_rb001_cross_exam_same_from_wrong_to_refused(self):
+        # both records same-from and crossing, but bound to FINALIZED —
+        # borrowed future-transition authority, not the cross-examination
+        # stage completion transition
+        run_dir = make_run(self.tmp, self.repo,
+                           phase="CODEX_INDEPENDENT_COMPLETE")
+        state_store.record_phase_skips(run_dir, [
+            {"skipped_phase": "NORMALIZED",
+             "reason": "future-jump record bound to a different purpose"},
+            {"skipped_phase": "OPUS_CROSS_EXAM_COMPLETE",
+             "reason": "future-jump record bound to a different purpose"}],
+            from_phase="CODEX_INDEPENDENT_COMPLETE",
+            to_phase="FINALIZED")
+        with self.assertRaises(state_store.StateError):
+            state_store.check_stage_launch(run_dir, "cross_examination")
 
 
 # ===========================================================================

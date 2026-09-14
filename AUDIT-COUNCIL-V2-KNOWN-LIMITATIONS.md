@@ -277,9 +277,14 @@ risk.
     (`state_store.check_stage_launch`); the runner consults the gate and
     holds no phase-order policy of its own. Early launch across passed
     artifact phases now requires unconsumed skip records BOUND to this
-    launch context — recorded from the CURRENT phase and pointing at a
-    transition that actually crosses the skipped phase — so stale,
-    unbound or mis-bound records authorize nothing. Completeness labels
+    launch context — recorded from the CURRENT phase and bound to the
+    EXACT stage-completion transition (to_phase == the phase the launched
+    stage completes into, `PHASE_CHAIN[PHASE_INDEX[entry] + 1]`; the same
+    exact binding `transition()` requires when consuming the record) — so
+    stale, unbound, mis-bound or merely crossing records authorize
+    nothing: a future transition recorded for another purpose (e.g. a
+    CONTRACT_FROZEN -> FINALIZED jump) never lends launch authority.
+    Completeness labels
     enforce the mandatory-stage invariant mechanically: a run whose Opus
     or Codex independent completion was skipped can never be labeled
     COMPLETE or COMPLETE_WITH_RESIDUAL_UNCERTAINTY (a missing independent
