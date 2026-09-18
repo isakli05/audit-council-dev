@@ -97,8 +97,8 @@ def test_negative_c4p_failure(env):
     # operator binds a controller whose ACTUAL CLAUDE_CONFIG_DIR differs
     # from the manifest scope dir
     bad_ctrl = env.spawn_controller(claude_config_dir=str(other_cfg))
-    env.author_spec(attempt, controller=bad_ctrl)
-    root = env.spawn_root()
+    env.author_spec(attempt)
+    root = env.spawn_root(controller=bad_ctrl)
     mint = env.root_mint(attempt)
     assert mint.get("ok")
     response = env.controller_request(attempt, own_session_slug="s")
@@ -213,12 +213,11 @@ def test_negative_real_policy_config_drift(env):
     profile parameters (config tampered between authorization and
     freeze)."""
     attempt = "compose-neg-real-policy"
-    spec = env.author_spec(attempt)
-    bad = json.loads(json.dumps(spec))
+    env.author_spec(attempt)
+    bad = json.loads(json.dumps(env.template))
     bad["codex"]["config_sha256"] = "0" * 64
-    env._spec = bad
-    root = env.spawn_root(bad)
-    mint = env.root_mint(attempt, spec=bad)
+    root = env.spawn_root(template=bad)
+    mint = env.root_mint(attempt)
     assert mint.get("ok")
     response = env.controller_request(attempt, own_session_slug="s")
     rc, err = env.root_outcome(root, timeout=300)

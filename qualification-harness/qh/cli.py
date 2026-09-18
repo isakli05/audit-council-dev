@@ -3,16 +3,23 @@
 Production authority flow — everything security-critical originates at the
 OPERATOR authority root, never at a controller request:
 
-    qh root --operator-state D --custody-fd 3 \
-        < trusted-launch-spec.json 3< <(printf 'SYNTHETIC-INERT-...')
+    qh authority --operator-state D --custody-fd 3 --finalization-fd 4 \
+        < pre-controller-template.json 3< <(printf 'SYNTHETIC-INERT-...') \
+        4< <(printf '{"template_id": ..., "authorized_controller": ...}')
 
-The root (started by the operator BEFORE controller request execution)
-binds the trusted launch spec + provider custody in non-dumpable process
-memory, serves EXACTLY ONE mint on its abstract socket, and itself spawns
-the one-shot supervisor with grant/spec/custody on inherited pipes/fds.
-The controller then connects to the supervisor's abstract socket with a
-CLAIM-ONLY request (attempt id, starttime claim, env claims, payload kind)
-— every security-critical value comes from the trusted spec.
+The authority (started by the operator BEFORE any controller exists)
+executes the PRE-CONTROLLER TRUST FREEZE from the operator-selected
+identity (template + custody on operator capability channels; the live
+harness tree verified, the privileged byte set frozen+sealed, every
+privileged module loaded with code-object provenance; prints
+PRECONTROLLER_READY), and only after the operator starts the authorized
+controller and sends the finalization delta on the retained operator
+channel does it finalize the final spec, expose the trigger, serve
+EXACTLY ONE mint on its abstract socket, and fork the one-shot supervisor
+from the frozen state.  The controller then connects to the supervisor's
+abstract socket with a CLAIM-ONLY request (attempt id, starttime claim,
+env claims, payload kind) — every security-critical value comes from the
+trusted spec.
 
 NO production trust-check overrides exist: ``--yama-override`` and every
 ``--fault``-style hook are REJECTED by the production parser (deterministic
@@ -34,7 +41,8 @@ _FORBIDDEN_PRODUCTION_FLAGS = ("--yama-override", "--fault",
                                "--fault-noegress", "--fault-gatew",
                                "--fault-identity", "--fault-policy")
 
-PRODUCTION_SUBCOMMANDS = ("root", "supervisor", "compose-demo", "selfcheck")
+PRODUCTION_SUBCOMMANDS = ("authority", "supervisor", "compose-demo",
+                          "selfcheck")
 
 
 def _reject_forbidden_flags(argv: list[str]) -> None:
@@ -48,34 +56,71 @@ def _reject_forbidden_flags(argv: list[str]) -> None:
             raise SystemExit(2)
 
 
-def _cmd_root(args: argparse.Namespace) -> int:
+def _cmd_authority(args: argparse.Namespace) -> int:
+    """The TWO-PHASE production authority entry (CR-HARDEN-001):
+
+    PHASE A — ``pre_controller_startup`` (the authorized controller does
+    NOT exist yet): the pre-controller launch template + the operator
+    finalization channel + the provider custody must ALL be operator-held
+    capability channels (PIPE or mechanically identified FULLY SEALED
+    memfd; ordinary regular files — including stdin redirected from a
+    file — are REFUSED before any byte is read, CR-REMED-003); the live
+    harness tree is verified against the OPERATOR-SELECTED template
+    identity; the privileged byte set is frozen+sealed, every privileged
+    module imported with code-object provenance and the import guard
+    armed; ``PRECONTROLLER_READY`` is printed only after
+    PRE_CONTROLLER_BOOTSTRAP_FROZEN.
+
+    PHASE B — the operator (who started the authorized controller only
+    after observing ``PRECONTROLLER_READY``) sends the finalization delta
+    on the retained finalization channel; the final spec is derived
+    in-process from the frozen template + controller identity, the
+    frozen-harness-id equality is proven, and only then (``READY``) is
+    the controller trigger exposed."""
     from .rootauth import AuthorityRoot
-    from .util import SealUnavailableError, require_trusted_spec_fd
-    # CR-REMED-003: the trusted launch spec may arrive ONLY through an
-    # operator-held CAPABILITY channel — a PIPE, or a mechanically
-    # identified FULLY SEALED memfd.  An ordinary regular file (including
-    # stdin redirected from a file) is REFUSED before any byte is read:
-    # under the same-UID threat model an ordinary user-owned file is not
-    # a trust boundary.
+    from .util import (SealUnavailableError, read_bounded,
+                       require_trusted_spec_fd)
+    # CR-REMED-003 (both operator input channels gated before ANY byte
+    # is read): template channel + finalization channel.
     try:
-        channel = require_trusted_spec_fd(args.spec_fd)
+        channel = require_trusted_spec_fd(args.template_fd)
+        fin_channel = require_trusted_spec_fd(args.finalization_fd)
     except (OSError, SealUnavailableError) as exc:
         print(f"ROOT_REFUSED: {exc}", file=sys.stderr)
         return 15
     try:
-        spec_bytes = os.read(args.spec_fd, 1 << 20).strip()
-    except OSError as exc:
-        print(f"ROOT_REFUSED: cannot read spec fd: {exc}", file=sys.stderr)
+        template_bytes = read_bounded(args.template_fd)
+    except (OSError, SealUnavailableError) as exc:
+        print(f"ROOT_REFUSED: cannot read template fd: {exc}",
+              file=sys.stderr)
         return 15
-    if not spec_bytes:
-        print("ROOT_REFUSED: empty trusted launch spec", file=sys.stderr)
+    if not template_bytes:
+        print("ROOT_REFUSED: empty pre-controller launch template",
+              file=sys.stderr)
         return 15
     root = AuthorityRoot(
-        operator_state_dir=args.operator_state, spec_bytes=spec_bytes,
-        custody_fd=args.custody_fd)
-    root.startup()
+        operator_state_dir=args.operator_state,
+        template_bytes=template_bytes, custody_fd=args.custody_fd,
+        finalization_fd=args.finalization_fd)
+    # -------- PHASE A (no controller exists) --------------------------
+    root.pre_controller_startup()
     if root.exit_code != 0:
         print(f"ROOT_STARTUP_FAILED code={root.exit_code} "
+              f"reason={root.fail_reason}", file=sys.stderr)
+        root.shutdown()
+        return root.exit_code
+    print("PRECONTROLLER_READY", flush=True)
+    # -------- PHASE B (operator finalization over the retained channel) --
+    try:
+        delta_bytes = read_bounded(args.finalization_fd, limit=1 << 16)
+    except (OSError, SealUnavailableError) as exc:
+        print(f"ROOT_FINALIZATION_FAILED code=18 reason={exc}",
+              file=sys.stderr)
+        root.shutdown()
+        return 18
+    root.finalize_controller_binding(delta_bytes)
+    if root.exit_code != 0:
+        print(f"ROOT_FINALIZATION_FAILED code={root.exit_code} "
               f"reason={root.fail_reason}", file=sys.stderr)
         root.shutdown()
         return root.exit_code
@@ -178,22 +223,32 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="qh")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    p_root = sub.add_parser(
-        "root", help="operator authority root: binds the trusted launch "
-        "spec + provider custody and performs the ONE production mint")
-    p_root.add_argument("--operator-state", required=True)
-    p_root.add_argument("--spec-fd", type=int, default=0,
+    p_auth = sub.add_parser(
+        "authority", help="two-phase operator authority root: freezes the "
+        "pre-controller trusted bootstrap (template + custody, verified "
+        "against the operator-selected identity), then finalizes the "
+        "final spec over the operator finalization channel and performs "
+        "the ONE production mint")
+    p_auth.add_argument("--operator-state", required=True)
+    p_auth.add_argument("--template-fd", type=int, default=0,
                         help="operator-held CAPABILITY fd carrying the "
-                             "complete pre-authorized trusted launch spec: "
-                             "a PIPE or a fully SEALED memfd (an ordinary "
+                             "complete PRE-CONTROLLER LAUNCH TEMPLATE: a "
+                             "PIPE or a fully SEALED memfd (an ordinary "
                              "file — including stdin redirected from a "
                              "file — is REFUSED; default: stdin)")
-    p_root.add_argument("--custody-fd", type=int, required=True,
+    p_auth.add_argument("--custody-fd", type=int, required=True,
                         help="operator pipe/memfd carrying the provider "
                              "credential bytes (an ordinary file is "
                              "refused)")
-    p_root.add_argument("--mint-timeout", type=float, default=300.0)
-    p_root.set_defaults(func=_cmd_root)
+    p_auth.add_argument("--finalization-fd", type=int, required=True,
+                        help="operator-held CAPABILITY fd for the "
+                             "controller-binding finalization delta (a "
+                             "PIPE created before controller startup "
+                             "whose WRITE end the operator keeps, or a "
+                             "fully SEALED memfd; never an ordinary "
+                             "file, never argv/env)")
+    p_auth.add_argument("--mint-timeout", type=float, default=300.0)
+    p_auth.set_defaults(func=_cmd_authority)
 
     p_sup = sub.add_parser("supervisor", help="one-shot supervising "
                            "gatekeeper — TEST/DIAGNOSTIC entry (grant + "

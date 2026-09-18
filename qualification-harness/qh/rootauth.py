@@ -1,43 +1,69 @@
-"""IR-001 remediation + CR-REMED-002/003/004 hardening — the mechanically
-rooted OPERATOR AUTHORITY ROOT.
+"""IR-001 remediation + CR-REMED-002/003/004 hardening + CR-HARDEN-001
+pre-controller provenance — the mechanically rooted OPERATOR AUTHORITY
+ROOT with a TWO-PHASE authority lifecycle.
 
 The production launch authority has an actual mechanical root of trust
 OUTSIDE the untrusted same-UID controller:
 
-* the operator establishes ``qh root`` BEFORE controller-controlled request
-  execution, delivering the two out-of-band inputs a controller cannot
-  manufacture — the COMPLETE pre-authorized trusted launch spec and the
-  provider credential bytes (both ONLY through operator-held capability
-  channels: pipes or fully sealed memfds — CR-REMED-003);
+PHASE A — PRE-CONTROLLER TRUST FREEZE (no controller process exists; the
+operator/bootstrap phase is the TRUSTED authority phase):
+
+* the operator establishes ``qh authority`` with THREE out-of-band
+  capability inputs a controller cannot manufacture — the COMPLETE
+  PRE-CONTROLLER LAUNCH TEMPLATE (pipe or fully sealed memfd, carrying the
+  OPERATOR-SELECTED expected privileged harness identity, established
+  independently of the live ordinary tree), the provider credential bytes
+  (pipe), and the FINALIZATION channel (a pipe whose WRITE end the
+  operator keeps: it is created before controller startup and NEVER given
+  to the controller) — CR-REMED-003 channel mechanics, extended;
 
 * the root immediately becomes non-dumpable (PR_SET_DUMPABLE=0) and
   requires Yama ptrace_scope >= 1 (real kernel read; no override exists
   anywhere on the production path);
 
-* authority-critical state (the canonical spec bytes and the credential
-  custody bytes) is held ONLY in MANDATORILY SEALED memfds (the corrected
-  four-seal UAPI representation, CR-REMED-001) inside the non-dumpable
-  root process — sealing is never optional and never downgraded;
+* authority-critical state (the template bytes, the final spec bytes and
+  the credential custody bytes) is held ONLY in MANDATORILY SEALED memfds
+  (the corrected four-seal UAPI representation, CR-REMED-001) inside the
+  non-dumpable root process — sealing is never optional and never
+  downgraded;
 
-* the COMPLETE privileged bootstrap byte set is verified against the
-  trusted spec identity, IMPORTED into the root process, and frozen into
-  a sealed authority-held bundle BEFORE the controller-accessible trigger
-  is exposed (CR-REMED-002); from that moment a meta_path guard refuses
-  every NEW qh.* import, so later host-tree mutation can never load
-  attacker code into the authority process;
+* CR-HARDEN-001: the live ordinary harness tree is verified against the
+  OPERATOR-PROVIDED expected identity (never a value recomputed from that
+  same tree — the mutable tree can never define its own expected
+  identity); the COMPLETE privileged byte set is frozen into a sealed
+  authority-held bundle; EVERY privileged qh module is imported NOW, in
+  this trusted pre-controller phase, with its EXECUTING code object
+  mechanically proven equal to a fresh compile of the frozen verified
+  bytes (closing the verify-then-import/preloaded-code TOCTOU); the
+  template is sealed; the milestone PRE_CONTROLLER_BOOTSTRAP_FROZEN is
+  recorded; and a meta_path guard refuses every NEW qh.* import from that
+  moment (the controller-era tree can never load code into the authority
+  process);
 
-* the authorized CONTROLLER identity (uid/pid/starttime) is OPERATOR-
-  authored inside the trusted spec (CR-REMED-004); the root enforces the
-  exact SO_PEERCRED uid/pid plus the ACTUAL /proc starttime of the mint
-  peer BEFORE minting — the first compatible same-UID peer can no longer
-  define itself as the controller (a wrong peer terminally consumes the
-  one-shot root: acceptable fail-closed DoS, recorded);
+PHASE B — CONTROLLER BINDING / FINAL SPEC / TRIGGER EXPOSURE:
+
+* ONLY after the Phase-A milestone may the authorized controller be
+  started; the operator sends the FINALIZATION delta (template_id + the
+  authorized controller uid/pid/starttime) over the operator-held
+  finalization channel — the ONLY controller-dependent values that may be
+  added (CR-REMED-004 preserved: operator-authored, never a controller
+  request field);
+
+* finalization mechanically proves FINAL_SPEC_FROZEN_HARNESS_ID ==
+  PRE_CONTROLLER_FROZEN_HARNESS_ID (the final spec's harness identity is
+  the frozen pre-controller identity — NEVER recomputed from the live
+  tree; any mismatch fails closed) and only THEN is the controller-access
+  trigger socket bound (ROOT_TRIGGER_BEFORE_FINALIZATION refusal
+  otherwise);
+
+* at the trigger the root enforces the exact SO_PEERCRED uid/pid plus the
+  ACTUAL /proc starttime of the mint peer BEFORE minting (a wrong peer
+  terminally consumes the one-shot root: acceptable fail-closed DoS,
+  recorded — R-6);
 
 * the one-shot supervisor is created by ``fork()`` from the ALREADY-LOADED
-  trusted root process — privileged code bytes are NEVER re-imported from
-  the ordinary mutable host harness tree after the trigger is exposed
-  (the previous fresh-interpreter supervisor spawn with a host-tree
-  module search path is REMOVED from the production path);
+  frozen root process — privileged code bytes are NEVER re-imported from
+  the ordinary mutable host harness tree after Phase A;
 
 * the public unrestricted ``qh mint`` surface is REMOVED from production:
   the only production mint is performed by THIS root, for EXACTLY the one
@@ -45,7 +71,7 @@ OUTSIDE the untrusted same-UID controller:
 
 * a controller-created parallel root can at most mint a powerless
   imitation: it holds no real credential bytes and no operator-authorized
-  spec, so nothing it spawns can perform a provider-capable launch;
+  template, so nothing it spawns can perform a provider-capable launch;
 
 * root SIGKILL is fail-closed denial (DoS) only — authority dies with the
   process and nothing on the filesystem can restore it.
@@ -60,6 +86,7 @@ import socket
 import struct
 import sys
 import time
+import types
 
 from . import trusted_spec
 from .authority import Grant, mint_attempt_grant
@@ -151,6 +178,43 @@ def _bundle_unpack(blob: bytes) -> dict[str, bytes]:
     return files
 
 
+def _code_objects_equal(a: types.CodeType, b: types.CodeType) -> bool:
+    """Structural equality of two code objects (marshal's interning makes
+    byte-level marshal comparison unreliable; every semantic field plus a
+    recursive consts walk is deterministic and complete)."""
+    for field in ("co_code", "co_names", "co_varnames", "co_flags",
+                  "co_argcount", "co_posonlyargcount", "co_kwonlyargcount",
+                  "co_nlocals", "co_freevars", "co_cellvars",
+                  "co_filename"):
+        if getattr(a, field) != getattr(b, field):
+            return False
+    ca, cb = list(a.co_consts), list(b.co_consts)
+    if len(ca) != len(cb):
+        return False
+    for x, y in zip(ca, cb):
+        if isinstance(x, types.CodeType) and isinstance(y, types.CodeType):
+            if not _code_objects_equal(x, y):
+                return False
+        elif x != y:
+            return False
+    return True
+
+
+def _module_code_matches_frozen(mod, frozen_bytes: bytes) -> bool:
+    """CR-HARDEN-001 §12: mechanically prove that the module's EXECUTING
+    code object is a compile of the FROZEN verified bytes — not merely
+    that its file path lives under the pinned tree or that the file bytes
+    happen to hash correctly NOW.  ``get_code`` re-reads the file: if the
+    file changed after import the comparison fails closed."""
+    try:
+        code = mod.__loader__.get_code(mod.__name__)
+        recomposed = compile(frozen_bytes, code.co_filename, "exec",
+                             dont_inherit=True)
+        return _code_objects_equal(code, recomposed)
+    except Exception:  # noqa: BLE001 — any failure is fail-closed
+        return False
+
+
 class _FrozenImportGuard:
     """meta_path finder that refuses every NEW qh/qh.* import after the
     privileged bootstrap freeze (planted modules and lazy host re-imports
@@ -168,30 +232,44 @@ class _FrozenImportGuard:
 
 class PrivilegedBootstrap:
     """The immutable authority-held representation of the COMPLETE
-    privileged code byte set (CR-REMED-002).
+    privileged code byte set (CR-REMED-002 + CR-HARDEN-001).
 
-    ``freeze`` reads the exact spec-pinned byte set from the harness root,
-    verifies it against the trusted spec identity, imports every
-    privileged module into THIS process, packs the bytes into a
-    MANDATORILY SEALED memfd and records per-module identities.  The root
-    exposes its controller trigger only AFTER a successful freeze; the
-    supervisor is then forked from this already-loaded state."""
+    ``freeze`` runs in the PRE-CONTROLLER TRUSTED PHASE (the untrusted
+    controller process does not yet exist).  It reads the exact pinned
+    byte set from the harness root, verifies it against the
+    OPERATOR-PROVIDED expected identity (established independently of the
+    live tree), imports every privileged module into THIS process, proves
+    each module's EXECUTING code object equal to a fresh compile of the
+    frozen verified bytes, packs the bytes into a MANDATORILY SEALED memfd
+    and records per-module provenance.  The root exposes its controller
+    trigger only AFTER a successful freeze + finalization; the supervisor
+    is then forked from this already-loaded state."""
 
     def __init__(self, *, harness_root: str, files: dict[str, bytes],
                  bundle_fd: int, bundle_digest: str,
-                 spec_tree_digest: str, module_ids: dict[str, str]) -> None:
+                 expected_tree_digest: str,
+                 module_ids: dict[str, str],
+                 module_inventory: dict[str, dict],
+                 provenance: dict | None = None) -> None:
         self.harness_root = harness_root
         self.files = files
         self.bundle_fd = bundle_fd
         self.bundle_digest = bundle_digest
-        self.spec_tree_digest = spec_tree_digest
+        self.expected_tree_digest = expected_tree_digest
         self.module_ids = module_ids
+        self.module_inventory = module_inventory
+        self.provenance = provenance or {}
         self._guard_installed = False
 
     # -- freeze -----------------------------------------------------------
 
     @classmethod
-    def freeze(cls, *, harness_root: str, spec: dict) -> "PrivilegedBootstrap":
+    def freeze(cls, *, harness_root: str,
+               expected_tree_digest: str,
+               provenance: dict | None = None) -> "PrivilegedBootstrap":
+        """PHASE A freeze.  ``expected_tree_digest`` is the OPERATOR-SELECTED
+        identity from the pre-controller launch template — never a value
+        computed from this same live tree (CR-HARDEN-001 §6/§17)."""
         harness_root = str(harness_root)
         files: dict[str, bytes] = {}
         for rel in PRIVILEGED_BOOTSTRAP_RELPATHS:
@@ -201,18 +279,25 @@ class PrivilegedBootstrap:
                     f"BOOTSTRAP_FILE_MISSING: {rel}")
             with open(full, "rb") as fh:
                 files[rel] = fh.read()
-        # compare the byte set to the TRUSTED SPEC IDENTITY before
-        # anything is loaded or exposed
+        # CR-HARDEN-001: compare the live byte set to the OPERATOR-PROVIDED
+        # expected identity BEFORE anything is loaded or exposed — a
+        # controller-mutated (or otherwise drifted) tree fails closed here
+        # and can never self-pin its own bytes as the expected identity.
         digest = trusted_spec.harness_digest_from_files(harness_root, files)
-        spec_digest = spec["harness"]["tree_digest"]
-        if digest != spec_digest:
+        if digest != expected_tree_digest:
             raise RootInitError(
-                f"BOOTSTRAP_HARNESS_TREE_DRIFT: frozen set digest "
-                f"{digest[:12]}… != spec-bound {spec_digest[:12]}… "
-                "(host harness tree drifted from the trusted spec)")
-        # import the complete privileged module set NOW (before any
-        # controller-accessible trigger exists)
+                f"BOOTSTRAP_HARNESS_TREE_DRIFT: live set digest "
+                f"{digest[:12]}… != operator-expected "
+                f"{expected_tree_digest[:12]}… (the ordinary harness tree "
+                "does not match the operator-selected pre-controller "
+                "identity; refusing to self-pin the live tree)")
+        # import the complete privileged module set NOW, inside the
+        # pre-controller trusted phase, and prove each EXECUTING code
+        # object equal to a fresh compile of the frozen verified bytes
+        # (closes the verify-then-import / preloaded-code TOCTOU:
+        # restoration or in-phase races cannot make other code execute)
         module_ids: dict[str, str] = {}
+        module_inventory: dict[str, dict] = {}
         real_root = os.path.realpath(harness_root)
         for name, rel in zip(PRIVILEGED_MODULES,
                              (r for r in PRIVILEGED_BOOTSTRAP_RELPATHS
@@ -223,7 +308,20 @@ class PrivilegedBootstrap:
                 raise RootInitError(
                     f"BOOTSTRAP_MODULE_NOT_FROM_PINNED_TREE: {name} -> "
                     f"{mod_file}")
-            module_ids[name] = sha256_bytes(files[rel])
+            file_sha = sha256_bytes(files[rel])
+            module_ids[name] = file_sha
+            module_inventory[name] = {
+                "load_phase": "PRE_CONTROLLER_TRUSTED_PHASE",
+                "file_relpath": rel,
+                "file_sha256": file_sha,
+                "codeobject_verified":
+                    _module_code_matches_frozen(mod, files[rel]),
+            }
+            if not module_inventory[name]["codeobject_verified"]:
+                raise RootInitError(
+                    f"BOOTSTRAP_MODULE_CODEOBJECT_MISMATCH: the executing "
+                    f"code object of {name} is not a compile of the "
+                    "frozen verified bytes")
         # freeze the bytes into the MANDATORILY SEALED authority bundle
         blob = _bundle_pack(files)
         bundle_fd, seal_status = hold_authority_bytes(
@@ -232,8 +330,10 @@ class PrivilegedBootstrap:
         return cls(harness_root=harness_root, files=files,
                    bundle_fd=bundle_fd,
                    bundle_digest=sha256_bytes(blob),
-                   spec_tree_digest=spec_digest,
-                   module_ids=module_ids)
+                   expected_tree_digest=expected_tree_digest,
+                   module_ids=module_ids,
+                   module_inventory=module_inventory,
+                   provenance=provenance)
 
     # -- guards -----------------------------------------------------------
 
@@ -258,6 +358,26 @@ class PrivilegedBootstrap:
                     os.path.realpath(self.harness_root) + os.sep):
                 raise RootInitError(
                     f"BOOTSTRAP_MODULE_REROOTED: {name} -> {mod_file}")
+
+    def provenance_record(self, *, template_id: str | None = None) -> dict:
+        """The mechanically useful authority provenance tuple (§18):
+        source role/path, operator-selected identity, frozen bundle
+        digest, file count, per-file digest manifest, module-load
+        inventory and seal state."""
+        return {
+            "template_id": template_id,
+            "harness_root": self.harness_root,
+            "expected_tree_digest": self.expected_tree_digest,
+            "frozen_tree_digest": trusted_spec.harness_digest_from_files(
+                self.harness_root, self.files),
+            "frozen_bundle_digest": self.bundle_digest,
+            "file_count": len(self.files),
+            "file_manifest": {rel: sha256_bytes(data)
+                              for rel, data in sorted(self.files.items())},
+            "module_inventory": self.module_inventory,
+            "source_provenance": self.provenance,
+            "seal_state": "sealed",
+        }
 
     def verify_bundle_sealed(self) -> None:
         from .util import has_required_seals
@@ -317,11 +437,26 @@ class _ForkedSupervisor:
 
 
 class AuthorityRoot:
-    """The operator-established authority root.  One root = one trusted
-    launch spec = one attempt = at most one mint = one supervisor."""
+    """The operator-established authority root with the TWO-PHASE
+    lifecycle (CR-HARDEN-001).  One root = one pre-controller template =
+    one frozen bootstrap = one final spec = one attempt = at most one
+    mint = one supervisor.
 
-    def __init__(self, *, operator_state_dir: str, spec_bytes: bytes,
-                 custody_fd: int, redactor: Redactor | None = None,
+    PHASE A (``pre_controller_startup``) runs while NO controller process
+    exists: template sealed, live tree verified against the
+    operator-selected identity, privileged byte set frozen+sealed, every
+    privileged module imported with code-object provenance, import guard
+    armed, PRE_CONTROLLER_BOOTSTRAP_FROZEN recorded.
+
+    PHASE B (``finalize_controller_binding``) runs only after the
+    operator has started the authorized controller: the operator-held
+    finalization delta adds ONLY the controller identity; the final
+    spec's frozen-harness identity is proven equal to the pre-controller
+    frozen identity; only then may the trigger be exposed."""
+
+    def __init__(self, *, operator_state_dir: str, template_bytes: bytes,
+                 custody_fd: int, finalization_fd: int,
+                 redactor: Redactor | None = None,
                  supervisor_factory=None) -> None:
         self.operator_state_dir = operator_state_dir
         self.redactor = redactor or Redactor()
@@ -329,6 +464,9 @@ class AuthorityRoot:
         # already-loaded process from the frozen bootstrap)
         self._supervisor_factory = supervisor_factory or _fork_supervisor
         self.ledger = ObservabilityLedger(operator_state_dir)
+        self.template: dict | None = None
+        self.template_identity: str | None = None
+        self.template_memfd: int | None = None
         self.spec: dict | None = None
         self.spec_identity: str | None = None
         self.spec_memfd: int | None = None
@@ -336,17 +474,20 @@ class AuthorityRoot:
         self.custody_length: int = 0
         self.seal_status: str | None = None
         self.bootstrap: PrivilegedBootstrap | None = None
-        self._raw_spec_bytes = spec_bytes
+        self.pre_controller_ready = False
+        self.finalized = False
+        self._raw_template_bytes = template_bytes
         self._custody_source_fd = custody_fd
+        self._finalization_fd = finalization_fd
         self._socket: socket.socket | None = None
         self._active_conn: socket.socket | None = None
         self.supervisor_proc = None
         self.exit_code = 0
         self.fail_reason: str | None = None
 
-    # -- lifecycle ------------------------------------------------------
+    # -- PHASE A: pre-controller trusted freeze -------------------------
 
-    def startup(self) -> None:
+    def pre_controller_startup(self) -> None:
         self._record("ROOT_UP", pid=os.getpid(), ppid=os.getppid())
         pr_set_dumpable(0)
         self._record("PR_SET_DUMPABLE_0")
@@ -368,28 +509,35 @@ class AuthorityRoot:
                 "(corrected UAPI probe); refusing to hold authority-"
                 "critical state unsealed", 13)
             return
-        # trusted launch spec arrives ONLY through the operator-held
-        # capability channel gated by the CLI (pipe or fully sealed
-        # memfd — never a controller field, never an ordinary file)
+        # the pre-controller launch template arrives ONLY through the
+        # operator-held capability channel gated by the CLI (pipe or
+        # fully sealed memfd — never a controller field, never an
+        # ordinary file); the finalization channel must equally be an
+        # operator capability (it is verified here as well, before any
+        # phase proceeds)
         try:
-            self.spec = trusted_spec.parse_spec_bytes(self._raw_spec_bytes)
-            trusted_spec.validate_spec(self.spec)
-            self.spec_identity = trusted_spec.spec_id(self.spec)
+            self.template = trusted_spec.parse_template_bytes(
+                self._raw_template_bytes)
+            trusted_spec.validate_template(self.template)
+            self.template_identity = trusted_spec.template_id(self.template)
         except trusted_spec.SpecError as exc:
-            self._fail_closed(f"SPEC_INVALID:{exc}", 11)
+            self._fail_closed(f"TEMPLATE_INVALID:{exc}", 11)
             return
         try:
-            self.spec_memfd, _status = hold_authority_bytes(
-                trusted_spec.canonical_spec_bytes(self.spec),
-                name="qh-root-trusted-spec")
-        except RootInitError as exc:
-            self._fail_closed(str(exc), 13)
+            fin_kind = fd_source_kind(self._finalization_fd)
+            if fin_kind not in ("pipe", "memfd"):
+                raise SealUnavailableError(
+                    f"FINALIZATION_SOURCE_KIND_REFUSED:{fin_kind}")
+            self.template_memfd, _status = hold_authority_bytes(
+                trusted_spec.canonical_template_bytes(self.template),
+                name="qh-root-pre-controller-template")
+        except (RootInitError, SealUnavailableError) as exc:
+            self._fail_closed(str(exc), 15)
             return
-        self._write_spec_observability_copy()
-        self._record("SPEC_BOUND", spec_id=self.spec_identity,
-                     attempt_id=self.spec["attempt_id"])
-        self._record("SPEC_BYTES_SEALED", seal_status="sealed",
-                     spec_id=self.spec_identity)
+        self._record("TEMPLATE_BOUND", template_id=self.template_identity,
+                     attempt_id=self.template["attempt_id"])
+        self._record("TEMPLATE_BYTES_SEALED", seal_status="sealed",
+                     template_id=self.template_identity)
         # provider credential bytes: pipe/memfd ONLY (ordinary file refused)
         kind = fd_source_kind(self._custody_source_fd)
         if kind not in ("pipe", "memfd"):
@@ -425,26 +573,127 @@ class AuthorityRoot:
             pass
         self._record("ROOT_CUSTODY_ESTABLISHED", label=ROOT_CUSTODY_LABEL,
                      length=len(data), seal_status=status)
-        # CR-REMED-002: freeze the COMPLETE privileged bootstrap BEFORE
-        # any controller-accessible trigger exists, then lock the process
-        # against new harness-local imports.
+        # CR-HARDEN-001: freeze the COMPLETE privileged bootstrap from the
+        # OPERATOR-SELECTED identity while NO controller process exists,
+        # then lock the process against new harness-local imports — from
+        # this moment the ordinary live harness tree is NOT authoritative.
         try:
             self.bootstrap = PrivilegedBootstrap.freeze(
-                harness_root=self.spec["harness"]["root"], spec=self.spec)
+                harness_root=self.template["harness"]["root"],
+                expected_tree_digest=(
+                    self.template["harness"]["tree_digest"]),
+                provenance=self.template["harness"].get("provenance"))
         except (RootInitError, trusted_spec.SpecError,
                 SealUnavailableError) as exc:
             self._fail_closed(f"BOOTSTRAP_FREEZE_FAILED:{exc}", 17)
             return
         self.bootstrap.install_import_guard()
+        self._write_bootstrap_provenance()
+        self.pre_controller_ready = True
         self._record(
-            "BOOTSTRAP_FROZEN",
+            "PRE_CONTROLLER_BOOTSTRAP_FROZEN",
             bundle_digest=self.bootstrap.bundle_digest,
             files=len(self.bootstrap.files),
             modules=len(self.bootstrap.module_ids),
-            spec_tree_digest_match=(
+            template_id=self.template_identity,
+            expected_tree_digest_match=(
                 self.bootstrap.digest_from_files()
-                == self.spec["harness"]["tree_digest"]),
+                == self.template["harness"]["tree_digest"]),
             bundle_seal_status="sealed")
+
+    # -- PHASE B: controller-binding finalization -----------------------
+
+    def finalize_controller_binding(self, delta_bytes: bytes) -> None:
+        """Apply the OPERATOR-HELD finalization delta (trusted capability
+        channel: PIPE / sealed memfd, never argv/env, never a controller
+        request): add ONLY the authorized-controller identity to the
+        frozen pre-controller template and prove the final spec carries
+        the PRE-CONTROLLER FROZEN harness identity (fail closed BEFORE
+        any controller-accessible trigger on any mismatch)."""
+        if not self.pre_controller_ready or self.bootstrap is None:
+            self._fail_closed(
+                "FINALIZATION_BEFORE_PRE_CONTROLLER_FREEZE", 18)
+            return
+        try:
+            delta = json.loads(delta_bytes.decode("utf-8"))
+        except Exception as exc:  # noqa: BLE001
+            self._fail_closed(f"SPEC_FINALIZATION_INVALID:{exc!r}", 18)
+            return
+        if not isinstance(delta, dict) or \
+                set(delta) != {"template_id", "authorized_controller"}:
+            self._fail_closed(
+                "SPEC_FINALIZATION_INVALID:delta must carry exactly "
+                "template_id + authorized_controller", 18)
+            return
+        ac = delta["authorized_controller"]
+        if not isinstance(ac, dict) or set(ac) != {"uid", "pid",
+                                                   "starttime"}:
+            self._fail_closed(
+                "SPEC_FINALIZATION_INVALID:authorized_controller must "
+                "carry exactly uid/pid/starttime", 18)
+            return
+        if delta["template_id"] != self.template_identity:
+            got = str(delta["template_id"])[:12]
+            want = str(self.template_identity)[:12]
+            self._fail_closed(
+                f"TEMPLATE_ID_MISMATCH: delta {got}… != frozen {want}…", 18)
+            return
+        try:
+            self.spec = trusted_spec.finalize_spec(
+                self.template,
+                controller_uid=int(ac["uid"]),
+                controller_pid=int(ac["pid"]),
+                controller_starttime=str(ac["starttime"]))
+            self.spec_identity = trusted_spec.spec_id(self.spec)
+        except (trusted_spec.SpecError, TypeError, ValueError) as exc:
+            self._fail_closed(f"SPEC_FINALIZATION_INVALID:{exc}", 18)
+            return
+        # §10 FINAL_SPEC_FROZEN_HARNESS_ID == PRE_CONTROLLER_FROZEN_HARNESS_ID
+        frozen_id = self.bootstrap.digest_from_files()
+        final_id = self.spec["harness"]["tree_digest"]
+        if final_id != frozen_id or \
+                final_id != self.bootstrap.expected_tree_digest:
+            self._fail_closed(
+                f"FINAL_SPEC_FROZEN_HARNESS_ID_MISMATCH: final "
+                f"{final_id[:12]}… != pre-controller frozen "
+                f"{frozen_id[:12]}… — refusing to expose the trigger", 18)
+            return
+        try:
+            self.spec_memfd, _status = hold_authority_bytes(
+                trusted_spec.canonical_spec_bytes(self.spec),
+                name="qh-root-trusted-spec")
+        except RootInitError as exc:
+            self._fail_closed(str(exc), 13)
+            return
+        self._write_spec_observability_copy()
+        self._record("SPEC_BOUND", spec_id=self.spec_identity,
+                     attempt_id=self.spec["attempt_id"])
+        self._record("SPEC_BYTES_SEALED", seal_status="sealed",
+                     spec_id=self.spec_identity)
+        self.finalized = True
+        self._record(
+            "SPEC_FINALIZED",
+            final_spec_id=self.spec_identity,
+            template_id=self.template_identity,
+            frozen_harness_id=frozen_id,
+            frozen_harness_id_match=True,
+            bundle_digest=self.bootstrap.bundle_digest,
+            controller_pid=self.spec["authorized_controller"]["pid"])
+
+    def _write_bootstrap_provenance(self) -> None:
+        """OBSERVABILITY ONLY (like the spec copy): the §18 provenance
+        tuple + module-load inventory for operators and the future
+        independent auditor; no authority lives in this file."""
+        import pathlib
+        bdir = os.path.join(self.operator_state_dir, "bootstrap")
+        pathlib.Path(bdir).mkdir(parents=True, exist_ok=True)
+        rec = self.bootstrap.provenance_record(
+            template_id=self.template_identity)
+        path = os.path.join(
+            bdir, f"{str(self.template_identity)[:16]}.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(rec, fh, sort_keys=True, indent=1)
+        self._record("BOOTSTRAP_PROVENANCE_RECORD", path=path)
 
     def _write_spec_observability_copy(self) -> None:
         """Persisted copy is OBSERVABILITY ONLY: the id is self-certifying
@@ -463,12 +712,19 @@ class AuthorityRoot:
 
     def bind_socket(self) -> str:
         # the controller-accessible trigger may exist ONLY after the
-        # privileged bootstrap is frozen (CR-REMED-002)
+        # pre-controller privileged bootstrap is frozen (CR-REMED-002)
+        # AND the operator finalization has proven the final spec carries
+        # the frozen pre-controller harness identity (CR-HARDEN-001 §10)
         if self.bootstrap is None:
             raise RootInitError(
                 "ROOT_TRIGGER_BEFORE_BOOTSTRAP_FREEZE: refusing to expose"
                 " the controller trigger before the privileged bootstrap"
                 " is frozen")
+        if not self.finalized or self.spec is None:
+            raise RootInitError(
+                "ROOT_TRIGGER_BEFORE_FINALIZATION: refusing to expose the"
+                " controller trigger before the operator finalization"
+                " proved the final spec's frozen-harness identity")
         name = self.socket_name()
         s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         s.bind(name)  # abstract namespace: no filesystem object to tamper
@@ -628,6 +884,12 @@ class AuthorityRoot:
             pass  # observability only — never an authority decision
 
     def shutdown(self) -> None:
+        if self.template_memfd is not None:
+            try:
+                os.close(self.template_memfd)
+            except OSError:
+                pass
+            self.template_memfd = None
         if self.spec_memfd is not None:
             try:
                 os.close(self.spec_memfd)

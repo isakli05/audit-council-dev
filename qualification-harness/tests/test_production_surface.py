@@ -46,7 +46,7 @@ def test_production_parser_rejects_every_fault_flag():
         assert r.returncode == 2, flag
         assert "PRODUCTION_CLI_REFUSED" in r.stderr, flag
     # and on every other subcommand path
-    for sub in ("root", "compose-demo", "selfcheck"):
+    for sub in ("authority", "compose-demo", "selfcheck"):
         r = _run_cli(sub, "--yama-override", "1")
         assert r.returncode == 2, (sub, r.stderr)
         assert "PRODUCTION_CLI_REFUSED" in r.stderr
@@ -109,9 +109,9 @@ def test_root_startup_also_reads_real_yama(monkeypatch):
     from qh import rootauth
     monkeypatch.setattr(rootauth, "read_yama_ptrace_scope", lambda: 0)
     root = rootauth.AuthorityRoot(
-        operator_state_dir="/tmp/qh-none-root", spec_bytes=b"{}",
-        custody_fd=-1)
-    root.startup()
+        operator_state_dir="/tmp/qh-none-root", template_bytes=b"{}",
+        custody_fd=-1, finalization_fd=-1)
+    root.pre_controller_startup()
     assert root.exit_code == 6
     assert root.fail_reason == "YAMA_PTRACE_SCOPE_LT_1"
 

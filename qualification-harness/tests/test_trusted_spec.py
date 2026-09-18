@@ -18,7 +18,11 @@ from qh.util import sha256_bytes
 
 
 def _make_env(tmp_path, *, harness_root: str = str(HARNESS_ROOT)):
-    """A minimal operator-side environment (dirs + synthetic codex exe)."""
+    """A minimal operator-side environment (dirs + synthetic codex exe).
+    The expected harness identity is computed from the harness source at
+    AUTHORING time in the trusted pre-controller phase (operator-side
+    computation; the authority independently re-verifies the live tree
+    against the supplied value)."""
     root = tmp_path / "attempt-root"
     cfg = tmp_path / "controller-config"
     ev = tmp_path / "evidence"
@@ -33,6 +37,7 @@ def _make_env(tmp_path, *, harness_root: str = str(HARNESS_ROOT)):
     exe.chmod(0o755)
     profile = ProfileSpec(profile_name="audit", model_name="probe")
     config = render_config_toml(profile)
+    from qh.trusted_spec import harness_tree_digest
     spec = build_spec(
         attempt_id="spec-0001", attempt_root=str(root),
         config_dir=str(cfg), manifest_id="a" * 64,
@@ -53,6 +58,7 @@ def _make_env(tmp_path, *, harness_root: str = str(HARNESS_ROOT)):
                             "provider_role": "codex_chatgpt_oauth",
                             "version": 1},
         harness_root=harness_root,
+        expected_harness_tree_digest=harness_tree_digest(harness_root),
         controller_pid=4242, controller_starttime="999888777")
     return spec, {"root": root, "cfg": cfg, "ev": ev, "ao": ao, "tg": tg,
                   "exe": exe}
@@ -71,8 +77,8 @@ def test_spec_completeness_covers_every_security_critical_field(tmp_path):
     spec, _ = _make_env(tmp_path)
     for key in ("spec_version", "attempt_id", "attempt_root",
                 "bootstrap_manifest", "controller_scope",
-                "authorized_controller", "harness",
-                "boundary_child", "sources", "codex",
+                "authorized_controller", "pre_controller_template",
+                "harness", "boundary_child", "sources", "codex",
                 "credential_adapter", "noegress", "mount_roles", "payload"):
         assert key in spec
     assert spec["spec_version"] == SPEC_SCHEMA_VERSION
@@ -81,6 +87,12 @@ def test_spec_completeness_covers_every_security_critical_field(tmp_path):
     assert spec["harness"]["tree_digest"]
     ac = spec["authorized_controller"]
     assert set(ac) == {"uid", "pid", "starttime"}
+    # v3: the final spec mechanically preserves the pre-controller
+    # template identity (CR-HARDEN-001 §10)
+    tid = spec["pre_controller_template"]["template_id"]
+    assert len(tid) == 64
+    from qh.trusted_spec import template_id
+    from qh.trusted_spec import build_pre_controller_template  # noqa: F401
     for src in ("evidence", "auditor_output", "target"):
         for f in ("dev", "ino", "tree_digest"):
             assert spec["sources"][src][f] is not None

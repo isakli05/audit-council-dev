@@ -349,3 +349,20 @@ def require_trusted_spec_fd(fd: int) -> str:
                 f"does not carry the required 0x{REQUIRED_SEALS:04x}")
         return "sealed-memfd"
     raise SealUnavailableError(f"SPEC_SOURCE_KIND_REFUSED:{kind}")
+
+
+def read_bounded(fd: int, limit: int = 1 << 20) -> bytes:
+    """Read one bounded payload from an fd to EOF (used for the trusted
+    template / finalization channel reads)."""
+    data = b""
+    while len(data) <= limit:
+        try:
+            chunk = os.read(fd, 4096)
+        except OSError:
+            break
+        if not chunk:
+            break
+        data += chunk
+    if len(data) > limit:
+        raise SealUnavailableError(f"CHANNEL_PAYLOAD_TOO_LARGE:{len(data)}")
+    return data.strip()

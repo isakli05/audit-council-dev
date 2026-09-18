@@ -47,18 +47,31 @@ def test_wrong_pid_same_uid_refused_at_root(env):
 @requires_userns
 def test_correct_pid_wrong_starttime_refused(env):
     """Correct PID but wrong starttime: REFUSED (pid-reuse defense against
-    a late clone of the controller identity)."""
+    a late clone of the controller identity).  Phase-B shape: the operator
+    finalization delta binds the controller's pid with a WRONG starttime —
+    even the real controller process is refused at the trigger."""
     env.author_spec("bind-0002")
-    # sabotage the spec-bound starttime while keeping the pid
-    bad = json.loads(json.dumps(env.spec))
-    st = int(bad["authorized_controller"]["starttime"])
-    bad["authorized_controller"]["starttime"] = str(st + 1)
-    env._spec = bad
-    root = env.spawn_root(bad)
+    ctrl = env.controller
+    wrong_starttime = str(int(ctrl.starttime) + 1)
+    root = env.spawn_authority()
+    from qh.trusted_spec import finalize_spec, template_id
+    env.finalize(delta={
+        "template_id": template_id(env.template),
+        "authorized_controller": {"uid": ctrl.uid, "pid": ctrl.pid,
+                                  "starttime": wrong_starttime}},
+        expect_ready=True)
+    # the trigger socket name embeds the FINAL spec id — derive it from
+    # the wrong-starttime finalization the authority actually bound
+    env._spec = finalize_spec(env.template, controller_uid=ctrl.uid,
+                              controller_pid=ctrl.pid,
+                              controller_starttime=wrong_starttime)
     try:
-        resp = env.raw_root_mint("bind-0002", spec=bad)
+        # the bound controller itself mints (correct pid, but the bound
+        # starttime does not match the ACTUAL /proc starttime)
+        resp = env.root_mint("bind-0002")
         assert not resp.get("ok")
         assert "AUTHORIZED_CONTROLLER_MISMATCH" in json.dumps(resp)
+        assert "starttime" in json.dumps(resp)
     finally:
         env.cleanup_procs()
     rc, err = env.root_outcome(root, timeout=60)

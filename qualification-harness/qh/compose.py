@@ -45,7 +45,9 @@ from .codex_profile import ProfileSpec, generate_codex_home, \
     render_config_toml
 from .custody import SyntheticInertAdapter
 from .ledger import ObservabilityLedger
-from .trusted_spec import canonical_spec_bytes, spec_id, build_spec
+from .trusted_spec import (build_pre_controller_template, canonical_spec_bytes,
+                           canonical_template_bytes, finalize_spec, spec_id,
+                           template_id)
 from .util import sha256_bytes, sha256_file
 
 HARNESS_ROOT = str(Path(__file__).resolve().parent.parent)
@@ -130,6 +132,33 @@ def synthetic_credential(nonce: str = "") -> str:
     return SYNTHETIC_CREDENTIAL + nonce
 
 
+def _git_provenance(harness_root: str) -> dict | None:
+    """Best-effort operator-side Git source-identity capture for the §18
+    provenance tuple (repository full name, exact source commit,
+    qualification-harness Git tree SHA).  Purely EVIDENCE: the trust
+    decision binds to the operator-selected content digest; a version
+    string alone is never provenance.  Returns None outside a Git
+    worktree."""
+    import subprocess as _sp
+    repo = str(Path(harness_root).resolve().parent)
+    try:
+        def _git(*args: str) -> str:
+            return _sp.run(["git", "-C", repo, *args],
+                           capture_output=True, text=True,
+                           timeout=10).stdout.strip()
+        commit = _git("rev-parse", "HEAD")
+        if not commit:
+            return None
+        url = _git("remote", "get-url", "origin")
+        harness_tree = _git("rev-parse", "HEAD:qualification-harness")
+        return {"source_role": "qualification-harness",
+                "repository": url or repo,
+                "source_commit": commit,
+                "harness_git_tree": harness_tree or ""}
+    except Exception:  # noqa: BLE001 — provenance evidence is optional
+        return None
+
+
 class CompositionEnv:
     """Deterministic full-environment builder for tests and the demo
     (operator side: authors the trusted launch spec and starts the
@@ -165,8 +194,12 @@ class CompositionEnv:
         self._controllers: list = []
         self._controller: BoundController | None = None
         self._spec: dict | None = None
+        self._template: dict | None = None
         self._attempt: str | None = None
         self._bound: BoundController | None = None
+        self._authority_proc = None
+        self.finalization_w: int | None = None
+        self.phase_line: str | None = None
         self.manifest = capture_bootstrap_manifest(
             str(self.config_dir), str(self.operator_state))
         if not self.manifest.ok:
@@ -216,21 +249,35 @@ class CompositionEnv:
                 "sha256": sha256_file(self.codex_bin),
                 "exe_path": self.codex_bin}
 
-    # -- operator side: trusted launch spec + authority root ------------
+    # -- operator side: pre-controller template + two-phase authority ---
 
-    def author_spec(self, attempt_id: str, *,
-                    role: str = "codex",
-                    payload_kind: str = "launch_sim",
-                    harness_root: str | None = None,
-                    adapter_id: str | None = None,
-                    controller: BoundController | None = None) -> dict:
+    def author_template(self, attempt_id: str, *,
+                        role: str = "codex",
+                        payload_kind: str = "launch_sim",
+                        harness_root: str | None = None,
+                        adapter_id: str | None = None,
+                        expected_harness_tree_digest: str | None = None,
+                        harness_provenance: dict | None = None) -> dict:
+        """Author the PRE-CONTROLLER LAUNCH TEMPLATE (CR-HARDEN-001): all
+        security-critical values except the controller identity.  The
+        expected harness identity defaults to the operator's computation
+        from the harness source AT AUTHORING TIME in the trusted
+        pre-controller phase; an independently established value (trusted
+        pristine copy / Git object bytes) can be supplied explicitly —
+        the authority always verifies the LIVE tree against the supplied
+        value before any controller exists."""
+        from .trusted_spec import harness_tree_digest
         adapter = ADAPTERS_BY_ROLE[role]
         if adapter_id is not None:
             from .adapters import get_adapter
             adapter = get_adapter(adapter_id)
-        ctrl = controller if controller is not None else self.controller
+        hroot = harness_root or HARNESS_ROOT
+        if expected_harness_tree_digest is None:
+            expected_harness_tree_digest = harness_tree_digest(hroot)
+        if harness_provenance is None:
+            harness_provenance = _git_provenance(hroot)
         config = render_config_toml(self.profile_spec)
-        self._spec = build_spec(
+        self._template = build_pre_controller_template(
             attempt_id=attempt_id,
             attempt_root=str(self.root),
             config_dir=str(self.config_dir),
@@ -246,14 +293,19 @@ class CompositionEnv:
                 "id": adapter.adapter_id,
                 "provider_role": adapter.provider_role,
                 "version": adapter.version},
-            harness_root=harness_root or HARNESS_ROOT,
-            controller_pid=ctrl.pid,
-            controller_starttime=ctrl.starttime,
-            controller_uid=ctrl.uid,
+            harness_root=hroot,
+            expected_harness_tree_digest=expected_harness_tree_digest,
+            harness_provenance=harness_provenance,
             payload_kind=payload_kind)
         self._attempt = attempt_id
-        self._bound = ctrl
-        return self._spec
+        self._spec = None
+        return self._template
+
+    def author_spec(self, attempt_id: str, **kwargs) -> dict:
+        """Backward-compatible alias: author the pre-controller template
+        (the final spec is completed by Phase-B finalization — see
+        ``finalize``).  Returns the TEMPLATE."""
+        return self.author_template(attempt_id, **kwargs)
 
     def _profile_dict(self) -> dict:
         p = self.profile_spec
@@ -268,57 +320,124 @@ class CompositionEnv:
                 "network_enabled": p.network_enabled}
 
     @property
-    def spec(self) -> dict:
-        if self._spec is None:
-            raise RuntimeError("author_spec() not called yet")
-        return self._spec
+    def template(self) -> dict:
+        if self._template is None:
+            raise RuntimeError("author_template() not called yet")
+        return self._template
 
-    def spawn_root(self, spec: dict | None = None, *,
-                   custody_value: str | None = SYNTHETIC_CREDENTIAL,
-                   mint_timeout: float = 300.0,
-                   spec_fd: int | None = None) -> subprocess.Popen:
-        """Start the AUTHORITY ROOT as a real subprocess (non-dumpable,
-        mandatorily sealed spec + custody, frozen privileged bootstrap)
-        and wait until its socket is bound.  The spec travels through a
-        permitted capability channel: the stdin PIPE by default, or a
-        fully sealed memfd via ``spec_fd``."""
-        spec = spec if spec is not None else self.spec
+    @property
+    def spec(self) -> dict:
+        if self._spec is not None:
+            return self._spec
+        if self._template is not None:
+            # lazy derivation against the (default or already-bound)
+            # controller identity — the production authority performs this
+            # finalization itself inside its trusted process
+            ctrl = self._bound or self.controller
+            self._bound = ctrl
+            self._spec = finalize_spec(
+                self._template, controller_uid=ctrl.uid,
+                controller_pid=ctrl.pid,
+                controller_starttime=ctrl.starttime)
+            return self._spec
+        raise RuntimeError("author_template() not called yet")
+
+    def spawn_authority(self, template: dict | None = None, *,
+                        custody_value: str | None = SYNTHETIC_CREDENTIAL,
+                        mint_timeout: float = 300.0,
+                        template_fd: int | None = None) \
+            -> subprocess.Popen:
+        """PHASE A: start the AUTHORITY as a real subprocess while NO
+        controller exists, and wait until it reports PRECONTROLLER_READY
+        (the pre-controller trusted freeze is complete: template sealed,
+        live tree verified against the operator identity, privileged byte
+        set frozen+sealed, all privileged modules loaded with code-object
+        provenance, import guard armed).  The finalization pipe is
+        created HERE (before controller startup): the write end stays
+        with the operator (``self.finalization_w``) and is never passed
+        to any controller."""
+        tpl = template if template is not None else self.template
+        # the DELIVERED template is the operative one for all later
+        # derivation (finalization delta id, lazy final spec)
+        self._template = tpl
+        self._spec = None
         cr, cw = os.pipe()
         if custody_value is not None:
             os.write(cw, custody_value.encode("utf-8"))
         os.close(cw)
-        argv = [PY, "-m", "qh.cli", "root",
+        fin_r, fin_w = os.pipe()
+        self.finalization_w = fin_w
+        argv = [PY, "-m", "qh.cli", "authority",
                 "--operator-state", str(self.operator_state),
                 "--custody-fd", str(cr),
+                "--finalization-fd", str(fin_r),
                 "--mint-timeout", str(mint_timeout)]
-        pass_fds = [cr]
-        stdin = subprocess.PIPE
-        if spec_fd is not None:
-            argv += ["--spec-fd", str(spec_fd)]
-            pass_fds.append(spec_fd)
-        # production semantics: the root process loads its privileged code
-        # from EXACTLY the harness tree the trusted spec pins (the freeze
-        # verifies this mechanically and refuses any mismatch)
-        harness_root = spec["harness"]["root"]
+        pass_fds = [cr, fin_r]
+        if template_fd is not None:
+            argv += ["--template-fd", str(template_fd)]
+            pass_fds.append(template_fd)
+        # production semantics: the authority process loads its privileged
+        # code from EXACTLY the harness tree the template pins (the
+        # pre-controller freeze verifies this mechanically and refuses
+        # any mismatch)
+        harness_root = tpl["harness"]["root"]
         env = dict(os.environ,
                    PYTHONPATH=harness_root + os.pathsep +
                    os.environ.get("PYTHONPATH", ""))
         proc = subprocess.Popen(
-            argv, pass_fds=tuple(pass_fds), stdin=stdin,
+            argv, pass_fds=tuple(pass_fds), stdin=subprocess.PIPE,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env,
             cwd=str(self.base))
         os.close(cr)
-        if spec_fd is None:
-            proc.stdin.write(canonical_spec_bytes(spec))
+        os.close(fin_r)
+        if template_fd is None:
+            proc.stdin.write(canonical_template_bytes(tpl))
             proc.stdin.close()
         self._spawned_procs.append(proc)
+        self._authority_proc = proc
+        line = self._wait_phase(proc, "PRECONTROLLER_READY",
+                                "authority pre-controller startup failed")
+        self.phase_line = line
+        return proc
+
+    def finalize(self, *, controller: BoundController | None = None,
+                 delta: dict | None = None, expect_ready: bool = True) -> None:
+        """PHASE B: after the operator has started the authorized
+        controller (post-PRECONTROLLER_READY), send the finalization
+        delta over the operator-held finalization channel.  ``delta``
+        defaults to the frozen template id + the bound controller's
+        actual uid/pid/starttime."""
+        assert self.finalization_w is not None, \
+            "spawn_authority() must run first"
+        ctrl = controller if controller is not None else \
+            (self._bound or self.controller)
+        if delta is None:
+            delta = {"template_id": template_id(self.template),
+                     "authorized_controller": {
+                         "uid": ctrl.uid, "pid": ctrl.pid,
+                         "starttime": ctrl.starttime}}
+        self._bound = ctrl
+        os.write(self.finalization_w,
+                 (json.dumps(delta, sort_keys=True) + "\n").encode())
+        os.close(self.finalization_w)
+        self.finalization_w = None
+        self._spec = finalize_spec(
+            self.template, controller_uid=ctrl.uid, controller_pid=ctrl.pid,
+            controller_starttime=ctrl.starttime)
+        if expect_ready:
+            line = self._wait_phase(self._authority_proc, "READY",
+                                    "authority finalization failed")
+            self.phase_line = line
+
+    def _wait_phase(self, proc, needle: str, what: str) -> str:
         deadline = time.monotonic() + 30
         line = ""
         while time.monotonic() < deadline:
             line = proc.stdout.readline().decode("utf-8", "replace").strip()
-            if line.startswith("READY") or not line or proc.poll() is not None:
+            if line.startswith(needle) or not line or \
+                    proc.poll() is not None:
                 break
-        if not line.startswith("READY"):
+        if not line.startswith(needle):
             try:
                 err = proc.stderr.read(4096).decode("utf-8", "replace")
                 proc.wait(timeout=10)
@@ -326,8 +445,31 @@ class CompositionEnv:
                 err = "<unreadable>"
                 proc.kill()
                 proc.wait(timeout=10)
-            raise RuntimeError(
-                f"authority root startup failed: {line!r} stderr={err!r}")
+            raise RuntimeError(f"{what}: {line!r} stderr={err!r}")
+        return line
+
+    def spawn_root(self, template: dict | None = None, *,
+                   spec: dict | None = None,
+                   custody_value: str | None = SYNTHETIC_CREDENTIAL,
+                   mint_timeout: float = 300.0,
+                   template_fd: int | None = None,
+                   controller: BoundController | None = None) \
+            -> subprocess.Popen:
+        """Backward-compatible one-shot driver of the COMPLETE two-phase
+        flow (PHASE A spawn_authority → controller start → PHASE B
+        finalize → READY).  ``template``/``spec`` accept a template
+        override (the old final-spec override surface is gone: the final
+        spec is authority-derived)."""
+        if template is None and spec is not None:
+            template = spec
+        if template is None:
+            if self._template is None:
+                raise RuntimeError("author_template() not called yet")
+            template = self._template
+        proc = self.spawn_authority(
+            template, custody_value=custody_value,
+            mint_timeout=mint_timeout, template_fd=template_fd)
+        self.finalize(controller=controller)
         return proc
 
     def root_socket_name(self, spec: dict | None = None) -> str:
@@ -456,6 +598,20 @@ class CompositionEnv:
                     pass
         for ctrl in getattr(self, "_controllers", []):
             ctrl.stop()
+        if getattr(self, "finalization_w", None) is not None:
+            try:
+                os.close(self.finalization_w)
+            except OSError:
+                pass
+            self.finalization_w = None
+
+    def bootstrap_provenance(self) -> dict:
+        """The authority's recorded §18 provenance tuple + module-load
+        inventory (observability copy written at Phase A)."""
+        assert self._template is not None
+        path = self.operator_state / "bootstrap" / \
+            f"{template_id(self._template)[:16]}.json"
+        return json.loads(path.read_text(encoding="utf-8"))
 
     def start_supervisor(self, grant: Grant, **kwargs) \
             -> subprocess.Popen:
@@ -520,6 +676,7 @@ class CompositionEnv:
             claims.update(env_claims)
         request["env_claims"] = claims
         ctrl = self._bound or self.controller
+        self._bound = ctrl
         name_base = self.supervisor_socket_name(attempt_id)[1:]
         return ctrl.request(name_base, request)
 

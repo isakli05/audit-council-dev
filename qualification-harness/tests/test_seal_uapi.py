@@ -192,10 +192,10 @@ def test_root_authority_hold_fails_closed_on_seal_failure(monkeypatch):
     monkeypatch.setattr(util, "_apply_seals", failing_seal)
     monkeypatch.setattr(util, "_seal_capability", None)
     root = rootauth.AuthorityRoot(
-        operator_state_dir="/tmp/qh-none-seal-fail", spec_bytes=b"{}",
-        custody_fd=-1)
-    # startup reaches the seal gate before spec parsing is meaningful; a
-    # spec of {} fails validation anyway, so drive the hold directly too
+        operator_state_dir="/tmp/qh-none-seal-fail", template_bytes=b"{}",
+        custody_fd=-1, finalization_fd=-1)
+    # startup reaches the seal gate before template parsing is meaningful;
+    # a template of {} fails validation anyway, so drive the hold directly
     with pytest.raises(rootauth.RootInitError):
         rootauth.hold_authority_bytes(b"x", name="t-root-fail")
 
@@ -224,14 +224,19 @@ def test_root_cli_fails_closed_when_seal_backend_fails(tmp_path):
     wrapper = tmp_path / "failing_seal_root.py"
     op_state = tmp_path / "op-state"
     wrapper.write_text(
-        "import sys, errno\n"
+        "import os, sys, errno\n"
         f"sys.path.insert(0, {str(HARNESS_ROOT)!r})\n"
+        "cr, cw = os.pipe(); os.write(cw, b'SYNTHETIC'); os.close(cw)\n"
+        "fr, fw = os.pipe(); os.close(fw)\n"
         "from qh import util\n"
         "def failing_seal(fd):\n"
         "    raise OSError(errno.EPERM, 'TEST SEAM: seal backend failure')\n"
         "util._apply_seals = failing_seal\n"
         "from qh import cli\n"
-        f"sys.exit(cli.main({['root', '--operator-state', str(op_state), '--custody-fd', '9']!r}))\n",
+        "rc = cli.main(['authority', '--operator-state', " + repr(str(op_state)) + ", "
+        "'--custody-fd', str(cr), '--finalization-fd', str(fr)])\n"
+        "os.close(cr); os.close(fr)\n"
+        "sys.exit(rc)\n",
         encoding="utf-8")
     r, w = os.pipe()
     os.write(w, b"SYNTHETIC")

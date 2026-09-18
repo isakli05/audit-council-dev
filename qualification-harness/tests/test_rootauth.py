@@ -235,25 +235,28 @@ def test_root_process_is_non_dumpable(env):
 def test_root_custody_ordinary_file_refused(env):
     """Root custody arriving via an ORDINARY FILE (persisted plaintext
     channel) is refused at initialization."""
-    import fcntl
     env.author_spec("root-0011")
     cred_file = env.base / "persisted-root-credential.txt"
     cred_file.write_text(SYNTHETIC_CREDENTIAL)
+    fin_r, fin_w = os.pipe()
     with open(cred_file, "rb") as fh:
-        argv = [sys.executable, "-m", "qh.cli", "root",
+        argv = [sys.executable, "-m", "qh.cli", "authority",
                 "--operator-state", str(env.operator_state),
-                "--custody-fd", str(fh.fileno())]
+                "--custody-fd", str(fh.fileno()),
+                "--finalization-fd", str(fin_r)]
         proc = subprocess.Popen(
-            argv, pass_fds=(fh.fileno(),), stdin=subprocess.PIPE,
+            argv, pass_fds=(fh.fileno(), fin_r), stdin=subprocess.PIPE,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             env={**os.environ, "PYTHONPATH": str(HARNESS_ROOT)})
         proc.stdin.write(
             __import__("qh.trusted_spec", fromlist=["x"])
-            .canonical_spec_bytes(env.spec))
+            .canonical_template_bytes(env.template))
         proc.stdin.close()
         out = proc.stdout.read()
         err = proc.stderr.read()
         proc.wait(timeout=30)
+    os.close(fin_r)
+    os.close(fin_w)
     assert proc.returncode != 0
     assert "CUSTODY_SOURCE_KIND_REFUSED:file" in \
         (err.decode() + out.decode())
@@ -296,28 +299,31 @@ def test_supervisor_root_pid_mismatch_refused(env):
 @requires_bwrap
 @requires_userns
 def test_root_rejects_tampered_spec_bytes(env):
-    """Spec bytes that do not canonically validate (e.g. tampered in
-    transit) fail closed at root initialization."""
+    """Template bytes that do not canonically validate (e.g. tampered in
+    transit) fail closed at authority initialization."""
     env.author_spec("root-0013")
-    bad = dict(env.spec)
-    bad["spec_version"] = 999
-    from qh.trusted_spec import canonical_spec_bytes
-    argv = [sys.executable, "-m", "qh.cli", "root",
-            "--operator-state", str(env.operator_state),
-            "--custody-fd", "3"]
+    bad = dict(env.template)
+    bad["template_version"] = 999
+    from qh.trusted_spec import canonical_template_bytes
     cr, cw = os.pipe()
     os.write(cw, b"SYNTHETIC")
     os.close(cw)
+    fr, fw = os.pipe()
+    os.close(fw)
+    argv = [sys.executable, "-m", "qh.cli", "authority",
+            "--operator-state", str(env.operator_state),
+            "--custody-fd", str(cr),
+            "--finalization-fd", str(fr)]
     proc = subprocess.Popen(
-        argv, pass_fds=(cr,), stdin=subprocess.PIPE,
+        argv, pass_fds=(cr, fr), stdin=subprocess.PIPE,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        env={**os.environ, "PYTHONPATH": str(HARNESS_ROOT)},
-        preexec_fn=lambda: os.dup2(cr, 3))
+        env={**os.environ, "PYTHONPATH": str(HARNESS_ROOT)})
     os.close(cr)
-    proc.stdin.write(canonical_spec_bytes(bad))
+    os.close(fr)
+    proc.stdin.write(canonical_template_bytes(bad))
     proc.stdin.close()
     out = proc.stdout.read()
     err = proc.stderr.read()
     proc.wait(timeout=30)
     assert proc.returncode != 0
-    assert "SPEC_INVALID" in (err.decode() + out.decode())
+    assert "TEMPLATE_INVALID" in (err.decode() + out.decode())

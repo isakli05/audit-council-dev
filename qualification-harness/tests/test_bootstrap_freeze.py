@@ -1,11 +1,11 @@
 """CR-REMED-002 — immutable privileged supervisor bootstrap.
 
 The authority root must preload and freeze the COMPLETE privileged code
-byte set (compared against the trusted spec identity) into a sealed
-authority-held representation BEFORE exposing the controller trigger; the
-supervisor is then created from the FROZEN representation (fork of the
-already-loaded root process) and NEVER re-imports privileged code from
-the ordinary mutable host harness tree.
+byte set (verified against the operator-selected trusted identity) into a
+sealed authority-held representation BEFORE exposing the controller
+trigger; the supervisor is then created from the FROZEN representation
+(fork of the already-loaded root process) and NEVER re-imports privileged
+code from the ordinary mutable host harness tree.
 
 Adversarial reproduction of the previous vulnerability: after root-ready,
 an attacker modifies (or delete/recreates) the ordinary host harness tree
@@ -130,14 +130,15 @@ def test_bootstrap_freeze_evidenced_before_trigger(env, tmp_path):
     root = env.spawn_root()
     try:
         events = [r["event"] for r in env.ledger_records()]
-        assert "BOOTSTRAP_FROZEN" in events
+        assert "PRE_CONTROLLER_BOOTSTRAP_FROZEN" in events
         frozen = [r for r in env.ledger_records()
-                  if r["event"] == "BOOTSTRAP_FROZEN"][0]
+                  if r["event"] == "PRE_CONTROLLER_BOOTSTRAP_FROZEN"][0]
         assert frozen.get("bundle_digest")
         assert frozen.get("files") == 21  # 19 qh modules + 2 fixtures
-        assert frozen.get("spec_tree_digest_match") is True
+        assert frozen.get("expected_tree_digest_match") is True
         assert frozen.get("bundle_seal_status") == "sealed"
-        assert events.index("BOOTSTRAP_FROZEN") < \
+        assert frozen.get("template_id")
+        assert events.index("PRE_CONTROLLER_BOOTSTRAP_FROZEN") < \
             events.index("ROOT_SOCKET_BOUND")
     finally:
         env.cleanup_procs()
@@ -168,18 +169,37 @@ def test_post_freeze_import_guard_blocks_host_qh_imports(env, tmp_path):
     """The import guard: after the privileged bootstrap freeze, any NEW
     qh.* import from the ordinary host path fails closed (an attacker
     cannot introduce code by planting modules post-freeze)."""
+    from qh.trusted_spec import build_pre_controller_template
     hroot = _harness_copy(tmp_path, name="harness-H5")
-    spec = env.author_spec("boot-guard", harness_root=hroot)
+    for d in ("ar", "cfg", "ev", "ao"):
+        (tmp_path / d).mkdir(exist_ok=True)
+    exe = tmp_path / "exe"
+    exe.write_text("#!/bin/sh\necho synthetic\n", encoding="utf-8")
+    exe.chmod(0o755)
+    tpl = build_pre_controller_template(
+        attempt_id="boot-guard", attempt_root=str(tmp_path / "ar"),
+        target_src=None,
+        config_dir=str(tmp_path / "cfg"), manifest_id="m" * 64,
+        evidence_src=str(tmp_path / "ev"),
+        auditor_output_src=str(tmp_path / "ao"),
+        codex_exe=str(exe), codex_version="synthetic",
+        profile={}, config_sha256="0" * 64,
+        credential_adapter={"id": "synthetic_inert_v1",
+                            "provider_role": "inert", "version": 1},
+        harness_root=hroot,
+        expected_harness_tree_digest=__import__(
+            "qh.trusted_spec", fromlist=["harness_tree_digest"])
+        .harness_tree_digest(hroot))
     spec_file = tmp_path / "guard-spec.json"
-    spec_file.write_text(json.dumps(spec), encoding="utf-8")
+    spec_file.write_text(json.dumps(tpl), encoding="utf-8")
     wrapper = tmp_path / "guard_probe.py"
     wrapper.write_text(
         "import importlib, importlib.util, json, sys\n"
         f"sys.path.insert(0, {hroot!r})\n"
         "from qh.rootauth import PrivilegedBootstrap\n"
-        f"spec = json.load(open({str(spec_file)!r}))\n"
+        f"tpl = json.load(open({str(spec_file)!r}))\n"
         f"boot = PrivilegedBootstrap.freeze(harness_root={hroot!r},"
-        " spec=spec)\n"
+        " expected_tree_digest=tpl['harness']['tree_digest'])\n"
         "boot.install_import_guard()\n"
         "try:\n"
         "    importlib.import_module('qh.attacker_planted_module')\n"
@@ -196,30 +216,33 @@ def test_post_freeze_import_guard_blocks_host_qh_imports(env, tmp_path):
     assert "IMPORT_UNEXPECTEDLY_ALLOWED" not in proc.stdout
 
 
-def test_freeze_verifies_bundle_against_spec_digest(tmp_path):
-    """§9: the frozen byte set is COMPARED to the trusted spec identity —
-    a host tree that drifted from the spec-bound digest fails closed at
-    freeze time (before the trigger is exposed)."""
+def test_freeze_verifies_bundle_against_operator_expected_digest(tmp_path):
+    """§9/§17: the frozen byte set is COMPARED to the OPERATOR-PROVIDED
+    expected identity — a host tree that drifted from that identity fails
+    closed at freeze time (before the trigger is exposed, and the drifted
+    tree is never self-pinned as its own expected value)."""
     from qh.compose import CompositionEnv
     from qh.rootauth import PrivilegedBootstrap, RootInitError
     hroot = _harness_copy(tmp_path, name="harness-H6")
     base = tmp_path / "env6"
     env = CompositionEnv(str(base))
-    spec = env.author_spec("boot-0005", harness_root=hroot)
-    # attacker mutates the host tree BEFORE root start
+    tpl = env.author_spec("boot-0005", harness_root=hroot)
+    # attacker mutates the host tree BEFORE the authority starts
     with open(os.path.join(hroot, "qh", "gatew.py"), "wb") as fh:
         fh.write(_attacker_module_bytes("qh/gatew.py"))
     with pytest.raises(RootInitError) as exc:
-        PrivilegedBootstrap.freeze(harness_root=hroot, spec=spec)
-    assert "HARNESS_TREE_DRIFT" in str(exc.value) or \
-        "SPEC" in str(exc.value)
+        PrivilegedBootstrap.freeze(
+            harness_root=hroot,
+            expected_tree_digest=tpl["harness"]["tree_digest"])
+    assert "HARNESS_TREE_DRIFT" in str(exc.value)
 
 
 @requires_bwrap
 @requires_userns
 def test_root_startup_fails_closed_on_harness_drift(env, tmp_path):
     """Full-root proof: a host harness tree that drifted from the
-    spec-bound identity refuses at startup — no trigger is exposed."""
+    operator-selected identity refuses at startup — no trigger is
+    exposed."""
     hroot = _harness_copy(tmp_path, name="harness-H7")
     env.author_spec("boot-0006", harness_root=hroot)
     with open(os.path.join(hroot, "qh", "util.py"), "ab") as fh:

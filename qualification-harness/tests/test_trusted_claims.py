@@ -189,12 +189,11 @@ def test_config_digest_drift_refused(env):
     """The rendered config must match the spec-bound digest exactly: a
     spec whose bound digest does not match its own profile parameters
     fails closed at profile freeze."""
-    spec = env.author_spec("drift-config")
-    bad = json.loads(json.dumps(spec))
+    env.author_spec("drift-config")
+    bad = json.loads(json.dumps(env.template))
     bad["codex"]["config_sha256"] = "0" * 64
-    env._spec = bad
-    root = env.spawn_root(bad)
-    mint = env.root_mint("drift-config", spec=bad)
+    root = env.spawn_root(template=bad)
+    mint = env.root_mint("drift-config")
     assert mint.get("ok"), mint
     resp = env.controller_request("drift-config", own_session_slug="s")
     env.root_outcome(root, timeout=300)
@@ -208,11 +207,11 @@ def test_config_digest_drift_refused(env):
 def test_wrong_adapter_id_terminal_stop(env):
     """Adapter identity is spec-bound: an unregistered adapter id stops
     terminally at the credential-adapter gate."""
-    spec = env.author_spec("adapter-wrong")
-    bad = json.loads(json.dumps(spec))
+    env.author_spec("adapter-wrong")
+    bad = json.loads(json.dumps(env.template))
     bad["credential_adapter"]["id"] = "attacker_adapter_v9"
-    root = env.spawn_root(bad)
-    mint = env.root_mint("adapter-wrong", spec=bad)
+    root = env.spawn_root(template=bad)
+    mint = env.root_mint("adapter-wrong")
     assert mint.get("ok"), mint
     resp = env.controller_request("adapter-wrong", own_session_slug="s")
     env.root_outcome(root, timeout=300)
