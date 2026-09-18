@@ -201,6 +201,40 @@ This AUCDEV-010 bootstrap-root exception may not be:
 * used as an easier alternative to ordinary successor qualification while a proven
   predecessor exists.
 
+### AUCDEV-023 adopted auditor-bootstrap governance
+
+Adopted by explicit operator decision on 2026-09-19 (governance/policy
+acceptance ONLY). Canonical record:
+[AUCDEV-023-AUDITOR-BOOTSTRAP-GOVERNANCE-ADOPTION](AUCDEV-023-AUDITOR-BOOTSTRAP-GOVERNANCE-ADOPTION.md),
+adopting the Control Room readback-ACCEPTED
+[design revision](AUCDEV-023-AUDITOR-BOOTSTRAP-GOVERNANCE-DESIGN-REVISION.md)
+and its [readback](AUCDEV-023-AUDITOR-BOOTSTRAP-GOVERNANCE-DESIGN-REVISION-READBACK.md).
+
+* Specific to the frozen AUCDEV-023 harness target (`d4d584ff…`); it is the
+  adopted exceptional path for an independent harness review when no proven
+  qualified installed predecessor is available.
+* New policy with its own authority basis and lifecycle — NOT a reuse,
+  revival, extension, or transfer of the AUCDEV-010 bootstrap-root exception
+  above (Campaign-2 remains terminal; Campaign-3 does not exist).
+* Adopted architecture R1: controllerless / process-bound / target-independent
+  / one-shot External Bootstrap Supervisor (EBS); the qh target is audit
+  subject/evidence only and may not audit or authorize its own review.
+* Two external blind first passes; default engagement budget 2.
+* GATE-W′ (REQUIRED/UNPROVEN) and real-client credential/tool isolation
+  (in-process read protection NOT YET PROVEN) remain mandatory future
+  preparation gates; host-netns network exposure remains a disclosed residual.
+* One-event / single-use / no-revival lifetime.
+* Adoption grants NO implementation or execution authority: EBS
+  implementation, event-package preparation, and real execution each require
+  subsequent bounded authorization.
+* Qualification and installation remain separate later decisions; adoption
+  creates no qualification-history row.
+* No predecessor-provenance claim is created:
+  INDEPENDENT_AUDITOR_PROVENANCE_GATE remains NOT_SATISFIED.
+
+See CURRENT-STATE for the live policy state and the single recorded next
+action.
+
 ## Implementation prompt template
 
 ```text

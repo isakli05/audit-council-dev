@@ -181,6 +181,44 @@ Unknown Opus usage stays null; UI quota percentages are not token accounting.
 Some whole-program budget integration remains incomplete (AUCDEV-007).
 Specialist blindness/grounding checks are heuristic and not release-enabled.
 
+## AUCDEV-023 exceptional auditor-bootstrap governance
+
+Governance adopted 2026-09-19 by explicit operator decision — governance/
+policy acceptance ONLY. This is NOT implemented and NOT runtime/current Audit
+Council product functionality; nothing below exists as code, and adoption
+grants no implementation or execution authority.
+
+The adopted design (Control Room readback-accepted revision, architecture R1)
+introduces, for at most one future AUCDEV-023 harness-audit event only:
+
+- a minimal EXTERNAL BOOTSTRAP SUPERVISOR (EBS) outside `qualification-harness/**`
+  and `skill/**` — a target-independent, operator-controlled, controllerless,
+  process-bound, one-shot bootstrap authority with no substantive audit
+  verdict logic and no qh imports;
+- the frozen qh target (`d4d584ff…`) as audit subject only — never launch,
+  credential, or accounting authority for its own review;
+- a networked auditor transport as a future per-event frozen package, bound to
+  exact event/role/attempt/model/evidence/target/output identities;
+- two external blind first passes (default engagement budget 2).
+
+Credential custody is target-independent (operator pipe/sealed memfd →
+non-dumpable EBS → sealed in-memory custody → fd inheritance → ephemeral
+boundary-private provider home → teardown). Credential/tool isolation (C2
+namespace-split is the required architecture) and GATE-W′ (REQUIRED/UNPROVEN)
+are mandatory future preparation gates, not satisfied claims; the real
+client's in-process credential-read protection is NOT YET PROVEN
+(application-level residual; role blocked if no effective deny exists).
+Host-netns network exposure is an accepted disclosed residual at design
+strength. Policy lifetime is one-event / single-use / no-revival. No
+execution, qualification, or installation authority follows from adoption;
+the independent auditor provenance gate remains NOT_SATISFIED and the
+ordinary predecessor chain is not claimed. Canonical record:
+[AUCDEV-023-AUDITOR-BOOTSTRAP-GOVERNANCE-ADOPTION](AUCDEV-023-AUDITOR-BOOTSTRAP-GOVERNANCE-ADOPTION.md).
+
+The product/runtime source baseline of this document is unchanged by that
+adoption — the EBS does not exist yet, so no EBS implementation SHA is
+recorded here.
+
 ## Qualification and deeper sources
 
 The previously installed qualified version audits each candidate in a fresh session.
