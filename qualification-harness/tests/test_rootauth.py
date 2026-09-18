@@ -147,7 +147,7 @@ def test_no_second_mint_after_terminal_preexec_stop(env):
     env.root_outcome(root, timeout=300)
     second = env.root_mint("root-0003")
     assert not second.get("ok")
-    assert "ROOT_CONNECT_FAILED" in json.dumps(second)
+    assert "CONNECT_FAILED" in json.dumps(second)
 
 
 @requires_bwrap

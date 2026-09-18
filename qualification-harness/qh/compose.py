@@ -61,6 +61,69 @@ ADAPTERS_BY_ROLE = {
 }
 
 
+class BoundController:
+    """A live controller process the OPERATOR can authorize into the
+    trusted launch spec (CR-REMED-004): started BEFORE the spec is
+    authored, driven by one command per stdin line (mint/request via
+    fixtures/bound_controller.py).  Every request payload it carries is a
+    CLAIM; it never holds authority values."""
+
+    def __init__(self, *, claude_config_dir: str,
+                 extra_env: dict | None = None,
+                 hold_argv: list[str] | None = None) -> None:
+        env = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8",
+               "CLAUDE_CONFIG_DIR": claude_config_dir}
+        if extra_env:
+            env.update(extra_env)
+        self.proc = subprocess.Popen(
+            [PY, str(Path(HARNESS_ROOT) / "fixtures" /
+                     "bound_controller.py")],
+            env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL, text=True, cwd="/tmp")
+        line = self.proc.stdout.readline()
+        ready = json.loads(line)
+        assert ready.get("type") == "ready", ready
+        self.pid: int = ready["pid"]
+        from .util import proc_starttime
+        st = proc_starttime(self.pid)
+        assert st is not None, "controller starttime unreadable"
+        self.starttime: str = st
+        self.uid = os.getuid()
+        self._stopped = False
+
+    def _cmd(self, op: str, socket_base: str, payload: dict) -> dict:
+        assert not self._stopped and self.proc.poll() is None
+        self.proc.stdin.write(json.dumps(
+            {"cmd": op, "socket": socket_base, "payload": payload}) + "\n")
+        self.proc.stdin.flush()
+        line = self.proc.stdout.readline()
+        if not line:
+            return {"ok": False, "reason": "CONTROLLER_NO_RESPONSE"}
+        return json.loads(line).get("resp", {"ok": False,
+                                             "reason": "BAD_RESP"})
+
+    def mint(self, root_socket_base: str, payload: dict) -> dict:
+        return self._cmd("mint", root_socket_base, payload)
+
+    def request(self, supervisor_socket_base: str, payload: dict) -> dict:
+        return self._cmd("request", supervisor_socket_base, payload)
+
+    def stop(self) -> None:
+        if not self._stopped:
+            self._stopped = True
+            try:
+                if self.proc.poll() is None:
+                    self.proc.stdin.write('{"cmd": "exit"}\n')
+                    self.proc.stdin.flush()
+                self.proc.wait(timeout=10)
+            except Exception:  # noqa: BLE001 — teardown best effort
+                self.proc.kill()
+                try:
+                    self.proc.wait(timeout=5)
+                except Exception:  # noqa: BLE001
+                    pass
+
+
 def synthetic_credential(nonce: str = "") -> str:
     """Deterministic synthetic inert credential fixtures only — never a
     real provider credential."""
@@ -99,13 +162,35 @@ class CompositionEnv:
         self.engagements = EngagementLedger(str(self.operator_state))
         self.engagements.authorize(2, note="composition test baseline")
         self._spawned_procs: list = []
+        self._controllers: list = []
+        self._controller: BoundController | None = None
         self._spec: dict | None = None
         self._attempt: str | None = None
+        self._bound: BoundController | None = None
         self.manifest = capture_bootstrap_manifest(
             str(self.config_dir), str(self.operator_state))
         if not self.manifest.ok:
             raise RuntimeError(
                 f"bootstrap capture failed: {self.manifest.reason}")
+
+    # -- the operator-authorized controller instance (CR-REMED-004) ------
+
+    @property
+    def controller(self) -> BoundController:
+        """The DEFAULT controller instance for this environment (lazy):
+        the process whose uid/pid/starttime the operator authors into the
+        trusted launch spec."""
+        if self._controller is None:
+            self._controller = self.spawn_controller(
+                claude_config_dir=str(self.config_dir))
+        return self._controller
+
+    def spawn_controller(self, *, claude_config_dir: str,
+                         extra_env: dict | None = None) -> BoundController:
+        ctrl = BoundController(claude_config_dir=claude_config_dir,
+                               extra_env=extra_env)
+        self._controllers.append(ctrl)
+        return ctrl
 
     @staticmethod
     def default_profile_spec() -> ProfileSpec:
@@ -137,11 +222,13 @@ class CompositionEnv:
                     role: str = "codex",
                     payload_kind: str = "launch_sim",
                     harness_root: str | None = None,
-                    adapter_id: str | None = None) -> dict:
+                    adapter_id: str | None = None,
+                    controller: BoundController | None = None) -> dict:
         adapter = ADAPTERS_BY_ROLE[role]
         if adapter_id is not None:
             from .adapters import get_adapter
             adapter = get_adapter(adapter_id)
+        ctrl = controller if controller is not None else self.controller
         config = render_config_toml(self.profile_spec)
         self._spec = build_spec(
             attempt_id=attempt_id,
@@ -160,8 +247,12 @@ class CompositionEnv:
                 "provider_role": adapter.provider_role,
                 "version": adapter.version},
             harness_root=harness_root or HARNESS_ROOT,
+            controller_pid=ctrl.pid,
+            controller_starttime=ctrl.starttime,
+            controller_uid=ctrl.uid,
             payload_kind=payload_kind)
         self._attempt = attempt_id
+        self._bound = ctrl
         return self._spec
 
     def _profile_dict(self) -> dict:
@@ -184,10 +275,13 @@ class CompositionEnv:
 
     def spawn_root(self, spec: dict | None = None, *,
                    custody_value: str | None = SYNTHETIC_CREDENTIAL,
-                   require_seals: bool = False,
-                   mint_timeout: float = 300.0) -> subprocess.Popen:
+                   mint_timeout: float = 300.0,
+                   spec_fd: int | None = None) -> subprocess.Popen:
         """Start the AUTHORITY ROOT as a real subprocess (non-dumpable,
-        process-bound spec + custody) and wait until its socket is bound."""
+        mandatorily sealed spec + custody, frozen privileged bootstrap)
+        and wait until its socket is bound.  The spec travels through a
+        permitted capability channel: the stdin PIPE by default, or a
+        fully sealed memfd via ``spec_fd``."""
         spec = spec if spec is not None else self.spec
         cr, cw = os.pipe()
         if custody_value is not None:
@@ -197,18 +291,26 @@ class CompositionEnv:
                 "--operator-state", str(self.operator_state),
                 "--custody-fd", str(cr),
                 "--mint-timeout", str(mint_timeout)]
-        if require_seals:
-            argv.append("--require-seals")
+        pass_fds = [cr]
+        stdin = subprocess.PIPE
+        if spec_fd is not None:
+            argv += ["--spec-fd", str(spec_fd)]
+            pass_fds.append(spec_fd)
+        # production semantics: the root process loads its privileged code
+        # from EXACTLY the harness tree the trusted spec pins (the freeze
+        # verifies this mechanically and refuses any mismatch)
+        harness_root = spec["harness"]["root"]
         env = dict(os.environ,
-                   PYTHONPATH=HARNESS_ROOT + os.pathsep +
+                   PYTHONPATH=harness_root + os.pathsep +
                    os.environ.get("PYTHONPATH", ""))
         proc = subprocess.Popen(
-            argv, pass_fds=(cr,), stdin=subprocess.PIPE,
+            argv, pass_fds=tuple(pass_fds), stdin=stdin,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env,
             cwd=str(self.base))
         os.close(cr)
-        proc.stdin.write(canonical_spec_bytes(spec))
-        proc.stdin.close()
+        if spec_fd is None:
+            proc.stdin.write(canonical_spec_bytes(spec))
+            proc.stdin.close()
         self._spawned_procs.append(proc)
         deadline = time.monotonic() + 30
         line = ""
@@ -236,9 +338,23 @@ class CompositionEnv:
                   spec: dict | None = None,
                   request: dict | None = None,
                   timeout: float = 60.0) -> dict:
-        """One mint request against the live authority root (as the
-        controller or operator would send it — the request carries NO
-        authority values)."""
+        """One mint request sent BY THE OPERATOR-AUTHORIZED CONTROLLER
+        INSTANCE bound in the current spec (CR-REMED-004: the root
+        enforces exact uid/pid/starttime at the trigger — the mint must
+        come from the bound controller process or it is refused)."""
+        name = self.root_socket_name(spec)
+        payload = request if request is not None else {
+            "attempt_id": attempt_id or self._attempt}
+        ctrl = self._bound or self.controller
+        return ctrl.mint(name[1:], payload)
+
+    def raw_root_mint(self, attempt_id: str | None = None, *,
+                      spec: dict | None = None,
+                      request: dict | None = None,
+                      timeout: float = 60.0) -> dict:
+        """ATTACK CHANNEL (tests): the calling process itself connects to
+        the root trigger — a same-UID peer that is NOT the pre-bound
+        controller.  The hardened root must refuse it."""
         name = self.root_socket_name(spec)
         payload = request if request is not None else {
             "attempt_id": attempt_id or self._attempt}
@@ -327,8 +443,9 @@ class CompositionEnv:
         return proc
 
     def cleanup_procs(self) -> None:
-        """Kill any root/supervisor this env spawned that is still alive
-        (test teardown hygiene — prevents abstract-socket leaks)."""
+        """Kill any root/supervisor/controller this env spawned that is
+        still alive (test teardown hygiene — prevents abstract-socket
+        leaks)."""
         import subprocess as _sp
         for proc in getattr(self, "_spawned_procs", []):
             if proc.poll() is None:
@@ -337,6 +454,8 @@ class CompositionEnv:
                     proc.wait(timeout=5)
                 except _sp.TimeoutExpired:
                     pass
+        for ctrl in getattr(self, "_controllers", []):
+            ctrl.stop()
 
     def start_supervisor(self, grant: Grant, **kwargs) \
             -> subprocess.Popen:
@@ -384,8 +503,10 @@ class CompositionEnv:
                            env_claims: dict | None = None,
                            own_session_slug: str | None = None,
                            timeout: float = 300.0) -> dict:
-        """Spawn the synthetic controller and run one CLAIM-ONLY launch
-        request against the supervisor socket."""
+        """Run one CLAIM-ONLY launch request FROM THE OPERATOR-AUTHORIZED
+        CONTROLLER INSTANCE (the persistent bound controller process —
+        CR-REMED-004: the supervisor enforces the same pre-bound
+        uid/pid/starttime at request acceptance)."""
         if own_session_slug is not None:
             slug_dir = self.config_dir / "projects" / own_session_slug
             slug_dir.mkdir(parents=True, exist_ok=True)
@@ -398,22 +519,45 @@ class CompositionEnv:
         if env_claims:
             claims.update(env_claims)
         request["env_claims"] = claims
-        req_path = self.base / f"request-{attempt_id}-{time.monotonic_ns()}.json"
-        req_path.write_text(json.dumps(request, sort_keys=True),
-                            encoding="utf-8")
-        argv = [PY, str(Path(HARNESS_ROOT) / "fixtures" /
-                        "fake_controller.py"),
-                "--request", str(req_path), "--attempt", attempt_id]
-        env = dict(os.environ, CLAUDE_CONFIG_DIR=str(self.config_dir),
-                   PYTHONPATH=HARNESS_ROOT + os.pathsep +
-                   os.environ.get("PYTHONPATH", ""))
-        proc = subprocess.run(argv, capture_output=True, text=True,
-                              timeout=timeout, env=env)
+        ctrl = self._bound or self.controller
+        name_base = self.supervisor_socket_name(attempt_id)[1:]
+        return ctrl.request(name_base, request)
+
+    def raw_controller_request(self, supervisor_socket: str,
+                               request: dict,
+                               timeout: float = 60.0) -> dict:
+        """ATTACK CHANNEL (tests): the calling process itself connects to
+        the supervisor socket — a same-UID peer that is NOT the pre-bound
+        controller.  The hardened supervisor must refuse it."""
+        name = (supervisor_socket if supervisor_socket.startswith("\0")
+                else "\0" + supervisor_socket)
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(timeout)
         try:
-            return json.loads(proc.stdout.strip().splitlines()[-1])
-        except (json.JSONDecodeError, IndexError):
-            return {"ok": False, "reason": "CONTROLLER_NO_RESPONSE",
-                    "stdout": proc.stdout[-400:], "stderr": proc.stderr[-400:]}
+            s.connect(name)
+        except OSError as exc:
+            return {"ok": False,
+                    "reason": f"CONNECT_FAILED:{type(exc).__name__}"}
+        with s:
+            s.sendall((json.dumps(request, sort_keys=True) + "\n")
+                      .encode("utf-8"))
+            data = b""
+            while True:
+                chunk = s.recv(65536)
+                if not chunk:
+                    break
+                data += chunk
+        try:
+            return json.loads(data.decode("utf-8", "replace").strip())
+        except json.JSONDecodeError:
+            return {"ok": False, "reason": "NO_RESPONSE"}
+
+    def supervisor_socket_name(self, attempt_id: str) -> str:
+        import hashlib
+        digest = hashlib.sha256(
+            json.dumps({"attempt": attempt_id}, sort_keys=True,
+                       separators=(",", ":")).encode()).hexdigest()
+        return "\0qh-" + digest[:16]
 
     def build_request(self, attempt_id: str) -> dict:
         """CLAIM-ONLY request schema: no security-critical values."""

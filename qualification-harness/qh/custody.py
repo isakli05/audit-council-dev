@@ -39,18 +39,16 @@ reported, never assumed.
 from __future__ import annotations
 
 import os
-import stat
 from dataclasses import dataclass
 
-from .util import Redactor
+from . import util as _util
+from .util import (MFD_ALLOW_SEALING, MFD_CLOEXEC, REQUIRED_SEALS,
+                   Redactor, SealUnavailableError, fd_source_kind,
+                   memfd_create)
 
-# Linux memfd seals (fcntl F_ADD_SEALS/F_GET_SEALS)
-F_ADD_SEALS = 1033
-F_SEAL_WRITE = 0x0008
-F_SEAL_GROW = 0x0010
-F_SEAL_SHRINK = 0x0020
-F_SEAL_SEAL = 0x0040
-_ALL_SEALS = F_SEAL_WRITE | F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL
+# Canonical Linux UAPI memfd/seal constants are centralized in qh/util.py
+# (CR-REMED-001): this module holds NO numeric seal definitions of its
+# own — every name above is the one canonical util definition.
 
 MAX_CREDENTIAL_BYTES = 65536
 MIN_CREDENTIAL_BYTES = 1
@@ -83,56 +81,17 @@ class ChildSecretPlan:
 
 
 def _fd_kind(fd: int) -> str:
-    st = os.fstat(fd)
-    if stat.S_ISFIFO(st.st_mode):
-        return "pipe"
-    if stat.S_ISREG(st.st_mode):
-        # memfds are anonymous in-memory objects: their /proc fd link
-        # target is "/memfd:<name>" (F_GET_SEALS is NOT a reliable
-        # discriminator on every kernel class — observed returning a
-        # value even for ordinary files)
-        try:
-            target = os.readlink(f"/proc/self/fd/{fd}")
-        except OSError:
-            return "file"
-        return "memfd" if target.startswith("/memfd:") else "file"
-    return "other"
-
-
-MFD_CLOEXEC = 0x0001
-MFD_ALLOW_SEALING = 0x0004
-SYS_memfd_create = {"x86_64": 319, "aarch64": 279}
+    """Canonical fd classification (delegates to util.fd_source_kind —
+    pipe/memfd/file/other; memfds discriminated by their /proc/self/fd
+    link target, never by an fcntl value)."""
+    return fd_source_kind(fd)
 
 
 def _memfd_create(name: str) -> int:
-    """memfd_create via ctypes (no stdlib binding).
-
-    Created with MFD_CLOEXEC only: on the demonstrated kernel class
-    (7.2.2-cachyos) passing MFD_ALLOW_SEALING (0x4) yields a memfd whose
-    write(2) returns EINVAL — observed mechanically; seals are therefore
-    attempted later, best-effort, and recorded."""
-    import ctypes
-    flags = MFD_CLOEXEC
-    libc = ctypes.CDLL(None, use_errno=True)
-    if hasattr(libc, "memfd_create"):
-        fn = libc.memfd_create
-        fn.restype = ctypes.c_int
-        fn.argtypes = [ctypes.c_char_p, ctypes.c_uint]
-        fd = fn(name.encode(), flags)
-        if fd < 0:
-            e = ctypes.get_errno()
-            raise OSError(e, os.strerror(e))
-        return fd
-    import platform
-    nr = SYS_memfd_create.get(platform.machine())
-    if nr is None:
-        raise AttributeError("memfd_create unavailable on this machine")
-    libc.syscall.restype = ctypes.c_long
-    fd = libc.syscall(nr, name.encode(), flags)
-    if fd < 0:
-        e = ctypes.get_errno()
-        raise OSError(e, os.strerror(e))
-    return fd
+    """Sealable memfd: created with MFD_CLOEXEC|MFD_ALLOW_SEALING (the
+    CORRECT UAPI flags — the historical 0x4 was MFD_HUGETLB, which
+    mechanically explains the old populate-EINVAL observations)."""
+    return memfd_create(name, MFD_CLOEXEC | MFD_ALLOW_SEALING)
 
 
 class CredentialCustody:
@@ -166,8 +125,11 @@ class CredentialCustody:
                   redactor: Redactor) -> "CredentialCustody":
         """Read credential bytes from an operator-controlled fd (pipe or
         memfd ONLY — an ordinary file is refused: persisted plaintext is
-        exactly what custody exists to prevent), copy them into a sealed
-        memfd, seal it, and register the value for redaction."""
+        exactly what custody exists to prevent), copy them into a memfd
+        and apply the REQUIRED four-seal set — MANDATORY (CR-REMED-001
+        corrected semantics): establishment FAILS CLOSED when the sealed
+        representation cannot be produced; there is no best-effort
+        unsealed hold."""
         kind = _fd_kind(source_fd)
         if kind == "file":
             raise CustodyError(
@@ -187,27 +149,40 @@ class CredentialCustody:
                 f"CUSTODY_SOURCE_LENGTH_INVALID: {len(data)} bytes")
         try:
             memfd = _memfd_create(f"qh-custody-{label}")
-        except (AttributeError, OSError) as exc:
+        except (AttributeError, OSError, SealUnavailableError) as exc:
             raise CustodyError(f"CUSTODY_MEMFD_UNAVAILABLE: {exc!r}") from exc
-        os.write(memfd, data)
-        os.lseek(memfd, 0, os.SEEK_SET)
-        # Seals are HARDENING (best-effort): on kernels where F_ADD_SEALS
-        # is unavailable/EINVAL the memfd remains a valid memory-only,
-        # anonymous, non-filesystem hold; the PRIMARY protections are
-        # PR_SET_DUMPABLE=0 (same-UID cannot read the fd or the process)
-        # and child-only materialization.  The seal outcome is recorded,
-        # never silently claimed.
-        import fcntl
-        seal_status = "unavailable_kernel"
         try:
-            fcntl.fcntl(memfd, F_ADD_SEALS, _ALL_SEALS)
-            seal_status = "sealed"
-        except (OSError, ValueError):
-            pass
+            os.write(memfd, data)
+            os.lseek(memfd, 0, os.SEEK_SET)
+            # MANDATORY sealing with the corrected UAPI constants (called
+            # through the util module so the ONE seal-backend seam
+            # util._apply_seals governs every consumer): the custody
+            # representation either carries all four required seals or
+            # establishment fails closed.
+            _util._apply_seals(memfd)
+            seals = _util.memfd_seals(memfd)
+            if seals & REQUIRED_SEALS != REQUIRED_SEALS:
+                raise CustodyError(
+                    f"CUSTODY_SEAL_INCOMPLETE: F_GET_SEALS=0x{seals:04x}")
+        except CustodyError:
+            try:
+                os.close(memfd)
+            except OSError:
+                pass
+            raise
+        except (OSError, ValueError, SealUnavailableError) as exc:
+            try:
+                os.close(memfd)
+            except OSError:
+                pass
+            raise CustodyError(
+                f"CUSTODY_SEAL_FAILED: authority-critical credential "
+                f"custody requires the four-seal representation and it "
+                f"could not be established: {exc!r}") from exc
         redactor.register(data.decode("utf-8", "surrogateescape"),
                           label)
         custody = cls(memfd, label, len(data), redactor)
-        custody.seal_status = seal_status
+        custody.seal_status = "sealed"
         return custody
 
     def child_plan(self, target_path: str) -> ChildSecretPlan:

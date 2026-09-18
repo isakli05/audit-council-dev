@@ -87,29 +87,22 @@ def _assert_terminal(env, attempt, response, rc, needle):
 @requires_bwrap
 @requires_userns
 def test_negative_c4p_failure(env):
-    """REAL C4' failure: the controller's ACTUAL environ carries a
-    different CLAUDE_CONFIG_DIR than the manifest scope."""
+    """REAL C4' failure: the bound controller's ACTUAL environ carries a
+    different CLAUDE_CONFIG_DIR than the manifest scope (the operator
+    authorized a controller instance whose real scope env mismatches the
+    captured manifest)."""
     attempt = "compose-neg-c4p"
-    env.author_spec(attempt)
     other_cfg = env.base / "other-config"
     other_cfg.mkdir(exist_ok=True)
+    # operator binds a controller whose ACTUAL CLAUDE_CONFIG_DIR differs
+    # from the manifest scope dir
+    bad_ctrl = env.spawn_controller(claude_config_dir=str(other_cfg))
+    env.author_spec(attempt, controller=bad_ctrl)
     root = env.spawn_root()
     mint = env.root_mint(attempt)
     assert mint.get("ok")
-    from qh.compose import PY
-    request = env.build_request(attempt)
-    request["env_claims"] = {"CLAUDE_CONFIG_DIR": str(env.config_dir)}
-    req_path = env.base / "req-neg-c4p.json"
-    req_path.write_text(json.dumps(request))
-    # fake controller spawned with the WRONG actual CLAUDE_CONFIG_DIR
-    argv = [PY, str(HARNESS_ROOT / "fixtures" / "fake_controller.py"),
-            "--request", str(req_path), "--attempt", attempt]
-    proc = subprocess.run(argv, capture_output=True, text=True,
-                          timeout=180,
-                          env=dict(os.environ,
-                                   CLAUDE_CONFIG_DIR=str(other_cfg)))
+    response = env.controller_request(attempt, own_session_slug="s")
     rc, err = env.root_outcome(root, timeout=300)
-    response = json.loads(proc.stdout.strip().splitlines()[-1])
     _assert_terminal(env, attempt, response, rc, "C4P_FAIL")
 
 

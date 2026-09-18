@@ -242,12 +242,14 @@ class Supervisor:
     def __init__(self, *, grant: Grant, spec: dict, spec_id: str,
                  operator_state_dir: str,
                  custody_fd: int | None,
-                 policy: SupervisorPolicy | None = None) -> None:
+                 policy: SupervisorPolicy | None = None,
+                 bootstrap=None) -> None:
         self.grant = grant
         self.spec = spec
         self.spec_id = spec_id
         self.operator_state_dir = operator_state_dir
         self.custody_fd = custody_fd
+        self.bootstrap = bootstrap  # frozen PrivilegedBootstrap (CR-REMED-002)
         self.policy = policy or SupervisorPolicy()
         self.redactor = Redactor()
         self.redactor.register(grant.secret, "grant-secret")
@@ -312,7 +314,7 @@ class Supervisor:
             return {"ok": False, "reason": "accept_failed"}
         with conn:
             conn.settimeout(timeout)
-            peer_pid, _uid, _gid = _peer_cred(conn)
+            peer_pid, peer_uid, _gid = _peer_cred(conn)
             try:
                 line = conn.makefile("r").readline()
                 request = json.loads(line)
@@ -320,7 +322,8 @@ class Supervisor:
                 self._fail_closed(f"REQUEST_UNPARSEABLE:{exc!r}",
                                   exit_code=8)
                 return {"ok": False, "reason": "request_unparseable"}
-            response = self.handle_request(request, peer_pid=peer_pid)
+            response = self.handle_request(request, peer_pid=peer_pid,
+                                           peer_uid=peer_uid)
             try:
                 conn.sendall((json.dumps(response, sort_keys=True) + "\n")
                              .encode("utf-8"))
@@ -331,7 +334,8 @@ class Supervisor:
 
     # -- request pipeline (the recorded composition order) -------------
 
-    def handle_request(self, request: dict, *, peer_pid: int) -> dict:
+    def handle_request(self, request: dict, *, peer_pid: int,
+                       peer_uid: int | None = None) -> dict:
         self._record("REQUEST_RECEIVED", peer_pid=peer_pid)
         if self.machine.state != AttemptState.MINTED:
             return self._refuse("REPLAY_OR_TERMINAL_STATE",
@@ -361,8 +365,33 @@ class Supervisor:
         except OSError:
             return self._refuse_terminal("ROOT_IDENTITY_CHANGED")
 
+        # [CR-REMED-004] the peer must be the SAME pre-bound authorized
+        # controller instance the OPERATOR authored into the trusted spec
+        # (and that the root already verified at the mint trigger): exact
+        # uid/pid + the peer's ACTUAL /proc starttime.  The connected
+        # peer never defines its own authorization; knowledge of the
+        # attempt/socket/manifest or a reproduced CLAUDE_CONFIG_DIR tree
+        # is not the capability.
+        if "authorized_controller" not in self.spec:
+            return self._refuse_terminal(
+                "AUTHORIZED_CONTROLLER_NOT_BOUND_IN_SPEC")
+        ac = self.spec["authorized_controller"]
+        actual_start = (self.policy.stat_reader or _proc_starttime)(peer_pid)
+        if peer_uid is not None and peer_uid != ac["uid"]:
+            return self._refuse_terminal(
+                f"AUTHORIZED_CONTROLLER_MISMATCH:uid peer={peer_uid} "
+                f"bound={ac['uid']}")
+        if peer_pid != ac["pid"]:
+            return self._refuse_terminal(
+                f"AUTHORIZED_CONTROLLER_MISMATCH:pid peer={peer_pid} "
+                f"bound={ac['pid']}")
+        if actual_start is None or str(actual_start) != str(ac["starttime"]):
+            return self._refuse_terminal(
+                f"AUTHORIZED_CONTROLLER_MISMATCH:starttime "
+                f"actual={actual_start} bound={ac['starttime']}")
+
         # [composition 2] controller binding established
-        starttime = (self.policy.stat_reader or _proc_starttime)(peer_pid)
+        starttime = actual_start
         claimed_starttime = request.get("controller_starttime")
         if claimed_starttime is not None and \
                 claimed_starttime != starttime:
@@ -394,9 +423,16 @@ class Supervisor:
                 "C4P_FAIL:" + ",".join(c4.failures))
 
         # [IR-002] TRUSTED SPEC VERIFY — the complete security-critical
-        # launch specification is checked against the LIVE filesystem
+        # launch specification is checked against the LIVE filesystem,
+        # EXCEPT the harness-tree identity when a frozen privileged
+        # bootstrap exists (CR-REMED-002): the harness check is then made
+        # against the FROZEN sealed bundle bytes, so later ordinary
+        # host-tree mutation cannot derail or alter the protected flow.
+        harness_override = (self.bootstrap.digest_from_files()
+                            if self.bootstrap is not None else None)
         spec_failures = trusted_spec.verify_spec(
-            self.spec, expected_spec_id=self.spec_id)
+            self.spec, expected_spec_id=self.spec_id,
+            harness_digest_override=harness_override)
         self._record("TRUSTED_SPEC_VERIFY",
                      passed=not spec_failures, failures=spec_failures)
         if spec_failures:
@@ -505,8 +541,13 @@ class Supervisor:
     def _build_trusted_snapshot(self) -> list[DataFile]:
         """Snapshot the VERIFIED harness executable byte set, the rendered
         config and the verified provider executable into process-bound
-        memfds.  These bytes — and only these — execute/apply inside the
-        boundary (materialized via bwrap --bind-data)."""
+        MANDATORILY SEALED memfds.  These bytes — and only these —
+        execute/apply inside the boundary (materialized via bwrap
+        --bind-data).
+
+        CR-REMED-002: when the supervisor was forked from the authority
+        root's frozen bootstrap, the harness code bytes come from the
+        FROZEN SEALED BUNDLE — never from a fresh host read."""
         hroot = self.spec["harness"]["root"]
         # rendered restricted profile config from SPEC parameters
         config = render_config_toml(self._profile_spec())
@@ -534,6 +575,11 @@ class Supervisor:
             fd=_hold(exe_data, "qh-trusted-exe"),
             inner_path="/run-qh/trusted-provider-exe",
             sha256=sha256_bytes(exe_data), secret=False, mode=0o755)]
+        if self.bootstrap is not None:
+            return boundary_mod.snapshot_data_files_from_files(
+                self.bootstrap.files,
+                config=config.encode("utf-8"),
+                config_target=config_target, extra=extra)
         return boundary_mod.snapshot_data_files(
             hroot, config=config.encode("utf-8"),
             config_target=config_target, extra=extra)

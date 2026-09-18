@@ -42,7 +42,7 @@ from pathlib import Path
 
 from .util import canonical_json, content_id, sha256_bytes, sha256_file
 
-SPEC_SCHEMA_VERSION = 1
+SPEC_SCHEMA_VERSION = 2
 
 # The exact byte set whose bytes may execute inside the boundary.  Anything
 # else under qualification-harness/ is data/tests/docs and is deliberately
@@ -141,6 +141,23 @@ def harness_tree_digest(harness_root: str) -> str:
                        "files": entries})
 
 
+def harness_digest_from_files(harness_root: str,
+                              files: dict[str, bytes]) -> str:
+    """The SAME harness-tree digest computed over an IN-MEMORY byte set
+    (relpath -> bytes) instead of host reads.  The authority root uses
+    this at privileged-bootstrap freeze time to compare the frozen byte
+    set to the spec-bound identity; the forked supervisor uses it to
+    re-verify the frozen representation without touching the host tree."""
+    root = Path(harness_root)
+    missing = [rel for rel in HARNESS_EXEC_RELPATHS if rel not in files]
+    if missing:
+        raise SpecError(f"HARNESS_BUNDLE_INCOMPLETE: {','.join(missing)}")
+    entries = {rel: sha256_bytes(files[rel])
+               for rel in sorted(HARNESS_EXEC_RELPATHS)}
+    return content_id({"kind": "qh-harness-tree/1", "root": str(root),
+                       "files": entries})
+
+
 def harness_snapshot_files(harness_root: str) -> list[tuple[str, str]]:
     """[(relpath, abspath)] of the exact executable byte set (sorted)."""
     root = Path(harness_root).resolve()
@@ -158,10 +175,18 @@ def build_spec(*, attempt_id: str, attempt_root: str, config_dir: str,
                target_src: str | None, codex_exe: str, codex_version: str,
                profile: dict, config_sha256: str,
                credential_adapter: dict, harness_root: str,
+               controller_pid: int, controller_starttime: str,
+               controller_uid: int | None = None,
                payload_kind: str = "launch_sim") -> dict:
     """OPERATOR-side authoring helper: compose the complete trusted launch
     spec with freshly captured source identities.  The caller (operator)
-    then pipes the canonical bytes into the authority root."""
+    then pipes the canonical bytes into the authority root.
+
+    CR-REMED-004: the AUTHORIZED CONTROLLER identity (uid, pid and
+    /proc/<pid>/stat starttime of the operator-authorized controller
+    instance) is authored HERE by the operator — never taken from a
+    controller request.  It is inside the canonical digest: changing the
+    bound pid/starttime changes the spec id."""
     root_id = capture_dir_identity(attempt_root)
     spec = {
         "spec_version": SPEC_SCHEMA_VERSION,
@@ -173,6 +198,11 @@ def build_spec(*, attempt_id: str, attempt_root: str, config_dir: str,
             "config_dir": os.path.realpath(config_dir)},
         "controller_scope": {
             "env": {"CLAUDE_CONFIG_DIR": os.path.realpath(config_dir)}},
+        "authorized_controller": {
+            "uid": (os.getuid() if controller_uid is None
+                    else controller_uid),
+            "pid": int(controller_pid),
+            "starttime": str(controller_starttime)},
         "harness": {
             "root": str(Path(harness_root).resolve()),
             "tree_digest": harness_tree_digest(harness_root)},
@@ -253,6 +283,20 @@ def validate_spec(spec: dict) -> None:
     _need(spec["controller_scope"], "env", "spec.controller_scope", dict)
     _need(spec["controller_scope"]["env"], "CLAUDE_CONFIG_DIR",
           "spec.controller_scope.env", str)
+    # CR-REMED-004: the operator-authored authorized controller identity
+    # (uid + pid + /proc starttime) is a REQUIRED spec field — the first
+    # compatible same-UID peer can never define itself as the controller.
+    _need(spec, "authorized_controller", "spec", dict)
+    _need(spec["authorized_controller"], "uid",
+          "spec.authorized_controller", int)
+    _need(spec["authorized_controller"], "pid",
+          "spec.authorized_controller", int)
+    _need(spec["authorized_controller"], "starttime",
+          "spec.authorized_controller", str)
+    if not spec["authorized_controller"]["starttime"].isdigit():
+        raise SpecError(
+            "SPEC_FIELD_TYPE_INVALID: spec.authorized_controller.starttime"
+            " must be the decimal /proc/<pid>/stat field 22")
     _need(spec, "harness", "spec", dict)
     _need(spec["harness"], "root", "spec.harness", str)
     _need(spec["harness"], "tree_digest", "spec.harness", str)

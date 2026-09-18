@@ -52,7 +52,8 @@ def _make_env(tmp_path, *, harness_root: str = str(HARNESS_ROOT)):
         credential_adapter={"id": "codex_chatgpt_oauth_v1",
                             "provider_role": "codex_chatgpt_oauth",
                             "version": 1},
-        harness_root=harness_root)
+        harness_root=harness_root,
+        controller_pid=4242, controller_starttime="999888777")
     return spec, {"root": root, "cfg": cfg, "ev": ev, "ao": ao, "tg": tg,
                   "exe": exe}
 
@@ -69,7 +70,8 @@ def test_spec_completeness_covers_every_security_critical_field(tmp_path):
     """Every §7 minimum field is present in a built spec."""
     spec, _ = _make_env(tmp_path)
     for key in ("spec_version", "attempt_id", "attempt_root",
-                "bootstrap_manifest", "controller_scope", "harness",
+                "bootstrap_manifest", "controller_scope",
+                "authorized_controller", "harness",
                 "boundary_child", "sources", "codex",
                 "credential_adapter", "noegress", "mount_roles", "payload"):
         assert key in spec
@@ -77,6 +79,8 @@ def test_spec_completeness_covers_every_security_critical_field(tmp_path):
     assert spec["codex"]["exe"]["sha256"]
     assert spec["codex"]["config_sha256"]
     assert spec["harness"]["tree_digest"]
+    ac = spec["authorized_controller"]
+    assert set(ac) == {"uid", "pid", "starttime"}
     for src in ("evidence", "auditor_output", "target"):
         for f in ("dev", "ino", "tree_digest"):
             assert spec["sources"][src][f] is not None

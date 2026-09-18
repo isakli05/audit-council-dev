@@ -135,6 +135,42 @@ def snapshot_data_files(harness_root: str, *,
             inner_path=f"/opt/qh/{rel}",
             sha256=hashlib.sha256(data).hexdigest(),
             secret=False, mode=0o644))
+    files.extend(_config_and_extra_data_files(
+        config, config_target, extra))
+    return files
+
+
+def snapshot_data_files_from_files(bundle_files: dict[str, bytes], *,
+                                   config: bytes | None = None,
+                                   config_target: str =
+                                   "/run-qh/codex-home/config.toml",
+                                   extra: list[DataFile] | None = None
+                                   ) -> list[DataFile]:
+    """The SAME trusted snapshot built from an IN-MEMORY frozen byte set
+    (the authority root's sealed bootstrap bundle — CR-REMED-002): NO
+    host harness read occurs at all; the code bytes that execute inside
+    the boundary are exactly the frozen verified bytes."""
+    import hashlib
+    from .trusted_spec import HARNESS_EXEC_RELPATHS
+    files: list[DataFile] = []
+    for rel in sorted(HARNESS_EXEC_RELPATHS):
+        if rel not in bundle_files:
+            raise BoundaryError(f"FROZEN_BUNDLE_INCOMPLETE: {rel}")
+        data = bundle_files[rel]
+        files.append(DataFile(
+            fd=_memfd_hold(data, f"qh-code-{rel.replace('/', '-')}"),
+            inner_path=f"/opt/qh/{rel}",
+            sha256=hashlib.sha256(data).hexdigest(),
+            secret=False, mode=0o644))
+    files.extend(_config_and_extra_data_files(
+        config, config_target, extra))
+    return files
+
+
+def _config_and_extra_data_files(config, config_target, extra
+                                 ) -> list[DataFile]:
+    import hashlib
+    files: list[DataFile] = []
     if config is not None:
         files.append(DataFile(
             fd=_memfd_hold(config, "qh-config-toml"),

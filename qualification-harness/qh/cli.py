@@ -50,8 +50,18 @@ def _reject_forbidden_flags(argv: list[str]) -> None:
 
 def _cmd_root(args: argparse.Namespace) -> int:
     from .rootauth import AuthorityRoot
-    # the trusted launch spec arrives through the operator-held inherited
-    # FD (pipe or regular file redirect — never a controller field)
+    from .util import SealUnavailableError, require_trusted_spec_fd
+    # CR-REMED-003: the trusted launch spec may arrive ONLY through an
+    # operator-held CAPABILITY channel — a PIPE, or a mechanically
+    # identified FULLY SEALED memfd.  An ordinary regular file (including
+    # stdin redirected from a file) is REFUSED before any byte is read:
+    # under the same-UID threat model an ordinary user-owned file is not
+    # a trust boundary.
+    try:
+        channel = require_trusted_spec_fd(args.spec_fd)
+    except (OSError, SealUnavailableError) as exc:
+        print(f"ROOT_REFUSED: {exc}", file=sys.stderr)
+        return 15
     try:
         spec_bytes = os.read(args.spec_fd, 1 << 20).strip()
     except OSError as exc:
@@ -62,7 +72,7 @@ def _cmd_root(args: argparse.Namespace) -> int:
         return 15
     root = AuthorityRoot(
         operator_state_dir=args.operator_state, spec_bytes=spec_bytes,
-        custody_fd=args.custody_fd, require_seals=args.require_seals)
+        custody_fd=args.custody_fd)
     root.startup()
     if root.exit_code != 0:
         print(f"ROOT_STARTUP_FAILED code={root.exit_code} "
@@ -173,23 +183,25 @@ def _build_parser() -> argparse.ArgumentParser:
         "spec + provider custody and performs the ONE production mint")
     p_root.add_argument("--operator-state", required=True)
     p_root.add_argument("--spec-fd", type=int, default=0,
-                        help="operator-held inherited FD carrying the "
-                             "complete pre-authorized trusted launch spec "
-                             "(default: stdin)")
+                        help="operator-held CAPABILITY fd carrying the "
+                             "complete pre-authorized trusted launch spec: "
+                             "a PIPE or a fully SEALED memfd (an ordinary "
+                             "file — including stdin redirected from a "
+                             "file — is REFUSED; default: stdin)")
     p_root.add_argument("--custody-fd", type=int, required=True,
                         help="operator pipe/memfd carrying the provider "
                              "credential bytes (an ordinary file is "
                              "refused)")
-    p_root.add_argument("--require-seals", action="store_true",
-                        help="STRICT authority-state policy: fail closed "
-                             "unless the four-seal memfd representation "
-                             "is available on this host")
     p_root.add_argument("--mint-timeout", type=float, default=300.0)
     p_root.set_defaults(func=_cmd_root)
 
     p_sup = sub.add_parser("supervisor", help="one-shot supervising "
-                           "gatekeeper (grant + trusted launch spec on "
-                           "stdin pipe; spawned by the authority root)")
+                           "gatekeeper — TEST/DIAGNOSTIC entry (grant + "
+                           "trusted launch spec on stdin pipe).  "
+                           "PRODUCTION supervisors are created by the "
+                           "authority root via fork() from the frozen "
+                           "privileged bootstrap, never by a fresh host-"
+                           "tree import")
     p_sup.add_argument("--operator-state", required=True)
     p_sup.add_argument("--custody-fd", type=int, default=None,
                        help="inherited custody memfd/pipe fd carrying the "

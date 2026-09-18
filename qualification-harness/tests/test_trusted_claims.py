@@ -167,23 +167,20 @@ def test_evidence_changed_after_spec_creation_refused(env):
 
 @requires_bwrap
 @requires_userns
-def test_harness_code_changed_after_spec_creation_refused(env):
-    copy = env.base / "harness-copy"
+def test_harness_code_changed_after_spec_creation_refused(env, tmp_path):
+    """Harness code mutated BETWEEN spec authorization and root start is
+    caught EARLIER under the hardened bootstrap: the root's privileged-
+    bootstrap freeze compares the host tree to the spec-bound identity and
+    refuses BEFORE any trigger is exposed (CR-REMED-002 §10 outcome B)."""
+    copy = tmp_path / "harness-copy-drift"
     shutil.copytree(str(HARNESS_ROOT), str(copy),
                     ignore=shutil.ignore_patterns(
                         "__pycache__", "test-outputs", "*.pyc"))
-    def pre():
-        env.author_spec("drift-harness", harness_root=str(copy))
-
-    def mutate():
-        with open(f"{copy}/qh/boundary_child.py", "a") as fh:
-            fh.write("# controller mutation post-authorization\n")
-    resp = _drive_after_mutation(env, "drift-harness", mutate,
-                                 pre_author=pre)
-    assert not resp.get("ok")
-    reason = resp.get("reason", "")
-    assert "TRUSTED_SPEC_VERIFY_FAIL" in reason
-    assert "HARNESS_TREE_DRIFT" in reason
+    env.author_spec("drift-harness", harness_root=str(copy))
+    with open(f"{copy}/qh/boundary_child.py", "a") as fh:
+        fh.write("# controller mutation post-authorization\n")
+    with pytest.raises(RuntimeError, match="ROOT_STARTUP_FAILED"):
+        env.spawn_root()
 
 
 @requires_bwrap
