@@ -1,0 +1,113 @@
+{
+  "files": [
+    {
+      "bytes": 4253,
+      "path": "README.md",
+      "sha256": "c74f79f540d55d7b99be34244daff37686206b8d762dfce98131d03bc0878bb9"
+    },
+    {
+      "bytes": 860,
+      "path": "ebs/__init__.py",
+      "sha256": "8a19f4a6fecfeb82f91936154e579afed1a1a5040ac161073ff51045403bf310"
+    },
+    {
+      "bytes": 9362,
+      "path": "ebs/accounting.py",
+      "sha256": "be2a01497d845dee16e35d3d900fbc10daeeb3c1913255080561fe56a2a31849"
+    },
+    {
+      "bytes": 10718,
+      "path": "ebs/binding.py",
+      "sha256": "b0ef7eaf068cd93de8217e0ff6e2047090b2342133cac25f26994097aeb9bf8d"
+    },
+    {
+      "bytes": 2571,
+      "path": "ebs/cli.py",
+      "sha256": "2afe79e317478b5b6ea85a32909fc360868b391bee37eec22093b256af44229d"
+    },
+    {
+      "bytes": 7341,
+      "path": "ebs/custody.py",
+      "sha256": "f1c1d0f7cba21225e977c49fc86c5d32824766a0eddebe6b1761b0111c11f5ca"
+    },
+    {
+      "bytes": 13031,
+      "path": "ebs/launch.py",
+      "sha256": "97a348f646af1495a0355bfd9903cfe90b5d5f47828ce56041d4b2ead3dcf575"
+    },
+    {
+      "bytes": 4017,
+      "path": "ebs/reportcustody.py",
+      "sha256": "c148eab1084cb44bc95ebe1a9eb7387f40ccda20857834b2b374e20e927a64a5"
+    },
+    {
+      "bytes": 2486,
+      "path": "ebs/statemachine.py",
+      "sha256": "b3b864332736aeeb6c97a1908bb7dca31d0277cc2545a166268678f36d6846b9"
+    },
+    {
+      "bytes": 3581,
+      "path": "tests/conftest.py",
+      "sha256": "1146e2b938608135ca3138b85652485246db098be9e61adf5c85aefb77ab819a"
+    },
+    {
+      "bytes": 1926,
+      "path": "tests/fixtures/inert_boundary_launcher_a.py",
+      "sha256": "a023bec07662383f51fa8ede22adcbde7781646e4b68d620a5e62052ffaf609b"
+    },
+    {
+      "bytes": 1926,
+      "path": "tests/fixtures/inert_boundary_launcher_b.py",
+      "sha256": "1d60c78cca17c59f599fe7713498e80197887778e5c78a0e20cd8d1bf2fdd4af"
+    },
+    {
+      "bytes": 6690,
+      "path": "tests/test_accounting.py",
+      "sha256": "e51a6d563de044d107403f9d3ba8c3d1e330734b6072039b6cbdc3fc2ceb4df0"
+    },
+    {
+      "bytes": 6297,
+      "path": "tests/test_binding.py",
+      "sha256": "a38d287cee973bf9c12573e116b1b890cd672ebc49e32fed6e1c2c7b1ed78621"
+    },
+    {
+      "bytes": 5504,
+      "path": "tests/test_custody.py",
+      "sha256": "f650aaaa318dac29b7e8751a0ebbfeb80959e640aae8744eccf5686efa7f9b31"
+    },
+    {
+      "bytes": 8629,
+      "path": "tests/test_launch.py",
+      "sha256": "e1c95e0f82e511b103a2269a7df44ae61d0e9e3839f93ad73bdaca9192fde820"
+    },
+    {
+      "bytes": 4556,
+      "path": "tests/test_report.py",
+      "sha256": "75d5f63f19a80a79977d4f6100ae7d6242fa0d31fff6d8f349ed6171edfcf2ca"
+    },
+    {
+      "bytes": 3835,
+      "path": "tests/test_statemachine.py",
+      "sha256": "1a8135b2fb13bb59e69ddbea69e28ee80866fca40a1d8e1ad341e0023bafaac5"
+    },
+    {
+      "bytes": 6604,
+      "path": "tests/test_static.py",
+      "sha256": "d17846e496dc318ff926184c2fa3bf2e3358b32c1df59a3b1dcfa860b08692e3"
+    }
+  ],
+  "implementation_base_commit": "f47c6d24f154d73881768c9039646763ea36f12a",
+  "package": "bootstrap-supervisor",
+  "policy_id": "AUCDEV-023-R1-CONTROLLERLESS-PROCESS-BOUND-TARGET-INDEPENDENT-ONE-SHOT",
+  "qualification_claim": "NONE",
+  "runtime_dependencies": "Python 3 standard library ONLY + Linux kernel primitives (memfd/seals, prctl, fsync, execveat, /proc); no third-party runtime package",
+  "status": "IMPLEMENTED_CANDIDATE / AWAITING_CONTROL_ROOM_READBACK",
+  "target": {
+    "commit": "d4d584ffa47ad2848268ba947247f81a845b2322",
+    "qh_tree": "5b8d5e5465923740470ff63ed9b8683f257a3787",
+    "repository": "isakli05/audit-council-dev",
+    "root_tree": "1d4b8b8eb0619cf0b854984b778e6ea081ad9aa7",
+    "skill_tree": "c792933a862d9a5434681a88d183470dd8b15d2f"
+  },
+  "task": "AUCDEV-023 bounded External Bootstrap Supervisor (EBS) implementation"
+}
