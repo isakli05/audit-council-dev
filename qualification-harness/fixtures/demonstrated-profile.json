@@ -1,0 +1,23 @@
+{
+  "_comment": "Demonstrated profile DATA (AUCDEV-023 G-2 closure record, 2026-09-18). These values are historical evidence carried as DATA for tests and the zero-provider rehearsal. No harness behavior keys off them specifically: every identity/profile value is operator-supplied configuration, and the harness pins whatever it is given.",
+  "codex_identity": {
+    "version": "codex-cli 0.154.0",
+    "sha256": "3188814c35471432d4123203e0eb38e5bddc60226e3d7ddf0e59e649ea140022",
+    "note": "native executable SHA-256 of the demonstrated profile"
+  },
+  "profile": {
+    "profile_name": "audit",
+    "description": "auditor-b restricted",
+    "model_name": "probe",
+    "workspace_role": "/auditor-output",
+    "evidence_read_paths": ["/evidence"],
+    "system_read_paths": ["/usr", "/bin", "/lib", "/lib64", "/sbin", "/etc"],
+    "network_enabled": false
+  },
+  "noegress": {
+    "dns_hosts": ["api.openai.com", "chatgpt.com", "one.one.one.one"],
+    "tcp_targets": [["1.1.1.1", 443], ["1.1.1.1", 53], ["8.8.8.8", 443], ["api.openai.com", 443]],
+    "loopback_required_state": "down",
+    "mask_paths": ["/run/systemd/resolve", "/run/dbus"]
+  }
+}
