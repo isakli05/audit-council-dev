@@ -7,14 +7,20 @@ Order (fail-closed):
   2. evaluate the hard no-egress gate over the OBSERVED environment —
      on failure append the result record and exit WITHOUT executing the
      payload (zero provider-capable launch);
-  3. verify custody materialization (bwrap --bind-data files exist with
-     exactly the expected lengths; values are never read or printed
-     here);
-  4. exec the payload (which reports through the write-bound result
+  3. verify the materialized TRUSTED BYTES: code/config/executable data
+     files must hash to their spec-bound SHA-256 (the materialized /opt/qh
+     tree is exactly the operator-verified snapshot — a host-side swap
+     racing the pre-launch window is caught HERE); custody secrets are
+     verified by LENGTH ONLY (values are never read or printed);
+  4. re-verify the SPEC-BOUND source digests (evidence/target) over the
+     MOUNTED trees — in-place content substitution between the
+     supervisor-side verification and this moment fails closed;
+  5. exec the payload (which reports through the write-bound result
      file), or exit 0 for a gate-only launch.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -29,13 +35,55 @@ def emit(result_file: str, record: dict) -> None:
         fh.write(json.dumps(record, sort_keys=True) + "\n")
 
 
-def verify_secrets(spec: dict, result_file: str) -> None:
-    allowed = list(spec.get("tmpfs_paths", ["/tmp"])) + \
+def _sha256_file(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 16), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def verify_data_files(spec: dict, result_file: str) -> None:
+    ephemeral = list(spec.get("tmpfs_paths", ["/tmp"])) + \
         list(spec.get("rw_inner", []))
+    # non-secret trusted code/config bytes additionally materialize on the
+    # bwrap tmpfs-root scaffold (/opt/qh tree and the /run-qh scaffold the
+    # launcher always creates as tmpfs) — namespace-local ephemeral
+    code_allowed = ephemeral + ["/opt/qh", "/run-qh"]
+    for df in spec.get("data_files", []):
+        target = df["inner_path"]
+        allowed = ephemeral if df.get("secret") else code_allowed
+        if not any(target == a or target.startswith(a.rstrip("/") + "/")
+                   for a in allowed):
+            emit(result_file, {"phase": "trusted_bytes", "ok": False,
+                               "target": target,
+                               "error": "TARGET_NOT_ALLOWED_PATH"})
+            os._exit(GATE_FAIL_EXIT)
+        if not os.path.isfile(target) or \
+                os.path.getsize(target) != df["length"]:
+            emit(result_file, {"phase": "trusted_bytes", "ok": False,
+                               "target": target,
+                               "error": "MATERIALIZATION_INVALID"})
+            os._exit(GATE_FAIL_EXIT)
+        if df.get("secret"):
+            # length only — NEVER the value
+            emit(result_file, {"phase": "custody", "ok": True,
+                               "target": target, "length": df["length"]})
+            continue
+        actual = _sha256_file(target)
+        if actual != df["sha256"]:
+            emit(result_file, {"phase": "trusted_bytes", "ok": False,
+                               "target": target,
+                               "error": "TRUSTED_BYTES_DRIFT",
+                               "expected": df["sha256"], "actual": actual})
+            os._exit(GATE_FAIL_EXIT)
+        emit(result_file, {"phase": "trusted_bytes", "ok": True,
+                           "target": target, "sha256": actual})
+    # legacy custody plans (secret_plans) kept for compatibility
     for plan in spec.get("secret_plans", []):
         target = plan["target_path"]
         if not any(target == a or target.startswith(a.rstrip("/") + "/")
-                   for a in allowed):
+                   for a in ephemeral):
             emit(result_file, {"phase": "custody", "ok": False,
                                "label": plan["label"],
                                "error": "TARGET_NOT_EPHEMERAL"})
@@ -50,6 +98,31 @@ def verify_secrets(spec: dict, result_file: str) -> None:
         emit(result_file, {"phase": "custody", "ok": True,
                            "label": plan["label"],
                            "target": target, "length": plan["length"]})
+
+
+def verify_source_digests(spec: dict, result_file: str) -> None:
+    """In-child re-verification of the SPEC-BOUND source tree digests over
+    the MOUNTED trees (path-independent digest — same content here and on
+    the host at verification time)."""
+    from qh.trusted_spec import dir_tree_digest
+    mounted = {"evidence": "/evidence", "target": "/target"}
+    for name, expected in (spec.get("source_digests") or {}).items():
+        inner = mounted.get(name)
+        if inner is None or not os.path.isdir(inner):
+            continue
+        try:
+            actual = dir_tree_digest(inner)
+        except Exception as exc:  # noqa: BLE001 — any failure fails closed
+            emit(result_file, {"phase": "source_verify", "ok": False,
+                               "source": name, "error": repr(exc)[:200]})
+            os._exit(GATE_FAIL_EXIT)
+        if actual != expected:
+            emit(result_file, {"phase": "source_verify", "ok": False,
+                               "source": name,
+                               "error": "SOURCE_CONTENT_DRIFT_IN_CHILD"})
+            os._exit(GATE_FAIL_EXIT)
+        emit(result_file, {"phase": "source_verify", "ok": True,
+                           "source": name})
 
 
 def main() -> int:
@@ -85,7 +158,8 @@ def main() -> int:
         if not gate.passed:
             os._exit(GATE_FAIL_EXIT)
 
-    verify_secrets(spec, result_file)
+    verify_data_files(spec, result_file)
+    verify_source_digests(spec, result_file)
 
     payload_argv = spec.get("payload_argv")
     if payload_argv:

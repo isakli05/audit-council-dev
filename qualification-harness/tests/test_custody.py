@@ -116,6 +116,7 @@ def test_no_plaintext_in_ledger_or_outputs(env):
     ordinary-file output of the harness."""
     from qh.compose import SYNTHETIC_CREDENTIAL
     attempt = "custody-sec-0001"
+    env.author_spec(attempt)
     grant = env.mint(attempt)
     sup = env.start_supervisor(grant)
     response = env.controller_request(attempt,

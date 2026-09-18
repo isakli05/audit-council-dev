@@ -56,10 +56,14 @@ MAX_CREDENTIAL_BYTES = 65536
 MIN_CREDENTIAL_BYTES = 1
 
 PROVIDER_SPECIFIC_INTEGRATION_STATUS = (
-    "NOT_IMPLEMENTED_INTERFACE_ONLY — real provider credential injection "
-    "is an explicit adapter interface; all harness tests use synthetic "
-    "inert fixtures; real integration is an implementation blocker to be "
-    "reported, not silently weakened")
+    "SYNTHETIC_CONCRETE_ADAPTERS_IMPLEMENTED — codex_chatgpt_oauth_v1 "
+    "(CODEX_HOME/auth.json, boundary-private writable-at-init home per the "
+    "Campaign-2 evidence) and claude_firstparty_oauth_v1 "
+    "(CLAUDE_CONFIG_DIR/.credentials.json mode 0600 per the Campaign-2 "
+    "parity closure) are implemented against SYNTHETIC inert bytes only; "
+    "no real credential is read, parsed, inferred or contacted; see "
+    "qh/adapters.py for the evidence basis and the unestablished-role "
+    "blocker policy")
 
 
 class CustodyError(RuntimeError):
@@ -79,15 +83,19 @@ class ChildSecretPlan:
 
 
 def _fd_kind(fd: int) -> str:
-    import fcntl
     st = os.fstat(fd)
     if stat.S_ISFIFO(st.st_mode):
         return "pipe"
-    if stat.S_ISREG(st.st_mode) and st.st_size == 0 and \
-            fcntl.fcntl(fd, 1034, 0) >= 0:  # F_GET_SEALS readable => memfd
-        return "memfd"
     if stat.S_ISREG(st.st_mode):
-        return "file"
+        # memfds are anonymous in-memory objects: their /proc fd link
+        # target is "/memfd:<name>" (F_GET_SEALS is NOT a reliable
+        # discriminator on every kernel class — observed returning a
+        # value even for ordinary files)
+        try:
+            target = os.readlink(f"/proc/self/fd/{fd}")
+        except OSError:
+            return "file"
+        return "memfd" if target.startswith("/memfd:") else "file"
     return "other"
 
 
@@ -220,9 +228,9 @@ class CredentialCustody:
 
 class CustodyAdapter:
     """Adapter interface binding custody to a concrete child-side
-    materialization scheme.  The provider-specific adapter (real
-    CODEX_HOME/auth.json injection) is INTERFACE ONLY — see module
-    docstring."""
+    materialization scheme.  Concrete registered adapters live in
+    qh/adapters.py (synthetic-only implementations against frozen
+    non-secret evidence)."""
 
     materialize_target: str
 
@@ -231,12 +239,15 @@ class CustodyAdapter:
 
 
 class SyntheticInertAdapter(CustodyAdapter):
-    """Synthetic inert adapter used by every harness test and the
-    zero-provider rehearsal: materializes the (synthetic) credential at a
+    """Synthetic inert adapter used by the GATE-W/gate rehearsals and
+    adapter-agnostic tests: materializes the (synthetic) credential at a
     demo path on the boundary's ephemeral tmpfs."""
 
-    def __init__(self, target_path: str = "/tmp/qh-custody/inert-credential") -> None:
-        self.materialize_target = target_path
+    def __init__(self, target_path: str | None = None) -> None:
+        from .adapters import SYNTHETIC_INERT
+        self.materialize_target = (target_path
+                                   if target_path is not None
+                                   else SYNTHETIC_INERT.credential_target)
 
     def child_target_path(self) -> str:
         return self.materialize_target

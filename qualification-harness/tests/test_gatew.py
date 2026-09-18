@@ -5,7 +5,8 @@ import os
 
 import pytest
 
-from qh.boundary import RESULT_FILE_INNER, BoundarySpec, launch
+from qh.boundary import RESULT_FILE_INNER, BoundarySpec, launch, \
+    snapshot_data_files
 from qh.custody import CredentialCustody, SyntheticInertAdapter
 from qh.gatew import evaluate_payload_result, run_static
 from qh.noegress import NoEgressSpec
@@ -70,14 +71,18 @@ def test_dynamic_gatew_pass(env):
     custody = _custody()
     adapter = SyntheticInertAdapter()
     plan = custody.child_plan(adapter.child_target_path())
+    from qh.codex_profile import render_config_toml
+    config = render_config_toml(env.profile_spec).encode()
     spec = BoundarySpec(
         harness_root=str(HARNESS_ROOT),
         payload_argv=_payload_argv(),
+        data_files=snapshot_data_files(
+            str(HARNESS_ROOT), config=config,
+            config_target="/run-qh/codex-home/config.toml"),
         ro_binds=[(str(env.evidence), "/evidence"),
-                  (str(env.codex_home_dir), "/codex-home"),
                   (str(env.target), "/target")],
         rw_binds=[(str(env.auditor_output), "/auditor-output")],
-        env={"CODEX_HOME": "/codex-home"},
+        env={"CODEX_HOME": "/run-qh/codex-home"},
         secret_plans=[plan],
         noegress=NoEgressSpec(),
         pass_fds=[plan.fd])
@@ -105,10 +110,15 @@ def test_dynamic_gatew_widened_evidence_fails(env):
     """REAL GATE-W failure: evidence bound writable (policy drift at the
     outer layer) — the evidence-refused ops come back allowed and GATE-W
     evaluation fails (=> PREEXEC_STOP upstream)."""
+    from qh.codex_profile import render_config_toml
+    config = render_config_toml(env.profile_spec).encode()
     spec = BoundarySpec(
         harness_root=str(HARNESS_ROOT),
         payload_argv=_payload_argv(),
-        ro_binds=[(str(env.codex_home_dir), "/codex-home")],
+        data_files=snapshot_data_files(
+            str(HARNESS_ROOT), config=config,
+            config_target="/run-qh/codex-home/config.toml"),
+        env={"CODEX_HOME": "/run-qh/codex-home"},
         rw_binds=[(str(env.auditor_output), "/auditor-output"),
                   (str(env.evidence), "/evidence")],  # DRIFT: rw evidence
         noegress=NoEgressSpec())

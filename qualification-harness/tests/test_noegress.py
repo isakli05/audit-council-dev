@@ -170,8 +170,9 @@ def test_bare_netns_ipv4_and_lo_observed():
 def test_boundary_gate_pass_live(tmp_path):
     """Full boundary (bwrap, private mount ns, masked by absence):
     the gate PASSES inside the composed environment."""
-    from qh.boundary import BoundarySpec, launch
+    from qh.boundary import BoundarySpec, launch, snapshot_data_files
     spec = BoundarySpec(harness_root=str(HARNESS_ROOT), payload_argv=None,
+                        data_files=snapshot_data_files(str(HARNESS_ROOT)),
                         noegress=NoEgressSpec())
     result = launch(spec, timeout=90)
     gate = result.gate
@@ -215,16 +216,24 @@ def test_boundary_noegress_with_payload_reports_zero_egress(env):
     """Gate + gatew payload over the full role layout: no-egress holds
     for the whole rehearsal environment (DNS/TCP probes execute inside
     and must fail; custody not required for the ops matrix)."""
-    from qh.boundary import RESULT_FILE_INNER, BoundarySpec, launch
+    from qh.boundary import RESULT_FILE_INNER, BoundarySpec, launch, \
+        snapshot_data_files
+    from qh.codex_profile import render_config_toml
+    from qh.util import sha256_bytes
+    config = render_config_toml(env.profile_spec).encode()
     spec = BoundarySpec(
         harness_root=str(HARNESS_ROOT),
         payload_argv=["/usr/bin/python3",
                       "/opt/qh/fixtures/gatew_payload.py",
                       "--result-file", RESULT_FILE_INNER],
+        data_files=snapshot_data_files(
+            str(HARNESS_ROOT), config=config,
+            config_target="/run-qh/codex-home/config.toml"),
         ro_binds=[(str(env.evidence), "/evidence"),
-                  (str(env.codex_home_dir), "/codex-home"),
                   (str(env.target), "/target")],
         rw_binds=[(str(env.auditor_output), "/auditor-output")],
+        env={"CODEX_HOME": "/run-qh/codex-home",
+             "QH_CUSTODY_TARGET": "/tmp/qh-custody/inert-credential"},
         noegress=NoEgressSpec())
     result = launch(spec, timeout=120)
     assert result.gate and result.gate["passed"], \

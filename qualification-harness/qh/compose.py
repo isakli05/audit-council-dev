@@ -1,42 +1,51 @@
-"""Composition — the integrated zero-provider C1 -> C2 -> C3 rehearsal.
+"""Composition — the integrated zero-provider C1 -> C2 -> C3 rehearsal
+over the REMEDIATED authority-root flow.
 
 Proves the ACCEPTED ORDER (not isolated component passes):
 
-  1. pre-controller bootstrap manifest created;
-  2. controller binding established;
-  3. C4' process/provenance verification passes;
-  4. one-shot attempt authority bound;
-  5. credential custody established with synthetic credentials;
-  6. no-egress gate passes;
-  7. exact Codex identity/profile frozen;
-  8. GATE-W passes;
-  9. grant consumed exactly once for the protected local launch
-     simulation;
- 10. any subsequent reuse fails closed.
+  1. legitimate authority root initialized from operator-only capability
+     (spec + custody arrive on operator pipes, BEFORE any controller
+     request);
+  2. trusted launch spec frozen/bound before controller-triggered launch;
+  3. bootstrap/controller binding validated (C4');
+  4. controller request authenticated/bound (CLAIM-ONLY schema);
+  5. request claims cannot change the trusted spec (unknown fields are
+     terminal);
+  6. credential custody established through the root channel;
+  7. hard no-egress gate passes;
+  8. trusted executable/profile identity passes (spec-bound);
+  9. GATE-W passes;
+ 10. one-shot launch authority consumed;
+ 11. protected LOCAL synthetic payload launch succeeds;
+ 12. any subsequent reuse fails closed;
+ 13. fresh controller-created authority imitations cannot launch with
+     legitimate custody/spec.
 
-and every fail-closed branch (C4' failure, custody failure, Yama
-failure simulation, no-egress failure, inherited socket FD, GATE-W
-failure, policy drift, Codex binary identity drift, replay, ledger/file
-deletion).  NO real provider process is ever launched: payloads are
-local deterministic scripts, credentials are synthetic inert fixtures,
-and every boundary launch runs under hard no-egress.
+and every fail-closed branch.  NO real provider process is ever launched:
+payloads are local deterministic scripts, credentials are synthetic inert
+fixtures, and every boundary launch runs under hard no-egress.
 """
 from __future__ import annotations
 
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import time
 from pathlib import Path
 
+from .adapters import (CODEX_CHATGPT_OAUTH, CLAUDE_FIRSTPARTY_OAUTH,
+                       SYNTHETIC_INERT)
 from .authority import Grant, mint_attempt_grant
 from .bootstrap import capture_bootstrap_manifest
 from .campaign import EngagementLedger
-from .codex_profile import ProfileSpec, generate_codex_home
+from .codex_profile import ProfileSpec, generate_codex_home, \
+    render_config_toml
 from .custody import SyntheticInertAdapter
 from .ledger import ObservabilityLedger
+from .trusted_spec import canonical_spec_bytes, spec_id, build_spec
 from .util import sha256_bytes, sha256_file
 
 HARNESS_ROOT = str(Path(__file__).resolve().parent.parent)
@@ -44,6 +53,12 @@ PY = sys.executable or "/usr/bin/python3"
 
 SYNTHETIC_CREDENTIAL = ("SYNTHETIC-INERT-CREDENTIAL-do-not-use-"
                         "qh-0f1e2d3c4b5a")
+
+ADAPTERS_BY_ROLE = {
+    "codex": CODEX_CHATGPT_OAUTH,
+    "claude": CLAUDE_FIRSTPARTY_OAUTH,
+    "inert": SYNTHETIC_INERT,
+}
 
 
 def synthetic_credential(nonce: str = "") -> str:
@@ -53,7 +68,9 @@ def synthetic_credential(nonce: str = "") -> str:
 
 
 class CompositionEnv:
-    """Deterministic full-environment builder for tests and the demo."""
+    """Deterministic full-environment builder for tests and the demo
+    (operator side: authors the trusted launch spec and starts the
+    authority root; controller side: claim-only requests)."""
 
     def __init__(self, base_dir: str, *,
                  profile_spec: ProfileSpec | None = None) -> None:
@@ -74,12 +91,16 @@ class CompositionEnv:
         (self.target / "target-source.txt").write_text(
             "synthetic target/source fixture\n", encoding="utf-8")
         self.profile_spec = profile_spec or self.default_profile_spec()
+        # generated restricted-profile home (static-validation surface for
+        # tests; the supervisor renders its own spec-bound copy at launch)
         self.codex_artifact = generate_codex_home(
             self.profile_spec, str(self.codex_home_dir))
         self.codex_bin = self._make_synthetic_codex_binary()
         self.engagements = EngagementLedger(str(self.operator_state))
         self.engagements.authorize(2, note="composition test baseline")
         self._spawned_procs: list = []
+        self._spec: dict | None = None
+        self._attempt: str | None = None
         self.manifest = capture_bootstrap_manifest(
             str(self.config_dir), str(self.operator_state))
         if not self.manifest.ok:
@@ -93,9 +114,9 @@ class CompositionEnv:
                            model_name="probe")
 
     def _make_synthetic_codex_binary(self) -> str:
-        """A synthetic codex-like executable whose sha256 the harness
-        pins (identity pinning is generic — it pins whatever executable
-        the operator supplies)."""
+        """A synthetic codex-like executable whose sha256 the SPEC pins
+        (identity pinning is generic — it pins the operator-authorized
+        executable identity)."""
         path = self.base / "codex-like-binary"
         path.write_text(
             "#!/bin/sh\n# synthetic codex-like executable (zero-provider "
@@ -110,11 +131,143 @@ class CompositionEnv:
                 "sha256": sha256_file(self.codex_bin),
                 "exe_path": self.codex_bin}
 
+    # -- operator side: trusted launch spec + authority root ------------
+
+    def author_spec(self, attempt_id: str, *,
+                    role: str = "codex",
+                    payload_kind: str = "launch_sim",
+                    harness_root: str | None = None,
+                    adapter_id: str | None = None) -> dict:
+        adapter = ADAPTERS_BY_ROLE[role]
+        if adapter_id is not None:
+            from .adapters import get_adapter
+            adapter = get_adapter(adapter_id)
+        config = render_config_toml(self.profile_spec)
+        self._spec = build_spec(
+            attempt_id=attempt_id,
+            attempt_root=str(self.root),
+            config_dir=str(self.config_dir),
+            manifest_id=self.manifest.manifest_id,
+            evidence_src=str(self.evidence),
+            auditor_output_src=str(self.auditor_output),
+            target_src=str(self.target),
+            codex_exe=self.codex_bin,
+            codex_version=self.identity["version"],
+            profile=self._profile_dict(),
+            config_sha256=sha256_bytes(config.encode("utf-8")),
+            credential_adapter={
+                "id": adapter.adapter_id,
+                "provider_role": adapter.provider_role,
+                "version": adapter.version},
+            harness_root=harness_root or HARNESS_ROOT,
+            payload_kind=payload_kind)
+        self._attempt = attempt_id
+        return self._spec
+
+    def _profile_dict(self) -> dict:
+        p = self.profile_spec
+        return {"profile_name": p.profile_name,
+                "description": p.description,
+                "model_name": p.model_name,
+                "workspace_role": p.workspace_role,
+                "evidence_read_paths": list(p.evidence_read_paths),
+                "target_read_paths": list(p.target_read_paths),
+                "system_read_paths": list(p.system_read_paths),
+                "extra_read_paths": list(p.extra_read_paths),
+                "network_enabled": p.network_enabled}
+
+    @property
+    def spec(self) -> dict:
+        if self._spec is None:
+            raise RuntimeError("author_spec() not called yet")
+        return self._spec
+
+    def spawn_root(self, spec: dict | None = None, *,
+                   custody_value: str | None = SYNTHETIC_CREDENTIAL,
+                   require_seals: bool = False,
+                   mint_timeout: float = 300.0) -> subprocess.Popen:
+        """Start the AUTHORITY ROOT as a real subprocess (non-dumpable,
+        process-bound spec + custody) and wait until its socket is bound."""
+        spec = spec if spec is not None else self.spec
+        cr, cw = os.pipe()
+        if custody_value is not None:
+            os.write(cw, custody_value.encode("utf-8"))
+        os.close(cw)
+        argv = [PY, "-m", "qh.cli", "root",
+                "--operator-state", str(self.operator_state),
+                "--custody-fd", str(cr),
+                "--mint-timeout", str(mint_timeout)]
+        if require_seals:
+            argv.append("--require-seals")
+        env = dict(os.environ,
+                   PYTHONPATH=HARNESS_ROOT + os.pathsep +
+                   os.environ.get("PYTHONPATH", ""))
+        proc = subprocess.Popen(
+            argv, pass_fds=(cr,), stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env,
+            cwd=str(self.base))
+        os.close(cr)
+        proc.stdin.write(canonical_spec_bytes(spec))
+        proc.stdin.close()
+        self._spawned_procs.append(proc)
+        deadline = time.monotonic() + 30
+        line = ""
+        while time.monotonic() < deadline:
+            line = proc.stdout.readline().decode("utf-8", "replace").strip()
+            if line.startswith("READY") or not line or proc.poll() is not None:
+                break
+        if not line.startswith("READY"):
+            try:
+                err = proc.stderr.read(4096).decode("utf-8", "replace")
+                proc.wait(timeout=10)
+            except Exception:  # noqa: BLE001
+                err = "<unreadable>"
+                proc.kill()
+                proc.wait(timeout=10)
+            raise RuntimeError(
+                f"authority root startup failed: {line!r} stderr={err!r}")
+        return proc
+
+    def root_socket_name(self, spec: dict | None = None) -> str:
+        spec = spec if spec is not None else self.spec
+        return "\0qh-root-" + spec_id(spec)[:16]
+
+    def root_mint(self, attempt_id: str | None = None, *,
+                  spec: dict | None = None,
+                  request: dict | None = None,
+                  timeout: float = 60.0) -> dict:
+        """One mint request against the live authority root (as the
+        controller or operator would send it — the request carries NO
+        authority values)."""
+        name = self.root_socket_name(spec)
+        payload = request if request is not None else {
+            "attempt_id": attempt_id or self._attempt}
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        try:
+            s.connect(name)
+        except OSError as exc:
+            return {"ok": False,
+                    "reason": f"ROOT_CONNECT_FAILED:{type(exc).__name__}"}
+        with s:
+            s.sendall((json.dumps(payload, sort_keys=True) + "\n")
+                      .encode("utf-8"))
+            data = b""
+            while True:
+                chunk = s.recv(65536)
+                if not chunk:
+                    break
+                data += chunk
+        try:
+            return json.loads(data.decode("utf-8", "replace").strip())
+        except json.JSONDecodeError:
+            return {"ok": False, "reason": "ROOT_NO_RESPONSE"}
+
+    # -- in-process operator mint (explicitly-labeled TEST channel) -----
+
     def mint(self, attempt_id: str) -> Grant:
         import io
         buf = io.StringIO()
-        # in-process OPERATOR mint (explicitly labeled channel); the
-        # subprocess CLI path enforces the real pipe contract
         grant = mint_attempt_grant(
             attempt_id=attempt_id, root=str(self.root),
             manifest_id=self.manifest.manifest_id,
@@ -122,49 +275,45 @@ class CompositionEnv:
             out_stream=buf, operator_inmemory=True)
         return grant
 
-    def spawn_supervisor(self, grant: Grant, *,
+    def spawn_supervisor(self, grant: Grant, spec: dict | None = None, *,
                          custody_value: str | None = SYNTHETIC_CREDENTIAL,
-                         yama_override: int | None = None,
-                         faults: list[str] | None = None,
-                         operator_pid: int | None = None,
                          grant_stdin_file: str | None = None,
-                         custody_file: str | None = None) \
+                         custody_file: str | None = None,
+                         expect_spec: bytes | None = None) \
             -> subprocess.Popen:
         """Spawn the supervisor as a REAL subprocess (dumpable=0,
-        process-bound authority) WITHOUT waiting for readiness."""
+        process-bound authority) WITHOUT waiting for readiness.  Grant and
+        trusted launch spec arrive on the stdin pipe; custody on an
+        inherited pipe/memfd fd."""
+        spec = spec if spec is not None else self.spec
         argv = [PY, "-m", "qh.cli", "supervisor",
                 "--operator-state", str(self.operator_state)]
         pass_fds = []
         kwargs: dict = {}
-        if custody_value is not None:
-            r, w = os.pipe()
-            os.write(w, custody_value.encode("utf-8"))
-            os.close(w)
-            argv += ["--custody-fd", str(r)]
-            pass_fds.append(r)
-        if custody_file is not None:
-            # custody arriving via an ORDINARY FILE — the copied/persisted
-            # channel the custody contract refuses (negative test path)
-            fh = open(custody_file, "rb")  # noqa: SIM115
-            argv += ["--custody-fd", str(fh.fileno())]
-            pass_fds.append(fh.fileno())
-            self._custody_fh = fh
-        if yama_override is not None:
-            argv += ["--yama-override", str(yama_override)]
-        for f in faults or []:
-            argv += ["--fault", f]
-        if operator_pid is not None:
-            argv += ["--operator-pid", str(operator_pid)]
+        if custody_value is not None or custody_file is not None:
+            if custody_file is not None:
+                fh = open(custody_file, "rb")  # noqa: SIM115
+                argv += ["--custody-fd", str(fh.fileno())]
+                pass_fds.append(fh.fileno())
+                self._custody_fh = fh
+            else:
+                r, w = os.pipe()
+                os.write(w, custody_value.encode("utf-8"))
+                os.close(w)
+                argv += ["--custody-fd", str(r)]
+                pass_fds.append(r)
         env = dict(os.environ,
                    PYTHONPATH=HARNESS_ROOT + os.pathsep +
                    os.environ.get("PYTHONPATH", ""))
+        spec_bytes = (expect_spec if expect_spec is not None
+                      else canonical_spec_bytes(spec))
         if grant_stdin_file is not None:
             stdin = open(grant_stdin_file, "rb")  # noqa: SIM115
             kwargs["stdin"] = stdin
         else:
             r, w = os.pipe()
-            os.write(w, (json.dumps(grant.full_doc()) + "\n")
-                     .encode("utf-8"))
+            os.write(w, (json.dumps(grant.full_doc()) + "\n").encode()
+                     + spec_bytes + b"\n")
             os.close(w)
             kwargs["stdin"] = r
             pass_fds.append(r)
@@ -178,7 +327,7 @@ class CompositionEnv:
         return proc
 
     def cleanup_procs(self) -> None:
-        """Kill any supervisor this env spawned that is still alive
+        """Kill any root/supervisor this env spawned that is still alive
         (test teardown hygiene — prevents abstract-socket leaks)."""
         import subprocess as _sp
         for proc in getattr(self, "_spawned_procs", []):
@@ -192,13 +341,12 @@ class CompositionEnv:
     def start_supervisor(self, grant: Grant, **kwargs) \
             -> subprocess.Popen:
         """Spawn and wait until the abstract socket is bound (READY)."""
-        import time as _time
         proc = self.spawn_supervisor(grant, **kwargs)
-        deadline = _time.monotonic() + 30
+        deadline = time.monotonic() + 30
         line = ""
-        while _time.monotonic() < deadline:
+        while time.monotonic() < deadline:
             line = proc.stdout.readline().decode("utf-8", "replace").strip()
-            if line.startswith("READY") or not line:
+            if line.startswith("READY") or not line or proc.poll() is not None:
                 break
         if not line.startswith("READY"):
             try:
@@ -227,16 +375,17 @@ class CompositionEnv:
         proc.wait(timeout=timeout)
         return proc.returncode, chunks.decode("utf-8", "replace")
 
+    def root_outcome(self, proc: subprocess.Popen,
+                     timeout: float = 120.0) -> tuple[int, str]:
+        return self.supervisor_outcome(proc, timeout=timeout)
+
     def controller_request(self, attempt_id: str, *,
                            overrides: dict | None = None,
                            env_claims: dict | None = None,
                            own_session_slug: str | None = None,
-                           wait_proc: subprocess.Popen | None = None,
-                           timeout: float = 180.0) -> dict:
-        """Spawn the synthetic controller and run one launch request.
-        ``own_session_slug`` pre-creates the controller-runtime-shaped
-        current-session tree (projects/<slug>/...) exactly as an
-        auto-creating controller runtime would."""
+                           timeout: float = 300.0) -> dict:
+        """Spawn the synthetic controller and run one CLAIM-ONLY launch
+        request against the supervisor socket."""
         if own_session_slug is not None:
             slug_dir = self.config_dir / "projects" / own_session_slug
             slug_dir.mkdir(parents=True, exist_ok=True)
@@ -249,7 +398,7 @@ class CompositionEnv:
         if env_claims:
             claims.update(env_claims)
         request["env_claims"] = claims
-        req_path = self.base / f"request-{attempt_id}.json"
+        req_path = self.base / f"request-{attempt_id}-{time.monotonic_ns()}.json"
         req_path.write_text(json.dumps(request, sort_keys=True),
                             encoding="utf-8")
         argv = [PY, str(Path(HARNESS_ROOT) / "fixtures" /
@@ -267,62 +416,87 @@ class CompositionEnv:
                     "stdout": proc.stdout[-400:], "stderr": proc.stderr[-400:]}
 
     def build_request(self, attempt_id: str) -> dict:
-        ident = self.identity
+        """CLAIM-ONLY request schema: no security-critical values."""
         return {
             "attempt_id": attempt_id,
-            "root": str(self.root),
-            "manifest_id": self.manifest.manifest_id,
-            "controller_pid": None,  # derived from SO_PEERCRED
+            "controller_starttime": None,
             "env_claims": {},
-            "codex_home": str(self.codex_home_dir),
-            "config_path": self.codex_artifact["config_path"],
-            "profile_name": self.profile_spec.profile_name,
-            "model_name": self.profile_spec.model_name,
-            "identity_version": ident["version"],
-            "identity_sha256": ident["sha256"],
-            "identity_exe_path": ident["exe_path"],
-            "harness_root": HARNESS_ROOT,
-            "evidence_src": str(self.evidence),
-            "auditor_output_src": str(self.auditor_output),
-            "target_src": str(self.target),
             "payload_kind": "launch_sim",
         }
+
+    def run_attempt(self, attempt_id: str, *, role: str = "codex",
+                    own_slug: str = "own-slug",
+                    overrides: dict | None = None) -> dict:
+        """The full remediated happy path: root up -> mint -> controller
+        request -> outcomes.  The supervisor is the ROOT's child, so the
+        root's exit reflects the supervised attempt lifecycle."""
+        self.author_spec(attempt_id, role=role)
+        root = self.spawn_root()
+        mint = self.root_mint(attempt_id)
+        if not mint.get("ok"):
+            rc, err = self.root_outcome(root)
+            return {"ok": False, "phase": "mint", "mint": mint,
+                    "root_rc": rc, "root_stderr": err[-400:]}
+        response = self.controller_request(attempt_id, overrides=overrides,
+                                           own_session_slug=own_slug)
+        rc, err = self.root_outcome(root, timeout=300)
+        marker = self.auditor_output / "launch-sim-marker.txt"
+        return {"ok": bool(response.get("ok")), "response": response,
+                "root_rc": rc, "root_stderr": err[-400:],
+                "marker_present": marker.is_file()}
 
     def ledger_records(self) -> list[dict]:
         return ObservabilityLedger(str(self.operator_state)).read_all()
 
 
 def run_composition_demo(out_dir: str) -> dict:
-    """The zero-provider integrated rehearsal demo (happy path + reuse
-    refusal + engagement-accounting separation)."""
+    """The zero-provider integrated rehearsal demo over the authority-root
+    flow (happy path + reuse refusal + engagement-accounting separation +
+    controller imitation powerlessness)."""
     if os.path.exists(out_dir):
         shutil.rmtree(out_dir)
     os.makedirs(out_dir, exist_ok=True)
     report: dict = {"composition_order": [
-        "manifest", "controller_binding", "c4p", "authority_bound",
-        "custody", "noegress", "identity_profile_frozen", "gatew",
-        "consumed_launch", "reuse_refused"]}
+        "authority_root_initialized_from_operator_capability",
+        "trusted_spec_frozen_before_controller_trigger",
+        "controller_binding", "c4p", "trusted_spec_verify",
+        "authority_bound", "adapter_bound", "custody",
+        "trusted_bytes_snapshot", "noegress", "identity_profile_frozen",
+        "gatew", "consumed_launch", "reuse_refused"]}
     env = CompositionEnv(os.path.join(out_dir, "workspace"))
     attempt = "demo-attempt-0001"
-    grant = env.mint(attempt)
+    result = env.run_attempt(attempt)
     eng_before = env.engagements.snapshot()
-    sup = env.start_supervisor(grant)
-    # controller with its own current-session tree already created
-    response = env.controller_request(
-        attempt, own_session_slug="own-project-slug")
-    sup.wait(timeout=30)
-    marker = env.auditor_output / "launch-sim-marker.txt"
-    eng_after = env.engagements.snapshot()
     reuse = env.controller_request(attempt)
+    eng_after = env.engagements.snapshot()
+    # a controller-created imitation root: its own spec, own state dir,
+    # own credential — it can only produce a powerless imitation
+    fake_dir = env.base / "fake-controller-root"
+    fake_env = CompositionEnv(str(fake_dir))
+    fake_spec = fake_env.author_spec("controller-imitation-0001")
+    fake_root = fake_env.spawn_root(fake_spec,
+                                    custody_value="CONTROLLER-OWNED-FAKE")
+    fake_mint = fake_env.root_mint("controller-imitation-0001")
+    fake_resp = (fake_env.controller_request("controller-imitation-0001")
+                 if fake_mint.get("ok") else {"ok": False})
+    fake_env.root_outcome(fake_root, timeout=300)
+    fake_env.cleanup_procs()
     report["happy_path"] = {
-        "ok": bool(response.get("ok")),
-        "response": response,
-        "marker_present": marker.is_file(),
+        "ok": bool(result.get("ok")),
+        "response": result.get("response"),
+        "marker_present": result.get("marker_present"),
         "engagements_before": eng_before,
         "engagements_after": eng_after,
         "engagements_untouched": eng_before == eng_after,
         "reuse_refused": not reuse.get("ok"),
         "reuse_response": reuse,
     }
+    report["controller_imitation"] = {
+        "mint_ok": bool(fake_mint.get("ok")),
+        "launch_ok": bool(fake_resp.get("ok")),
+        "used_controller_owned_fake_custody": True,
+        "legitimate_custody_value_used": False,
+    }
     report["ledger"] = env.ledger_records()
+    env.cleanup_procs()
     return report

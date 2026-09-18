@@ -13,21 +13,26 @@ any future qualification package/campaign may rely on it.
 ## Layout
 
 ```
+qh/rootauth.py       IR-001: operator authority root (spec + custody pipes;
+                     the ONLY production mint; spawns the supervisor)
+qh/trusted_spec.py   IR-002: canonical versioned TRUSTED LAUNCH SPEC
+                     (identity capture + launch-time verification)
+qh/adapters.py       synthetic provider custody adapters (evidence-based)
 qh/bootstrap.py      C-1: pre-controller scope provenance + C4' verification
-qh/authority.py      C-2: operator mint + one-shot supervising gatekeeper
-qh/custody.py        credential custody (sealed memfd; adapters)
+qh/authority.py      C-2: one-shot supervising gatekeeper (spec-authoritative)
+qh/custody.py        credential custody (memfd holds; adapter binding)
 qh/statemachine.py   terminal PREEXEC attempt lifecycle
 qh/noegress.py       hard no-egress gate (facts + checks)
-qh/boundary.py       outer boundary (bwrap inner-root composition + launch)
-qh/boundary_child.py in-namespace child entry (gate -> custody -> exec)
+qh/boundary.py       outer boundary (bwrap + immutable trusted-bytes binds)
+qh/boundary_child.py in-namespace child entry (gate -> verify -> exec)
 qh/codex_profile.py  C-3: identity pin + named restricted profile + CLI
 qh/gatew.py          GATE-W matrix + evaluation
 qh/campaign.py       campaign engagement accounting (SEPARATE lifecycle)
 qh/ledger.py         append-only OBSERVABILITY ledger (never authority)
-qh/compose.py        integrated C1->C2->C3 composition
-qh/cli.py            operator entry points (mint / supervisor / demo)
+qh/compose.py        integrated authority-root composition
+qh/cli.py            operator entry points (root / supervisor / demo)
 fixtures/            payloads + synthetic controller + demonstrated data
-tests/               deterministic zero-provider tests
+tests/               deterministic zero-provider adversarial tests
 ```
 
 ## Threat model and trust boundary
@@ -102,16 +107,29 @@ lifecycle — asserted by tests).
 ## Credential custody (MANDATORY for G-1 enforcement)
 
 `CREDENTIAL_CUSTODY_IS_REQUIRED_FOR_G1_ENFORCEMENT`: credential material
-enters the supervisor only through an operator pipe (ordinary-file source
-refused), lives only in a sealed memfd in non-dumpable process memory, is
-unsealed only inside the supervised boundary's ephemeral tmpfs for the
-authorized child immediately before payload exec, and is never printed,
-hashed into reports, committed or copied into handoffs (labels + byte
-lengths only; a redaction registry scrubs all outputs).  Custody failure
-fails closed.  **Provider-specific integration is INTERFACE ONLY**
-(`custody.PROVIDER_SPECIFIC_INTEGRATION_STATUS`): every test and the
-rehearsal use synthetic inert fixtures; real provider credential injection
-remains an explicit implementation blocker, not silently weakened.
+enters the AUTHORITY ROOT only through an operator pipe/memfd
+(ordinary-file source refused), lives only in a process-bound memfd in
+non-dumpable process memory, is unsealed only inside the supervised
+boundary's ephemeral storage for the authorized child immediately before
+payload exec, and is never printed, hashed into reports, committed or
+copied into handoffs (labels + byte lengths only; a redaction registry
+scrubs all outputs).  Custody failure fails closed.
+
+**Provider adapters are SYNTHETIC-CONCRETE** (see `qh/adapters.py`):
+`codex_chatgpt_oauth_v1` materializes `auth.json` inside a
+boundary-private CODEX_HOME (writable at init per the Campaign-2
+evidence) and `claude_firstparty_oauth_v1` materializes
+`.credentials.json` mode 0600 inside a boundary-private
+CLAUDE_CONFIG_DIR — both from frozen non-secret evidence, both driven
+ONLY by synthetic inert bytes in every test and rehearsal.  No real
+credential is ever read, parsed, inferred or contacted; provider roles
+without established evidence remain explicit blockers.  Authority-state
+sealing: the four-seal memfd representation is required in strict mode
+(`qh root --require-seals`, fails closed when the host cannot produce
+it); on the demonstrated host class the sealed representation is
+mechanically unavailable, reconciling with the G-1 demonstrated
+non-dumpable memory-only posture (outcome recorded, never silently
+downgraded).
 
 ## Hard no-egress contract
 
@@ -174,8 +192,9 @@ engagement accounting is never touched.
 
 ## Explicit residuals
 
-1. Provider-specific credential integration is interface-only (blocker
-   for real campaigns, not for harness tests).
+1. Provider adapters are implemented against SYNTHETIC bytes only; real
+   credential integration (operator-side custody of live credentials)
+   remains gated on separately authorized campaign preparation.
 2. Same-UID cannot mechanically distinguish operator from controller
    processes; the pipe-only grant channel + operator-session procedure +
    optional operator-pid binding are the boundary.  A controller that
@@ -187,10 +206,33 @@ engagement accounting is never touched.
 4. The gate's DNS/TCP probe names are data; on hosts without
    systemd-resolved the AF_UNIX regression is exercised via fixtures and
    the live bare-netns test where available.
-5. Yama < 1 hosts cannot run the supervisor (fail closed) — by design.
-6. `--yama-override` / `--fault` CLI hooks are deterministic TEST fault
-   injections, always recorded in the ledger; real drift/failure
-   mechanics are separately tested unflagged.
+5. Yama < 1 hosts cannot run the root or supervisor (fail closed) — by
+   design.  The production CLI has NO trust-check override of any kind
+   (`--yama-override` and every `--fault`-style flag are rejected by the
+   production parser); deterministic test fault injection lives ONLY in
+   the test suite via monkeypatched reader/launcher seams.
+6. Four-seal memfd sealing is unavailable on the demonstrated host class
+   (an MFD_ALLOW_SEALING memfd cannot be populated; F_ADD_SEALS fails
+   without it).  Strict mode fails closed on such hosts; the default
+   records `seal_status=unavailable_kernel` and keeps the non-dumpable
+   memory-only hold (the accepted G-1 demonstrated posture).
+
+## Trusted launch spec and trusted bytes (IR-002)
+
+The controller request is a CLAIM, never authority: its schema carries
+only attempt id, starttime claim, env claims and payload kind — every
+security-critical value (harness code identity, boundary child,
+evidence/target/auditor-output sources, codex home/config/exe/sha,
+profile, mount roles, adapter identity, payload role) comes from the
+canonical versioned trusted launch spec bound in the authority root.
+Unknown request fields are TERMINAL.  At launch the complete spec is
+re-verified against the live filesystem (object identity by dev/ino
+rejects delete/recreate; content digests reject swaps) and the verified
+harness/config/executable bytes are SNAPSHOTTED into process-bound
+memfds and materialized inside the boundary via bwrap `--ro-bind-data`
+— the protected launch never executes host-path code.  Evidence/target
+tree digests are re-verified INSIDE the boundary before payload exec
+(closing the check-to-use substitution window).
 
 ## What this harness does NOT prove
 

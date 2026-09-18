@@ -16,7 +16,9 @@ import sys
 sys.path.insert(0, "/opt/qh")  # noqa: E402 — harness package inside boundary
 from qh.gatew import MATRIX_OPS  # noqa: E402
 
-CUSTODY_PATH = "/tmp/qh-custody/inert-credential"
+CODEX_HOME = os.environ.get("CODEX_HOME", "/codex-home")
+CUSTODY_PATH = os.environ.get("QH_CUSTODY_TARGET",
+                              "/tmp/qh-custody/inert-credential")
 
 
 def _result_file() -> str:
@@ -79,7 +81,7 @@ def op_rename(path: str) -> str:
 
 def op_mkdir(path: str) -> str:
     try:
-        os.makedirs(path)
+        os.makedirs(path, exist_ok=True)
         return "allowed"
     except OSError as exc:
         return f"refused:{exc.errno}"
@@ -94,6 +96,10 @@ def main() -> int:
     result_file = _result_file()
     ops = []
     for name, path, action, expect in MATRIX_OPS:
+        # CODEX_HOME-referencing matrix entries follow the configured
+        # boundary-private provider home (path-shape preserved)
+        if path.startswith("/codex-home/"):
+            path = CODEX_HOME + path[len("/codex-home"):]
         actual = _ACTIONS[action](path)
         ok = (actual == "allowed" or actual.startswith("allowed")) \
             if expect == "allowed" else actual.startswith("refused")

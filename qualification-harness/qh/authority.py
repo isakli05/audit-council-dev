@@ -1,61 +1,92 @@
 """C-2 / G-1 — process-bound single-use launch authority (supervising
-gatekeeper).
+gatekeeper), IR-002-remediated: SPEC-AUTHORITATIVE launch values.
 
-Accepted design (G-1 DESIGN_PROBE_CLOSURE_ACCEPTED):
+Accepted design (G-1 DESIGN_PROBE_CLOSURE_ACCEPTED) — preserved:
 
 * authority is minted only through an operator/Control-Room-side path
-  OUTSIDE the controller's writable authority surface: the mint writes
-  the grant ONLY to a PIPE (a persisted ordinary-file grant is refused),
-  and the supervisor accepts the grant ONLY on a pipe — the grant blob
-  never exists in any controller-readable ordinary file;
+  OUTSIDE the controller's writable authority surface (remediated: the
+  ONLY production mint is performed by the authority root, which receives
+  the trusted launch spec + provider custody through operator-held FDs —
+  see qh/rootauth.py; the grant blob never exists in any ordinary file);
 * kernel/process-bound authority: the supervisor immediately sets
-  PR_SET_DUMPABLE=0 (same-UID processes cannot ptrace/inspect it or read
-  its memory/fds) and requires Yama ptrace_scope >= 1 (no same-UID
-  non-parent ptrace); the authority lives ONLY in supervisor process
-  memory — ordinary files (the observability ledger) grant nothing;
-* exact attempt/root binding (attempt id + root dev/inode + manifest
-  id from the C-1 bootstrap);
-* one-shot consumption; replay/second-use refusal; copied-grant refusal
-  (file-carried grant rejected); wrong-root/wrong-attempt refusal;
-* terminal PREEXEC_STOP: any failed mandatory preexec gate transitions
-  the attempt to TERMINAL_PREEXEC_STOP and the supervisor exits — the
-  same attempt/root can never launch again, and filesystem
-  deletion/recreation (of the ledger, socket or any state file) cannot
-  restore launch authority because authority was never in a file;
-* supervisor SIGKILL is fail-closed denial (DoS) only — authority dies
-  with the process and is never recoverable;
-* a genuinely new attempt requires a NEW out-of-band mint (the mint
-  refuses duplicate attempt ids); pre-inference PREEXEC stop does NOT
-  consume campaign auditor/model authority (qh/campaign.py is never
-  touched by this lifecycle).
+  PR_SET_DUMPABLE=0 and requires Yama ptrace_scope >= 1 (a REAL kernel
+  read — no override exists on any production path);
+* exact attempt/root binding; one-shot consumption; replay/second-use
+  refusal; copied-grant refusal (pipe-only);
+* terminal PREEXEC_STOP: any failed mandatory preexec gate transitions the
+  attempt to TERMINAL_PREEXEC_STOP and the supervisor exits — filesystem
+  deletion/recreation cannot restore launch authority;
+* supervisor SIGKILL is fail-closed denial (DoS) only;
+* a genuinely new attempt requires a NEW operator/root authorization;
+  pre-inference PREEXEC stop does NOT consume campaign auditor/model
+  authority (qh/campaign.py is never touched by this lifecycle).
+
+IR-002 remediation delta:
+
+* the supervisor receives the COMPLETE TRUSTED LAUNCH SPEC from the
+  authority root (pipe) and treats every request value as a CLAIM: the
+  request schema carries ONLY attempt id, starttime claim, env claims and
+  payload kind — harness_root, boundary child, evidence/target/auditor-
+  output sources, codex home/config/exe/sha, profile and mount policy are
+  NO LONGER request fields at all;
+* the full spec is re-verified against the live filesystem at launch
+  (TRUSTED_SPEC_VERIFY) and a NEW mandatory gate verifies claim/spec
+  agreement;
+* trusted harness/boundary/config/executable BYTES are snapshotted into
+  process-bound memfds at verification time and materialized inside the
+  boundary via bwrap --bind-data — the protected launch never executes
+  host-path code, closing the controller-selected harness_root defect
+  mechanically (no check-to-use window on code bytes);
+* the Codex identity pin is the SPEC-BOUND expected identity checked
+  against the ACTUAL executable bytes — a controller can no longer supply
+  both the executable and its matching hash.
 """
 from __future__ import annotations
 
 import ctypes
 import json
 import os
-import secrets as _secrets
 import socket
 import stat
 import struct
+import tempfile
 from dataclasses import dataclass, field
 
 from . import boundary as boundary_mod
-from .boundary import BoundarySpec, launch as boundary_launch
+from . import trusted_spec
+from .adapters import get_adapter
+from .boundary import BoundarySpec, DataFile, launch as boundary_launch
 from .campaign import EngagementLedger
 from .codex_profile import (CodexIdentity, IdentityDrift, PolicyDrift,
-                            freeze_profile, validate_profile_semantics,
+                            ProfileSpec, freeze_profile, render_config_toml,
+                            validate_profile_semantics,
                             verify_codex_identity, verify_frozen_profile)
 from .bootstrap import ControllerBinding, load_manifest, verify_c4p
 from .custody import CredentialCustody, CustodyError
 from .ledger import ObservabilityLedger
 from .statemachine import (AttemptState, AttemptStateMachine,
                            InvalidTransition)
-from .util import (Redactor, content_id, proc_starttime as _proc_starttime,
-                   read_yama_ptrace_scope, utc_now_iso)
+from .util import (Redactor, content_id, hold_bytes_memfd,
+                   proc_starttime as _proc_starttime,
+                   read_yama_ptrace_scope, sha256_bytes, utc_now_iso)
 
 PR_SET_DUMPABLE = 4
+PR_SET_PDEATHSIG = 1
 SO_PEERCRED = 17
+
+
+def _pr_set_pdeathsig() -> None:
+    """Die with the authority root (SIGKILL when parent dies): the
+    supervisor's authority never outlives the root that minted it, and a
+    killed root cannot leave a listening supervisor behind."""
+    import signal
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(PR_SET_PDEATHSIG, signal.SIGKILL, 0, 0, 0) != 0:
+        raise AuthorityError("PR_SET_PDEATHSIG_FAILED")
+
+# claim-only request schema: nothing in a controller request is authority
+ALLOWED_CLAIM_FIELDS = frozenset(
+    {"attempt_id", "controller_starttime", "env_claims", "payload_kind"})
 
 
 class AuthorityError(RuntimeError):
@@ -80,6 +111,8 @@ class Grant:
     manifest_id: str
     secret: str
     created_at: str
+    root_pid: int | None = None
+    spec_id: str | None = None
 
     def public_doc(self) -> dict:
         """Ledger-safe projection: NO secret."""
@@ -89,7 +122,8 @@ class Grant:
                 "created_at": self.created_at}
 
     def full_doc(self) -> dict:
-        return {**self.public_doc(), "secret": self.secret}
+        return {**self.public_doc(), "secret": self.secret,
+                "root_pid": self.root_pid, "spec_id": self.spec_id}
 
 
 def mint_attempt_grant(*, attempt_id: str, root: str, manifest_id: str,
@@ -97,32 +131,35 @@ def mint_attempt_grant(*, attempt_id: str, root: str, manifest_id: str,
                        out_stream=None,
                        redactor: Redactor | None = None,
                        operator_inmemory: bool = False) -> Grant:
-    """Operator/Control-Room-side mint.  The grant is written ONLY to a
-    PIPE-style stream (default: stdout when stdout is a pipe/FIFO); a
-    regular-file output is refused — persisted grants would sit in the
-    controller-writable ordinary-file surface this design exists to
-    avoid.  Duplicate attempt ids are refused (a genuinely new attempt
-    requires a NEW out-of-band mint with a fresh attempt id).
+    """Operator/Control-Room-side mint.  PRODUCTION callers are the
+    authority root ONLY (the unrestricted public CLI mint is removed);
     ``operator_inmemory=True`` is the explicit in-process OPERATOR path
-    used by tests/composition (the CLI enforces the real pipe contract
-    for operational mints; the choice is recorded in the ledger)."""
+    used by the root, tests and composition (recorded in the ledger).
+    The grant is written ONLY to a PIPE-style stream; a regular-file
+    output is refused.  ``root_pid`` records the MINTING process so the
+    spawned supervisor can mechanically require its parent to be the
+    minting root (never a caller-supplied CLI value).  Duplicate attempt
+    ids are refused (a genuinely new attempt requires a NEW out-of-band
+    root authorization)."""
     ledger = ObservabilityLedger(operator_state_dir)
     if attempt_id in ledger.attempt_ids_minted():
         raise AuthorityError(
             f"ATTEMPT_ALREADY_MINTED: {attempt_id} — a new attempt "
-            "requires a NEW out-of-band mint with a fresh attempt id")
+            "requires a NEW out-of-band operator/root authorization with "
+            "a fresh attempt id")
     if not os.path.isdir(root):
         raise AuthorityError(f"ROOT_NOT_A_DIRECTORY: {root}")
     st = os.lstat(root)
     grant = Grant(
-        grant_id=_secrets.token_hex(16),
+        grant_id=_new_grant_id(),
         attempt_id=attempt_id,
         root=root,
         root_dev=st.st_dev,
         root_ino=st.st_ino,
         manifest_id=manifest_id,
-        secret=_secrets.token_urlsafe(32),
-        created_at=utc_now_iso())
+        secret=_new_grant_secret(),
+        created_at=utc_now_iso(),
+        root_pid=os.getpid())
     channel = "pipe"
     if out_stream is None:
         out_stream = sys_stdout_checked()
@@ -134,10 +171,21 @@ def mint_attempt_grant(*, attempt_id: str, root: str, manifest_id: str,
         channel = "inmemory-operator"
     if redactor is not None:
         redactor.register(grant.secret, "grant-secret")
-    out_stream.write(json.dumps(grant.full_doc()) + "\n")
-    out_stream.flush()
+    if channel == "pipe":
+        out_stream.write(json.dumps(grant.full_doc()) + "\n")
+        out_stream.flush()
     ledger.append("MINTED", channel=channel, **grant.public_doc())
     return grant
+
+
+def _new_grant_id() -> str:
+    import secrets as _secrets
+    return _secrets.token_hex(16)
+
+
+def _new_grant_secret() -> str:
+    import secrets as _secrets
+    return _secrets.token_urlsafe(32)
 
 
 def sys_stdout_checked():
@@ -162,52 +210,42 @@ def _stream_is_pipe_like(stream) -> bool:
 
 @dataclass
 class SupervisorPolicy:
-    """Injectable environment facts.  Production reads the REAL values;
-    the fault_* fields exist ONLY for deterministic adversarial tests and
-    are recorded in the ledger when used."""
-    yama_value: int | None = None          # None -> read the real knob
-    env_reader=None                        # None -> /proc/<pid>/environ
-    stat_reader=None                       # None -> /proc/<pid>/stat
-    walker=None                            # None -> real scope walk
+    """Injectable VERIFICATION seams for deterministic adversarial tests
+    (readers/launcher only).  NO fault-injection or trust-decision override
+    exists here: production reads REAL values and every gate failure is
+    real (test fault injection monkeypatches these seams or the module's
+    real readers — never a production CLI flag)."""
+    env_reader: object = None              # None -> /proc/<pid>/environ
+    stat_reader: object = None             # None -> /proc/<pid>/stat
+    walker: object = None                  # None -> real scope walk
     set_dumpable: bool = True
     require_custody: bool = True
-    fault_noegress_fail: bool = False
-    fault_gatew_fail: bool = False
-    fault_identity_drift: bool = False
-    fault_policy_drift: bool = False
-    operator_pid: int | None = None
-    boundary_launcher=None                 # None -> real boundary launch
+    boundary_launcher: object = None       # None -> real boundary launch
 
 
 @dataclass
-class RequestDoc:
+class RequestClaims:
+    """The controller request is a CLAIM, never authority (IR-002)."""
     attempt_id: str
-    root: str
-    manifest_id: str
-    controller_pid: int
     controller_starttime: str | None
     env_claims: dict[str, str]
-    codex_home: str
-    config_path: str
-    identity_version: str
-    identity_sha256: str
-    identity_exe_path: str
-    harness_root: str
-    evidence_src: str
-    auditor_output_src: str
-    target_src: str | None = None
-    payload_kind: str = "launch_sim"       # launch_sim | gatew-only
+    payload_kind: str
 
 
 class Supervisor:
-    """The one-shot supervising gatekeeper.  Run as a dedicated process
-    started by the OPERATOR (never by the controller); the grant arrives
-    on a pipe."""
+    """The one-shot supervising gatekeeper.  Production instances are
+    spawned by the AUTHORITY ROOT (their parent is the root process — the
+    grant's root_pid binding is enforced at startup); the grant and the
+    complete trusted launch spec arrive on a pipe and the custody memfd is
+    inherited from the root."""
 
-    def __init__(self, *, grant: Grant, operator_state_dir: str,
+    def __init__(self, *, grant: Grant, spec: dict, spec_id: str,
+                 operator_state_dir: str,
                  custody_fd: int | None,
                  policy: SupervisorPolicy | None = None) -> None:
         self.grant = grant
+        self.spec = spec
+        self.spec_id = spec_id
         self.operator_state_dir = operator_state_dir
         self.custody_fd = custody_fd
         self.policy = policy or SupervisorPolicy()
@@ -219,6 +257,7 @@ class Supervisor:
         self.custody: CredentialCustody | None = None
         self.frozen_profile: dict | None = None
         self._socket: socket.socket | None = None
+        self._snapshot: list[DataFile] | None = None
         self.exit_code = 0
 
     # -- lifecycle ----------------------------------------------------
@@ -226,17 +265,22 @@ class Supervisor:
     def startup(self) -> None:
         self._record("SUPERVISOR_UP", grant=self.grant.grant_id,
                      pid=os.getpid(), ppid=os.getppid())
-        if self.policy.operator_pid is not None and \
-                os.getppid() != self.policy.operator_pid:
-            self._fail_closed("OPERATOR_PID_MISMATCH", exit_code=5)
+        if self.grant.root_pid is not None and \
+                os.getppid() != self.grant.root_pid:
+            self._fail_closed("ROOT_PID_MISMATCH", exit_code=5)
+            return
+        _pr_set_pdeathsig()
+        if os.getppid() == 1 and self.grant.root_pid is not None:
+            # parent already died between fork and prctl — refuse
+            self._fail_closed("ROOT_PID_GONE", exit_code=5)
+            return
         if self.policy.set_dumpable:
             pr_set_dumpable(0)
             self._record("PR_SET_DUMPABLE_0")
-        yama = self.policy.yama_value \
-            if self.policy.yama_value is not None \
-            else read_yama_ptrace_scope()
+        yama = read_yama_ptrace_scope()
         if yama is None or yama < 1:
-            # MANDATORY environmental gate: fail closed when absent.
+            # MANDATORY environmental gate: fail closed when absent.  The
+            # REAL kernel knob is always read; no override exists.
             self.machine.force_terminal_preexec_stop("YAMA_PTRACE_SCOPE_LT_1")
             self._record("TERMINAL_PREEXEC_STOP",
                          reason="YAMA_PTRACE_SCOPE_LT_1", yama=yama)
@@ -288,18 +332,26 @@ class Supervisor:
     # -- request pipeline (the recorded composition order) -------------
 
     def handle_request(self, request: dict, *, peer_pid: int) -> dict:
-        self._record("REQUEST_RECEIVED", peer_pid=peer_pid,
-                     payload_kind=request.get("payload_kind"))
+        self._record("REQUEST_RECEIVED", peer_pid=peer_pid)
         if self.machine.state != AttemptState.MINTED:
             return self._refuse("REPLAY_OR_TERMINAL_STATE",
                                 state=self.machine.state)
 
-        # exact attempt/root/manifest binding vs the minted grant
+        # [IR-002] the request is a CLAIM, never authority: unknown
+        # security-critical fields are refused outright (they can no
+        # longer supply harness_root / binds / executable / config /
+        # profile / adapter values — those fields do not exist).
+        unknown = sorted(set(request) - ALLOWED_CLAIM_FIELDS)
+        if unknown:
+            return self._refuse_terminal(
+                "UNKNOWN_CLAIM_FIELD:" + ",".join(unknown))
         if request.get("attempt_id") != self.grant.attempt_id:
             return self._refuse_terminal("WRONG_ATTEMPT")
-        if os.path.realpath(request.get("root", "")) != \
-                os.path.realpath(self.grant.root):
-            return self._refuse_terminal("WRONG_ROOT")
+        if request.get("payload_kind") != self.spec["payload"]["kind"]:
+            return self._refuse_terminal("PAYLOAD_KIND_CLAIM_MISMATCH")
+
+        # exact root binding vs the minted grant (root is grant-bound,
+        # never request-supplied)
         try:
             st = os.lstat(self.grant.root)
             if (st.st_dev, st.st_ino) != \
@@ -308,8 +360,6 @@ class Supervisor:
                 return self._refuse_terminal("ROOT_IDENTITY_CHANGED")
         except OSError:
             return self._refuse_terminal("ROOT_IDENTITY_CHANGED")
-        if request.get("manifest_id") != self.grant.manifest_id:
-            return self._refuse_terminal("MANIFEST_ID_MISMATCH")
 
         # [composition 2] controller binding established
         starttime = (self.policy.stat_reader or _proc_starttime)(peer_pid)
@@ -343,6 +393,16 @@ class Supervisor:
             return self._refuse_terminal(
                 "C4P_FAIL:" + ",".join(c4.failures))
 
+        # [IR-002] TRUSTED SPEC VERIFY — the complete security-critical
+        # launch specification is checked against the LIVE filesystem
+        spec_failures = trusted_spec.verify_spec(
+            self.spec, expected_spec_id=self.spec_id)
+        self._record("TRUSTED_SPEC_VERIFY",
+                     passed=not spec_failures, failures=spec_failures)
+        if spec_failures:
+            return self._refuse_terminal(
+                "TRUSTED_SPEC_VERIFY_FAIL:" + ",".join(spec_failures))
+
         # [composition 4] one-shot attempt authority bound
         try:
             self.machine.transition(AttemptState.BOUND,
@@ -351,18 +411,29 @@ class Supervisor:
             return self._refuse_terminal(f"STATE:{exc}")
         self._record("AUTHORITY_BOUND", controller_pid=peer_pid)
 
-        # [composition 5] credential custody (MANDATORY)
+        # [composition 5] credential custody (MANDATORY, spec-bound
+        # adapter identity)
         try:
             self.machine.transition(AttemptState.PREEXEC_CHECKING,
                                     "preexec gates")
         except InvalidTransition as exc:
             return self._refuse_terminal(f"STATE:{exc}")
+        try:
+            adapter = get_adapter(self.spec["credential_adapter"]["id"])
+            self._record("CREDENTIAL_ADAPTER_BOUND",
+                         adapter_id=adapter.adapter_id,
+                         provider_role=adapter.provider_role,
+                         version=adapter.version)
+        except Exception as exc:  # noqa: BLE001 — AdapterError, fail closed
+            return self._refuse_terminal(f"CREDENTIAL_ADAPTER_INVALID:"
+                                         f"{exc}")
         if self.policy.require_custody:
             if self.custody_fd is None:
                 return self._refuse_terminal("CUSTODY_FD_NOT_PROVIDED")
             try:
                 self.custody = CredentialCustody.establish(
-                    self.custody_fd, label=f"attempt-{self.grant.attempt_id}",
+                    self.custody_fd,
+                    label=f"attempt-{self.grant.attempt_id}",
                     redactor=self.redactor)
             except CustodyError as exc:
                 return self._refuse_terminal(f"CUSTODY_ESTABLISH_FAILED:"
@@ -371,35 +442,46 @@ class Supervisor:
                          label=self.custody.label,
                          length=self.custody.length)
 
-        # [composition 6] hard no-egress gate
-        noegress = self._run_noegress(request)
+        # [composition 6] trusted-bytes snapshot (AFTER spec verify, so
+        # the snapshot is exactly the verified bytes; memfd-held so no
+        # host-path code executes inside the protected launch)
+        try:
+            self._snapshot = self._build_trusted_snapshot()
+        except (trusted_spec.SpecError, OSError, PolicyDrift,
+                IdentityDrift) as exc:
+            return self._refuse_terminal(f"TRUSTED_SNAPSHOT_FAILED:{exc}")
+        self._record("TRUSTED_BYTES_SNAPSHOTTED",
+                     files=len(self._snapshot))
+
+        # [composition 7] hard no-egress gate
+        noegress = self._run_noegress()
         if not noegress["passed"]:
             return self._refuse_terminal(
                 "NOEGRESS_FAIL:" + ",".join(noegress["failures"]))
 
-        # [composition 7] exact Codex identity/profile frozen
+        # [composition 8] exact Codex identity/profile frozen (SPEC-bound)
         try:
-            frozen = self._freeze_profile(request)
+            frozen = self._freeze_profile()
         except IdentityDrift as exc:
             return self._refuse_terminal(f"CODEX_IDENTITY_DRIFT:{exc}")
         except PolicyDrift as exc:
             return self._refuse_terminal(f"PROFILE_POLICY_DRIFT:{exc}")
         self._record("PROFILE_FROZEN", **frozen)
 
-        # [composition 8] GATE-W zero-provider rehearsal
-        gatew = self._run_gatew(request)
+        # [composition 9] GATE-W zero-provider rehearsal
+        gatew = self._run_gatew()
         if not gatew["passed"]:
             return self._refuse_terminal(
                 "GATEW_FAIL:" + ",".join(gatew["failures"]))
 
-        # [composition 9] consume exactly once + protected local launch
+        # [composition 10] consume exactly once + protected local launch
         try:
             self.machine.transition(AttemptState.CONSUMED_FOR_LAUNCH,
                                     "protected local launch simulation")
         except InvalidTransition as exc:
             return self._refuse_terminal(f"STATE:{exc}")
         self._record("CONSUMED_FOR_LAUNCH")
-        launch = self._protected_launch(request)
+        launch = self._protected_launch()
         if not launch["ok"]:
             self.machine.transition(AttemptState.TERMINAL,
                                     "protected launch failed post-"
@@ -418,45 +500,117 @@ class Supervisor:
                 "launch": launch.get("payload"),
                 "engagements": self.engagements.snapshot()}
 
-    # -- gates ---------------------------------------------------------
+    # -- trusted-bytes snapshot -----------------------------------------
 
-    def _boundary_spec(self, request: dict, payload_argv,
-                       noegress: bool) -> BoundarySpec:
-        from .custody import SyntheticInertAdapter
-        adapter = SyntheticInertAdapter()
-        plans = []
+    def _build_trusted_snapshot(self) -> list[DataFile]:
+        """Snapshot the VERIFIED harness executable byte set, the rendered
+        config and the verified provider executable into process-bound
+        memfds.  These bytes — and only these — execute/apply inside the
+        boundary (materialized via bwrap --bind-data)."""
+        hroot = self.spec["harness"]["root"]
+        # rendered restricted profile config from SPEC parameters
+        config = render_config_toml(self._profile_spec())
+        config_sha = sha256_bytes(config.encode("utf-8"))
+        if config_sha != self.spec["codex"]["config_sha256"]:
+            raise PolicyDrift(
+                f"PROFILE_CONFIG_DIGEST_MISMATCH: spec-bound "
+                f"{self.spec['codex']['config_sha256']} rendered "
+                f"{config_sha}")
+        adapter = get_adapter(self.spec["credential_adapter"]["id"])
+        config_targets = [t for kind, t in adapter.extra_files
+                          if kind == "config"]
+        # the rendered restricted profile config is ALWAYS materialized at
+        # the generic rehearsal CODEX_HOME (the GATE-W matrix reads it
+        # regardless of provider role); a role-specific config target
+        # takes precedence when the adapter declares one
+        config_target = (config_targets[0] if config_targets
+                         else "/run-qh/codex-home/config.toml")
+        # verified provider executable (identity-checked bytes)
+        exe = self.spec["codex"]["exe"]["path"]
+        exe_data = _read_file(exe)
+        if sha256_bytes(exe_data) != self.spec["codex"]["exe"]["sha256"]:
+            raise IdentityDrift("CODEX_BINARY_IDENTITY_DRIFT")
+        extra = [DataFile(
+            fd=_hold(exe_data, "qh-trusted-exe"),
+            inner_path="/run-qh/trusted-provider-exe",
+            sha256=sha256_bytes(exe_data), secret=False, mode=0o755)]
+        return boundary_mod.snapshot_data_files(
+            hroot, config=config.encode("utf-8"),
+            config_target=config_target, extra=extra)
+
+    def _profile_spec(self) -> ProfileSpec:
+        p = dict(self.spec["codex"]["profile"])
+        for k in ("evidence_read_paths", "target_read_paths",
+                  "system_read_paths", "extra_read_paths"):
+            if k in p:
+                p[k] = tuple(p[k])
+        return ProfileSpec(**p)
+
+    # -- boundary composition (SPEC-authoritative) ----------------------
+
+    def _boundary_spec(self, phase: str) -> BoundarySpec:
+        """phase: "gate" (noegress), "gatew" (rehearsal, inert custody
+        target — the accepted GATE-W matrix), or "protected" (spec-bound
+        provider adapter target)."""
+        from .adapters import INERT_ADAPTER_ID, get_adapter as _ga
+        adapter = _ga(self.spec["credential_adapter"]["id"])
+        inert = _ga(INERT_ADAPTER_ID)
+        target = (adapter.credential_target if phase == "protected"
+                  else inert.credential_target)
+        secret_plans = []
         if self.custody is not None:
-            plans.append(self.custody.child_plan(adapter.child_target_path()))
-        ro_binds = [(request["evidence_src"], "/evidence"),
-                    (request["codex_home"], "/codex-home")]
-        if request.get("target_src"):
-            ro_binds.append((request["target_src"], "/target"))
+            secret_plans.append(self.custody.child_plan(target))
+        env = {"CODEX_HOME": "/run-qh/codex-home"}
+        if phase == "protected":
+            env.update(adapter.env)
+            env.update({
+                "QH_ADAPTER_ID": adapter.adapter_id,
+                "QH_ADAPTER_PROVIDER_ROLE": adapter.provider_role,
+                "QH_ADAPTER_TARGET": adapter.credential_target,
+                "QH_ADAPTER_MODE": oct(adapter.credential_mode),
+                "QH_CUSTODY_LENGTH": str(self.custody.length
+                                         if self.custody else 0),
+                "QH_TRUSTED_EXE": "/run-qh/trusted-provider-exe",
+                "QH_TRUSTED_EXE_SHA256":
+                    self.spec["codex"]["exe"]["sha256"],
+            })
+        else:
+            env["QH_CUSTODY_TARGET"] = inert.credential_target
+        ro_binds = [(self.spec["sources"]["evidence"]["path"], "/evidence")]
+        if self.spec["sources"].get("target") is not None:
+            ro_binds.append((self.spec["sources"]["target"]["path"],
+                             "/target"))
         spec = BoundarySpec(
-            harness_root=request["harness_root"],
-            payload_argv=payload_argv,
+            harness_root=self.spec["harness"]["root"],
+            payload_argv=None,  # set by the caller per phase
             ro_binds=ro_binds,
-            rw_binds=[(request["auditor_output_src"], "/auditor-output")],
+            rw_binds=[(self.spec["sources"]["auditor_output"]["path"],
+                       "/auditor-output")],
             tmpfs_paths=["/tmp", "/run-qh"],
-            env={"CODEX_HOME": "/codex-home"},
-            secret_plans=plans,
+            env=env,
+            secret_plans=secret_plans,
+            data_files=list(self._snapshot or []),
+            source_digests={
+                "evidence": self.spec["sources"]["evidence"]["tree_digest"],
+                **({"target": self.spec["sources"]["target"]["tree_digest"]}
+                   if self.spec["sources"].get("target") is not None else {}),
+            },
             noegress=None,
-            pass_fds=[p.fd for p in plans])
-        if noegress:
+            pass_fds=[p.fd for p in secret_plans])
+        if self.spec["noegress"]["required"]:
             from .noegress import NoEgressSpec
             spec.noegress = NoEgressSpec()
         return spec
 
-    def _launch(self, request: dict, payload_argv, *, noegress: bool) \
+    def _launch(self, payload_argv, *, phase: str) \
             -> boundary_mod.BoundaryResult:
         launcher = self.policy.boundary_launcher or boundary_launch
-        spec = self._boundary_spec(request, payload_argv, noegress)
-        return launcher(spec, timeout=120.0)
+        spec = self._boundary_spec(phase)
+        spec.payload_argv = payload_argv
+        return launcher(spec, timeout=180.0)
 
-    def _run_noegress(self, request: dict) -> dict:
-        if self.policy.fault_noegress_fail:
-            return {"passed": False,
-                    "failures": ["FAULT_INJECTION:noegress"]}
-        result = self._launch(request, None, noegress=True)
+    def _run_noegress(self) -> dict:
+        result = self._launch(None, phase="gate")
         gate = result.gate
         if gate is None:
             return {"passed": False,
@@ -468,36 +622,36 @@ class Supervisor:
         return {"passed": bool(gate.get("passed")),
                 "failures": gate.get("failures", [])}
 
-    def _freeze_profile(self, request: dict) -> dict:
+    def _freeze_profile(self) -> dict:
         identity = CodexIdentity(
-            version=request["identity_version"],
-            sha256=request["identity_sha256"],
-            exe_path=request["identity_exe_path"])
+            version=self.spec["codex"]["version"],
+            sha256=self.spec["codex"]["exe"]["sha256"],
+            exe_path=self.spec["codex"]["exe"]["path"])
         verify_codex_identity(identity)
-        failures = validate_profile_semantics(request["config_path"],
-                                              _spec_from_request(request))
+        config = render_config_toml(self._profile_spec())
+        artifact = {"config_sha256":
+                    sha256_bytes(config.encode("utf-8"))}
+        with tempfile.TemporaryDirectory(prefix="qh-profile-") as tdir:
+            cpath = os.path.join(tdir, "config.toml")
+            with open(cpath, "w", encoding="utf-8") as fh:
+                fh.write(config)
+            failures = validate_profile_semantics(cpath,
+                                                  self._profile_spec())
         if failures:
             raise PolicyDrift(
                 "PROFILE_SEMANTICS_INVALID:" + ",".join(failures))
-        artifact = {"config_sha256": _config_sha(request["config_path"])}
         frozen = freeze_profile(artifact, identity)
-        if self.policy.fault_identity_drift:
-            raise IdentityDrift("FAULT_INJECTION:identity-drift")
-        if self.policy.fault_policy_drift:
-            raise PolicyDrift("FAULT_INJECTION:policy-drift")
         # freeze-verify round trip (detects drift between generation and
         # launch composition)
         verify_frozen_profile(frozen, artifact, identity)
         self.frozen_profile = frozen
         return frozen
 
-    def _run_gatew(self, request: dict) -> dict:
-        if self.policy.fault_gatew_fail:
-            return {"passed": False, "failures": ["FAULT_INJECTION:gatew"]}
+    def _run_gatew(self) -> dict:
         payload_argv = ["/usr/bin/python3",
                         "/opt/qh/fixtures/gatew_payload.py",
                         "--result-file", boundary_mod.RESULT_FILE_INNER]
-        result = self._launch(request, payload_argv, noegress=True)
+        result = self._launch(payload_argv, phase="gatew")
         gate = result.gate
         payload = result.payload_result
         failures: list[str] = []
@@ -519,11 +673,11 @@ class Supervisor:
         self._record("GATEW_RESULT", passed=not failures, failures=failures)
         return {"passed": not failures, "failures": failures}
 
-    def _protected_launch(self, request: dict) -> dict:
+    def _protected_launch(self) -> dict:
         payload_argv = ["/usr/bin/python3",
                         "/opt/qh/fixtures/launch_sim_payload.py",
                         "--result-file", boundary_mod.RESULT_FILE_INNER]
-        result = self._launch(request, payload_argv, noegress=True)
+        result = self._launch(payload_argv, phase="protected")
         payload = result.payload_result
         if payload is None or not payload.get("ok"):
             return {"ok": False,
@@ -563,6 +717,13 @@ class Supervisor:
         if self.custody is not None:
             self.custody.teardown()
             self.custody = None
+        if self._snapshot is not None:
+            for df in self._snapshot:
+                try:
+                    os.close(df.fd)
+                except OSError:
+                    pass
+            self._snapshot = None
         if self._socket is not None:
             try:
                 self._socket.close()
@@ -580,17 +741,11 @@ def _peer_cred(conn: socket.socket) -> tuple[int, int, int]:
     return pid, uid, gid
 
 
-def _config_sha(config_path: str) -> str:
-    from .util import sha256_file
-    return sha256_file(config_path)
+def _read_file(path: str) -> bytes:
+    with open(path, "rb") as fh:
+        return fh.read()
 
 
-def _spec_from_request(request: dict):
-    from .codex_profile import ProfileSpec
-    return ProfileSpec(
-        profile_name=request.get("profile_name", "auditor-restricted"),
-        model_name=request.get("model_name", "probe"),
-        evidence_read_paths=tuple(
-            request.get("evidence_read_paths", ("/evidence",))),
-        extra_read_paths=tuple(request.get("extra_read_paths", ())),
-        target_read_paths=tuple(request.get("target_read_paths", ())))
+def _hold(data: bytes, name: str) -> int:
+    fd, _status = hold_bytes_memfd(data, name=name)
+    return fd

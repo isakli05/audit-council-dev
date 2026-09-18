@@ -9,10 +9,16 @@ docs/chatgpt-project/AUCDEV-023-G2-CLEAN-EXEC-POLICY-EQUIVALENCE-REPRODUCTION-RE
   process-binding evidence (bootstrap manifest; current tree is a subset of
   manifest plus the controller's OWN current-session project slug);
 * C-2 / G-1  process-bound one-shot supervising launch authority
-  (PR_SET_DUMPABLE=0 kernel-process-bound authority; one-shot exact
+  rooted in the OPERATOR AUTHORITY ROOT (qh/rootauth.py): the root
+  receives the trusted launch spec + provider custody through
+  operator-held pipes BEFORE controller request execution, performs the
+  ONLY production mint (exactly the spec-bound attempt, at most once),
+  and itself spawns the supervisor (mechanical ppid binding);
+  PR_SET_DUMPABLE=0 kernel-process-bound authority; one-shot exact
   attempt/root binding; terminal PREEXEC_STOP; replay/reuse/binding
-  rejection; new attempt only via a new out-of-band operator mint;
-  credential custody mandatory; Yama ptrace_scope >= 1 environmental gate);
+  rejection; new attempt only via a new operator/root authorization;
+  credential custody mandatory with spec-bound provider adapters;
+  Yama ptrace_scope >= 1 environmental gate with NO production override;
 * C-3 / G-2  primary workspace = auditor-output role; NO --add-dir; NO CLI
   -s/--sandbox workspace-write; named restricted permission profile from a
   disposable CODEX_HOME; hard no-egress gate (systemd-resolved/D-Bus

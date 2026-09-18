@@ -132,3 +132,95 @@ _SAFE_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 def safe_token(name: str) -> bool:
     return bool(_SAFE_NAME.match(name))
+
+
+# ------------------------------------------------------- memfd + seals ----
+# Authority-state holding (IR-001 remediation).  The four-seal
+# representation is REQUIRED in strict mode and callers fail closed when
+# the host cannot produce it; the default posture keeps bytes in an
+# anonymous process-bound memfd with the seal outcome RECORDED (the
+# demonstrated G-1 mechanism on hosts where the sealed representation is
+# unavailable — never a silent downgrade).
+
+F_ADD_SEALS = 1033
+F_GET_SEALS = 1034
+F_SEAL_WRITE = 0x0008
+F_SEAL_GROW = 0x0010
+F_SEAL_SHRINK = 0x0020
+F_SEAL_SEAL = 0x0040
+_ALL_FOUR_SEALS = F_SEAL_WRITE | F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL
+MFD_CLOEXEC = 0x0001
+MFD_ALLOW_SEALING = 0x0004
+
+_seal_capability: str | None = None
+
+
+class SealUnavailableError(RuntimeError):
+    """Strict-mode authority hold: the four-seal representation is
+    unavailable on this host (fail closed — never downgrade silently)."""
+
+
+def memfd_create(name: str, flags: int) -> int:
+    import ctypes
+    libc = ctypes.CDLL(None, use_errno=True)
+    if hasattr(libc, "memfd_create"):
+        fn = libc.memfd_create
+        fn.restype = ctypes.c_int
+        fn.argtypes = [ctypes.c_char_p, ctypes.c_uint]
+        fd = fn(name.encode(), flags)
+        if fd < 0:
+            e = ctypes.get_errno()
+            raise OSError(e, os.strerror(e))
+        return fd
+    raise SealUnavailableError("MEMFD_CREATE_UNAVAILABLE")
+
+
+def memfd_seal_capability() -> str:
+    """Characterize whether a POPULATED memfd can carry all four seals on
+    this host ("sealed" / "unavailable_kernel") — recorded, never silently
+    assumed either way."""
+    global _seal_capability
+    if _seal_capability is not None:
+        return _seal_capability
+    import fcntl
+    fd = memfd_create("qh-seal-capability-probe",
+                      MFD_CLOEXEC | MFD_ALLOW_SEALING)
+    try:
+        try:
+            os.write(fd, b"probe")
+        except OSError:
+            _seal_capability = "unavailable_kernel"
+            return _seal_capability
+        try:
+            fcntl.fcntl(fd, F_ADD_SEALS, _ALL_FOUR_SEALS)
+            _seal_capability = "sealed"
+        except (OSError, ValueError):
+            _seal_capability = "unavailable_kernel"
+        return _seal_capability
+    finally:
+        os.close(fd)
+
+
+def hold_bytes_memfd(data: bytes, *, name: str,
+                     require_seals: bool = False) -> tuple[int, str]:
+    """Hold bytes in an anonymous process-bound memfd.  Strict mode
+    requires all four seals to succeed or raises SealUnavailableError."""
+    import fcntl
+    cap = memfd_seal_capability()
+    if require_seals and cap != "sealed":
+        raise SealUnavailableError(
+            "SEALED_REPRESENTATION_UNAVAILABLE_ON_THIS_HOST: authority-"
+            "critical state requires F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|"
+            "F_SEAL_SEAL and the host cannot produce a populated sealed "
+            "memfd (strict mode refuses to downgrade the boundary)")
+    if cap == "sealed":
+        fd = memfd_create(name, MFD_CLOEXEC | MFD_ALLOW_SEALING)
+        os.write(fd, data)
+        fcntl.fcntl(fd, F_ADD_SEALS, _ALL_FOUR_SEALS)
+        status = "sealed"
+    else:
+        fd = memfd_create(name, MFD_CLOEXEC)
+        os.write(fd, data)
+        status = "unavailable_kernel"
+    os.lseek(fd, 0, os.SEEK_SET)
+    return fd, status
