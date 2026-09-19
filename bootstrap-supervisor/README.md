@@ -1,4 +1,4 @@
-# AUCDEV-023 External Bootstrap Supervisor (EBS) — preexec-gate remediation candidate
+# AUCDEV-023 External Bootstrap Supervisor (EBS) — final execution-lifecycle remediation candidate
 
 Bounded implementation of the operator-ADOPTED AUCDEV-023 auditor-bootstrap
 governance architecture **R1 = CONTROLLERLESS / PROCESS-BOUND /
@@ -19,7 +19,14 @@ and the 2026-09-19 bounded **EBS gate-timing remediation** authority
 and the 2026-09-19 bounded **EBS preexec-gate remediation** authority
 (findings AUCDEV023-CR-EBS-S1-002 and AUCDEV023-CR-EBS-S1-003;
 canonical record:
-`docs/chatgpt-project/AUCDEV-023-EBS-PREEXEC-GATE-REMEDIATION-REPORT.md`).
+`docs/chatgpt-project/AUCDEV-023-EBS-PREEXEC-GATE-REMEDIATION-REPORT.md`),
+and the 2026-09-20 bounded **final launch-seam remediation** authority
+(findings AUCDEV023-CR-EBS-S1-004/-005/-006; canonical record:
+`docs/chatgpt-project/AUCDEV-023-EBS-FINAL-LAUNCH-SEAM-REMEDIATION-REPORT.md`),
+and the 2026-09-20 bounded **final execution-lifecycle remediation**
+authority (findings AUCDEV023-CR-EBS-S1-007 and AUCDEV023-CR-EBS-S1-008;
+canonical record:
+`docs/chatgpt-project/AUCDEV-023-EBS-FINAL-EXECUTION-LIFECYCLE-REMEDIATION-REPORT.md`).
 
 ## What this is
 
@@ -29,10 +36,12 @@ canonical record:
   custody, a verified-open-fd boundary-child launch mechanism, runtime
   package self-identity verification, **generic fail-closed frozen
   event-package verification with transport cross-binding (second
-  remediation)**, generic report custody with a
-  credential leak screen, and an inspection-only CLI.
-- **A preexec-gate remediation candidate awaiting a FRESH independent
-  Control Room readback.** Not accepted, not trusted for any event.
+  remediation)**, generic report snapshot custody with a credential
+  leak screen and a frozen structural validator, and an
+  inspection-only CLI.
+- **A final execution-lifecycle remediation candidate awaiting a FRESH
+  independent Control Room readback.** Not accepted, not trusted for any
+  event.
 
 ## What this is NOT
 
@@ -85,7 +94,14 @@ remains inspection-only).
 
 **Versioned strict event-package manifest contract**
 (`ebs/binding.py: EVENT_MANIFEST_SCHEMA` =
-`AUCDEV-023-EVENT-PACKAGE-MANIFEST-V4`, advanced from V3 by the
+`AUCDEV-023-EVENT-PACKAGE-MANIFEST-V5`, advanced from V4 by the
+CR-EBS-S1-007/-008 final execution-lifecycle remediation because the
+projection semantics materially changed again — the binding gains the
+frozen `output_validator` descriptor and the frozen
+`execution_limits` timeouts behind the process-bound report lifecycle
+(a V1/V2/V3/V4 manifest is REFUSED, never silently accepted as
+equivalent, and no real V1-V4 package exists to migrate), itself
+advanced from V3 by the
 S1-002/S1-003 preexec-gate remediation because the projection semantics
 materially changed again — the mandatory dynamic runtime-gate set became
 EXACTLY TWO descriptors (NETWORK_READINESS + RESOURCE_GATE) and the
@@ -116,10 +132,11 @@ EVERY binding security dimension (policy id; event id; auditor role;
 attempt id; the exact frozen five-field target; prompt-contract digest;
 common-evidence manifest digest; boundary launcher identity+SHA-256;
 auditor identity incl. provider role, adapter id, executable
-identity+SHA-256; sandbox profile id; tool wrapper identity+SHA-256;
-EBS package identity pair; output identity; the COMPLETE six-gate
-preparation evidence set; BOTH runtime-gate descriptors) — EXCEPT
-`event_package` itself. The two sides are compared
+identity+version+SHA-256; sandbox profile id; tool wrapper
+identity+SHA-256; EBS package identity pair; output identity; the
+COMPLETE six-gate preparation evidence set; BOTH runtime-gate
+descriptors; the exact auditor invocation; the output-validator
+descriptor; the execution limits) — EXCEPT `event_package` itself. The two sides are compared
 as canonical JSON bytes (type-strict: JSON `true` ≠ `1`, `1.0` ≠ `1`).
 The exclusion is what makes the construction non-circular: the
 projection is covered by the event-package manifest/package identity,
@@ -183,12 +200,15 @@ member inside `gate_evidence` is refused outright
 V4), so ANY substitution of EITHER gate fails cross-binding.
 
 **The single authority operation (CR-EBS-S1-003 + final launch-seam
-CR-EBS-S1-004/-005/-006).** The formerly separate public operations
-`validate_gates()` / `verify_launcher()` / `consume()` / `execute()` NO
-LONGER EXIST, and NO `LaunchGrant` exists. The ONE public authority
-operation is `Supervisor.run_attempt(credential_source_fd,
-launcher_path, auditor_executable_path) -> ChildResult`, which performs
-— WITHOUT returning control to the caller between the steps:
+CR-EBS-S1-004/-005/-006 + final execution-lifecycle
+CR-EBS-S1-007/-008).** The formerly separate public operations
+`validate_gates()` / `verify_launcher()` / `consume()` / `execute()` /
+`adopt_report()` / `finish()` NO LONGER EXIST, and NO `LaunchGrant`
+exists. The ONE public authority operation is
+`Supervisor.run_attempt(credential_source_fd, launcher_path,
+auditor_executable_path, report_staging_path, output_root) ->
+AttemptResult`, which performs — WITHOUT returning control to the
+caller between the steps:
 
 1. require an unspent, unadvanced attempt in state `PREPARED`;
 2. ingest the credential SOURCE fd into Supervisor-owned sealed custody
@@ -219,13 +239,51 @@ launcher_path, auditor_executable_path) -> ChildResult`, which performs
     fds (defense-in-depth), fork, give the child the fixed fd contract
     (CRED_FD=3 sealed custody, FAIL_FD=4 CLOEXEC exec-fail pipe,
     AUDITOR_EXEC_FD=5 the held verified auditor executable,
-    AUDITOR_INVOCATION_FD=6 the sealed frozen-argv spec), exec the
-    frozen boundary launcher via its held verified fd, record
-    `EXEC_ATTEMPTED`, wait, and only then return the `ChildResult`
-    (CR-EBS-S1-005).
+    AUDITOR_INVOCATION_FD=6 the sealed frozen-argv spec) in its OWN
+    SESSION (`setsid`), exec the frozen boundary launcher via its held
+    verified fd, and record `EXEC_ATTEMPTED`;
+12. wait for the boundary child under a MONOTONIC deadline derived ONLY
+    from the frozen `execution_limits.auditor_timeout_seconds` — both
+    parent-side pipes (exec-fail signal + metadata) NONBLOCKING, reap
+    via `waitpid(WNOHANG)` — so NO parent-side child interaction can
+    block past the deadline; on expiry SIGKILL the EXACT attempt
+    process group (descendants included; a pgid guard never touches an
+    unrelated process), reap the direct child, and terminalize with
+    consumed semantics (`TIMEOUT_AFTER_CONSUMPTION`: authority
+    CONSUMED, model engagement CONSUMED FAIL-CLOSED, no report
+    accepted, no same-attempt retry) — CR-EBS-S1-008;
+13. take the ONE immutable bounded report snapshot of the staging
+    locator (no-final-symlink, regular-file check, size bound, single
+    read of the ALREADY-OPEN fd — the SAME bytes are screened,
+    validated, and frozen, so no validate-one-sequence/freeze-another
+    TOCTOU gap exists); a missing staging report is `REPORT_MISSING`
+    (stdout/stderr are NEVER reconstructed as a report);
+14. credential-screen THAT snapshot with the SAME Supervisor-held
+    custody (screen BEFORE any validator, hash, or persistence;
+    contaminated -> `REPORT_SCREEN_FAIL` terminal, boolean-only
+    accounting, staging removed, validator NEVER run);
+15. run the FROZEN STRUCTURAL VALIDATOR on exactly that snapshot: the
+    `output_validator` artifact is verified/HELD from the frozen event
+    package at construction (no public validator-path surface), its
+    held fd re-hashed immediately before execution, executed with NO
+    credential fd, a minimal EBS-defined environment, the exact clean
+    snapshot delivered read-only on a sealed memfd, and the strict
+    `AUCDEV-023-REPORT-VALIDATOR-RESULT-V1` envelope required (exact
+    key set/schema/event/role/attempt/output/digest/size match, status
+    exactly PASS — never inferred from the exit code) under the frozen
+    `validator_timeout_seconds`; any FAIL/non-zero/malformed/mismatch/
+    timeout is `REPORT_INVALID`;
+16. only on validator PASS freeze the EXACT screened+validated bytes
+    0444 (O_EXCL no-overwrite, fsync) through the PRE-OPENED held
+    operator-custody output fd (validated PREEXEC; the artifact name
+    derives ONLY from `binding.output_identity`), record
+    `REPORT_FROZEN` with the exact digest/size/mode, then `TERMINAL`,
+    close the custody and EVERY held fd, and return the
+    `AttemptResult` — outcome DATA only (CR-EBS-S1-007).
 
-`GATES_PASSED` and `CONSUMED_PRE_EXEC` are therefore mechanically
-unreachable as caller-visible states: there is no supported call
+`GATES_PASSED`, `CONSUMED_PRE_EXEC`, `EXEC_ATTEMPTED` and every
+`REPORT_*` outcome state are therefore mechanically unreachable as
+caller-visible states: there is no supported call
 sequence in which the EBS returns to caller code after the fresh
 `RESOURCE_GATE` PASS but before the fork/exec attempt — the exact
 freshness-not-coupled-to-consumption gap of CR-EBS-S1-003 AND the
@@ -272,7 +330,8 @@ executable fd.
    file, `O_NOFOLLOW` open, exact SHA-256) and the verified open fds
    HELD;
 6. caller invokes the single `run_attempt(credential_source_fd,
-   launcher_path, auditor_executable_path)` operation:
+   launcher_path, auditor_executable_path, report_staging_path,
+   output_root)` operation:
    launcher fd verified/held, then each held gate fd re-hashed
    immediately before its execution (held-fd drift refused) and EXECUTED
    exactly once — the SAME verified-fd `execveat(AT_EMPTY_PATH)`
@@ -386,7 +445,18 @@ digest, common-evidence digest, sandbox profile,
 tool wrapper id/hash, output identity, EBS package identity, binding
 digest) — no credential or sensitive plaintext ever enters accounting.
 
-## Credential custody, launch identity, report custody (unchanged areas)
+## Report snapshot custody (CR-EBS-S1-007)
+
+`ebs/reportcustody.py` provides the three process-bound units the
+single operation composes: `snapshot_staging` (the ONE immutable
+bounded snapshot; `None` = REPORT_MISSING; symlink/non-regular/oversize
+refused), `discard_staging` (best-effort removal of contaminated
+ephemeral bytes), and `freeze_snapshot` (0444, O_EXCL, fsync through a
+pre-opened held custody dir fd).  Credential plaintext is never hashed,
+logged, passed to the validator, placed in argv/environment, or written
+to accounting — only the boolean screen classification exists.
+
+## Credential custody, launch identity (preserved areas)
 
 Preserved from the accepted implementation readback: pipe/fully-sealed
 memfd sources only; `PR_SET_DUMPABLE=0` before any plaintext read; four
@@ -394,8 +464,8 @@ seal custody memfd; credential plaintext absent from argv/env/log/hash/
 accounting; fixed fd-3 inheritance with unintended fds closed; verified
 open-fd launcher (`O_NOFOLLOW`, regular-file check, hash-the-open-fd,
 `execveat(AT_EMPTY_PATH)` with ENOSYS-only fexecve fallback, pre-fork
-held-fd re-hash); missing report stays MISSING; contaminated report not
-frozen; clean report frozen 0444; absorbing terminal states.
+held-fd re-hash); absorbing terminal states (now including
+`REPORT_INVALID`).
 
 ## Layout
 
@@ -410,7 +480,7 @@ ebs/                production source (Python 3 stdlib only, Linux-only)
                     transport cross-binding) + Supervisor + verified-fd exec
                     + BOTH runtime gates open/hold/execute/validate inside
                     the single preexec-consumption operation
-  reportcustody.py  report freeze + credential leak screen
+  reportcustody.py  immutable report snapshot + leak screen + freeze
   cli.py            inspection-only CLI (no authority operations)
 tests/              deterministic zero-provider test battery
 tests/fixtures/     inert synthetic local launch + runtime-gate fixtures

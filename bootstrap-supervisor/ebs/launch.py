@@ -6,8 +6,11 @@ custody admission, static byte identities, both fresh runtime gates,
 durable GATES_PASSED -> CONSUMED_PRE_EXEC, the irreversible in-process
 spend, and the IMMEDIATE fork/exec attempt — happens inside ONE public
 authority operation `Supervisor.run_attempt(credential_source_fd,
-launcher_path, auditor_executable_path)` (final launch-seam remediation,
-CR-EBS-S1-004/-005/-006).  There is NO grant, NO consume()/execute()
+launcher_path, auditor_executable_path, report_staging_path,
+output_root)` (final launch-seam remediation CR-EBS-S1-004/-005/-006 +
+final execution-lifecycle remediation CR-EBS-S1-007/-008, which extend
+the SAME call through the process-bound report lifecycle and the
+timeout-bounded child wait).  There is NO grant, NO consume()/execute()
 split, and NO public object whose possession separates consumption from
 exec; GATES_PASSED and CONSUMED_PRE_EXEC are internal transients in
 which no caller ever regains control (S1-005; no TTL, no timestamp
@@ -52,6 +55,35 @@ auditor argv travels ONLY as canonical binding bytes on the sealed
 read-only AUDITOR_INVOCATION_FD — no caller argv tail, no caller
 environment override, and no caller string can reach the auditor client.
 
+Final execution-lifecycle remediation (CR-EBS-S1-007/-008): the ONE
+public operation run_attempt(credential_source_fd, launcher_path,
+auditor_executable_path, report_staging_path, output_root) ->
+AttemptResult covers the WHOLE attempt; the separate public
+adopt_report()/finish() surface NO LONGER EXISTS.  After the bounded
+child wait the SAME call takes ONE immutable report snapshot
+(no-final-symlink, regular, size-bounded, single read of the
+already-open fd), screens THAT snapshot with the SAME held custody
+(contaminated -> REPORT_SCREEN_FAIL terminal, validator never run),
+runs the FROZEN STRUCTURAL VALIDATOR on exactly that snapshot (V5
+output_validator descriptor; verified/HELD from the frozen event
+package, re-hashed before execution, NO credential fd, sealed-memfd
+delivery, strict AUCDEV-023-REPORT-VALIDATOR-RESULT-V1 envelope,
+frozen validator_timeout_seconds bound) and only then freezes the exact
+screened+validated bytes 0444 through the pre-opened held
+output-custody fd before TERMINAL and custody/held-fd closure.  Missing
+stays REPORT_MISSING (stdout/stderr never reconstruct a report);
+validator FAIL/non-zero/malformed/mismatch/timeout is REPORT_INVALID;
+every refusal terminalizes fail-closed inside the call; no report
+retry exists.  CR-EBS-S1-008: the boundary child runs in its OWN
+session under a MONOTONIC deadline from frozen
+execution_limits.auditor_timeout_seconds (BOTH parent pipes NONBLOCKING
+in the deadline loop — nothing blocks past the deadline); a timeout
+SIGKILLs the EXACT attempt process group (descendants included, never
+an unrelated process), reaps the direct child, and terminalizes with
+consumed semantics (TIMEOUT_AFTER_CONSUMPTION; authority CONSUMED,
+model engagement CONSUMED FAIL-CLOSED, no report accepted, replacement
+= new operator authority only).
+
 Gate-timing remediation (CR-EBS-S1-001) + preexec-gate remediation
 (CR-EBS-S1-002/-003): the DYNAMIC runtime gates are NOT frozen evidence.
 Every Supervisor construction holds the VERIFIED OPEN fd of BOTH runtime
@@ -80,19 +112,20 @@ import stat
 import time
 from dataclasses import dataclass
 
-from .accounting import AccountingStore
+from .accounting import AccountingStore, open_custody_dir
 from .binding import (EVENT_MANIFEST_KEYS, EVENT_MANIFEST_SCHEMA,
                       NETWORK_READINESS_RESULT_SCHEMA,
                       RESOURCE_GATE_RESULT_SCHEMA, RUNTIME_GATES,
-                      BindingError, binding_projection, canonical_bytes,
-                      strict_loads)
+                      VALIDATOR_RESULT_SCHEMA, BindingError,
+                      binding_projection, canonical_bytes, strict_loads)
 from .custody import (F_ADD_SEALS, F_GET_SEALS, MFD_ALLOW_SEALING,
                       MFD_CLOEXEC, REQUIRED_SEALS, CredentialCustody,
                       establish_non_dumpable, memfd_create)
-from .reportcustody import DEFAULT_SIZE_LIMIT, collect
+from .reportcustody import (ReportRefused, discard_staging, freeze_snapshot,
+                            snapshot_staging)
 from .statemachine import (CONSUMED_PRE_EXEC, EXEC_ATTEMPTED, GATES_PASSED,
-                           PREPARED, REPORT_FROZEN, REPORT_MISSING,
-                           REPORT_SCREEN_FAIL, TERMINAL,
+                           PREPARED, REPORT_FROZEN, REPORT_INVALID,
+                           REPORT_MISSING, REPORT_SCREEN_FAIL, TERMINAL,
                            TERMINAL_PREEXEC_STOP, StateMachine)
 
 CRED_FD = 3                    # fixed inherited-fd contract for the sealed
@@ -100,8 +133,10 @@ CRED_FD = 3                    # fixed inherited-fd contract for the sealed
 FAIL_FD = 4                    # exec-failure signal pipe (CLOEXEC: EOF = ok)
 AUDITOR_EXEC_FD = 5            # HELD verified live auditor-executable fd
 AUDITOR_INVOCATION_FD = 6      # sealed read-only canonical frozen-argv fd
+VALIDATOR_REPORT_FD = 3        # validator child: sealed snapshot memfd
 CHILD_EXIT_EXEC_FAIL = 98
 METADATA_MAX = 65536
+METADATA_GRACE = 0.5           # bounded post-reap metadata drain (seconds)
 
 # Runtime-gate execution bounds (CR-EBS-S1-001; shared by BOTH dynamic
 # gates under S1-002): a hung gate must never create an unbounded
@@ -420,33 +455,31 @@ def verify_event_package(root, binding) -> dict:
 # verified-fd exec primitives the launcher path already uses.
 
 
-def open_runtime_gate(event_package_root, binding, event_manifest,
-                      gate: str) -> int:
-    """Open (no symlink following) + verify ONE frozen runtime-gate
-    artifact (by gate name) from the ALREADY-VERIFIED event-package tree
-    and return the verified open fd (held for exactly-once live
-    execution).  The path is binding-validated as a safe package-relative
-    path; the artifact must additionally be a manifest row of the
-    verified package, a regular executable file, and byte-identical to
-    the descriptor's exact SHA-256."""
-    descriptor = binding.runtime_gates[gate]
-    rows = {row["path"] for row in event_manifest["files"]}
+def _open_bound_artifact(event_package_root, descriptor, rows,
+                         label: str) -> int:
+    """Shared verified-open core for a frozen EVENT-PACKAGE-SIDE
+    executable artifact (runtime gate or structural validator): the
+    descriptor path must be a manifest row of the ALREADY-VERIFIED
+    package, the artifact is opened with NO final-symlink following,
+    required regular + executable, hashed as the ALREADY-OPEN fd against
+    the descriptor's exact SHA-256, rewound, and the verified open fd is
+    returned (held for exactly-once live execution)."""
     if descriptor["path"] not in rows:
         raise LaunchRefused(
-            f"{gate}_NOT_PACKAGE_MANIFEST_ROW: {descriptor['path']!r}")
+            f"{label}_NOT_PACKAGE_MANIFEST_ROW: {descriptor['path']!r}")
     path = os.path.join(os.fspath(event_package_root), descriptor["path"])
     try:
         fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
     except OSError as exc:
-        raise LaunchRefused(f"{gate}_OPEN_REFUSED: {exc!r}") from exc
+        raise LaunchRefused(f"{label}_OPEN_REFUSED: {exc!r}") from exc
     try:
         info = os.fstat(fd)
         if not stat.S_ISREG(info.st_mode):
-            raise LaunchRefused(f"{gate}_NOT_REGULAR_FILE")
+            raise LaunchRefused(f"{label}_NOT_REGULAR_FILE")
         if not info.st_mode & 0o111:
-            raise LaunchRefused(f"{gate}_NOT_EXECUTABLE")
+            raise LaunchRefused(f"{label}_NOT_EXECUTABLE")
         if _hash_fd(fd) != descriptor["sha256"]:
-            raise LaunchRefused(f"{gate}_ARTIFACT_DIGEST_MISMATCH: live "
+            raise LaunchRefused(f"{label}_ARTIFACT_DIGEST_MISMATCH: live "
                                 "artifact differs from the bound descriptor "
                                 "SHA-256")
     except Exception:
@@ -454,6 +487,31 @@ def open_runtime_gate(event_package_root, binding, event_manifest,
         raise
     os.lseek(fd, 0, os.SEEK_SET)
     return fd
+
+
+def open_runtime_gate(event_package_root, binding, event_manifest,
+                      gate: str) -> int:
+    """Open + verify ONE frozen runtime-gate artifact (by gate name)
+    from the ALREADY-VERIFIED event-package tree and return the verified
+    open fd (held for exactly-once live execution)."""
+    return _open_bound_artifact(
+        event_package_root, binding.runtime_gates[gate],
+        {row["path"] for row in event_manifest["files"]}, gate)
+
+
+def open_output_validator(event_package_root, binding,
+                          event_manifest) -> int:
+    """CR-EBS-S1-007: open + verify the frozen STRUCTURAL OUTPUT
+    VALIDATOR artifact from the ALREADY-VERIFIED event-package tree and
+    return the verified open fd, HELD at Supervisor construction — the
+    SAME no-final-symlink / regular + executable / exact descriptor
+    SHA-256 discipline as a runtime gate.  There is NO public API to
+    supply a validator path: caller substitution after package freeze is
+    impossible."""
+    return _open_bound_artifact(
+        event_package_root, binding.output_validator,
+        {row["path"] for row in event_manifest["files"]},
+        "OUTPUT_VALIDATOR")
 
 
 def _kill_and_reap(child_pid: int) -> None:
@@ -481,30 +539,71 @@ def _close_all_except(keep) -> None:
 
 
 def _gate_child(gate_fd: int, result_w: int, devnull: int,
-                argv, env: dict) -> None:
-    """Child-side preparation for a runtime gate: stdout is the bounded
-    result pipe, stdin/stderr are devnull, NO credential fd is inherited
-    (custody never enters this path and the gate receives no launch
-    authority), every other fd is closed, and the ALREADY-VERIFIED open
-    gate fd is exec'd (identity-preserving; no pathname re-open).
-    Never returns."""
+                argv, env: dict, report_fd: int = None) -> None:
+    """Child-side preparation for a runtime gate or the structural
+    validator: stdout is the bounded result pipe, stdin/stderr are
+    devnull, NO credential fd is inherited (custody never enters this
+    path and the child receives no launch authority), every other fd is
+    closed, and the ALREADY-VERIFIED open gate fd is exec'd
+    (identity-preserving; no pathname re-open).  When report_fd is given
+    (validator only) the sealed immutable report snapshot is inherited at
+    the fixed VALIDATOR_REPORT_FD slot.  Never returns."""
     try:
         os.dup2(devnull, 0)
         os.dup2(result_w, 1)
         os.dup2(devnull, 2)
-        _close_all_except({0, 1, 2, gate_fd})
-        fcntl.fcntl(gate_fd, fcntl.F_SETFD, 0)  # survives exec (script fd)
+        exec_target = gate_fd
+        keep = {0, 1, 2, gate_fd}
+        if report_fd is not None:
+            # alias-safe slot remap (the _child_setup discipline): take
+            # DISTINCT fresh copies of BOTH the exec target and the
+            # report, then remap the report into VALIDATOR_REPORT_FD —
+            # the dup2 can only ever clobber a copy or an unrelated
+            # inherited fd, never the exec target (which falls back to
+            # the still-open original when its copy occupies the slot).
+            exec_copy = os.dup(gate_fd)
+            report_second = os.dup(os.dup(report_fd))
+            os.dup2(report_second, VALIDATOR_REPORT_FD)
+            exec_target = exec_copy if exec_copy != VALIDATOR_REPORT_FD \
+                else gate_fd
+            keep = {0, 1, 2, exec_target, VALIDATOR_REPORT_FD}
+        _close_all_except(keep)
+        fcntl.fcntl(exec_target, fcntl.F_SETFD, 0)  # survives exec
+        if report_fd is not None:
+            fcntl.fcntl(VALIDATOR_REPORT_FD, fcntl.F_SETFD, 0)
         establish_non_dumpable()
-        fd_exec(gate_fd, argv, env)
+        fd_exec(exec_target, argv, env)
     except BaseException:
         os._exit(CHILD_EXIT_EXEC_FAIL)
 
 
-def _run_runtime_gate(gate: str, gate_fd: int, argv, env: dict) -> bytes:
-    """Execute the verified runtime-gate fd EXACTLY ONCE with a bounded
-    fail-closed timeout; return the raw result bytes (size-bounded).  Any
-    fork/exec failure, hang past the deadline, oversized output, or
-    non-zero child exit refuses."""
+def _run_runtime_gate(gate: str, gate_fd: int, argv, env: dict,
+                      timeout: float = RUNTIME_GATE_TIMEOUT,
+                      report_bytes: bytes = None) -> bytes:
+    """Execute the verified gate/validator fd EXACTLY ONCE with a
+    bounded fail-closed timeout; return the raw result bytes
+    (size-bounded).  Any fork/exec failure, hang past the deadline,
+    oversized output, or non-zero child exit refuses.  report_bytes (the
+    structural validator only) is delivered to the child as a sealed
+    read-only memfd at VALIDATOR_REPORT_FD — the validator sees exactly
+    the immutable clean snapshot, never a pathname, never a credential."""
+    report_fd = None
+    if report_bytes is not None:
+        # the EXACT immutable clean snapshot on a sealed read-only memfd
+        # (DISTINCT name from every EBS-held authority memfd; the child
+        # inherits ONLY this report channel)
+        report_fd = memfd_create("ebs-report-snapshot",
+                                 MFD_CLOEXEC | MFD_ALLOW_SEALING)
+        try:
+            os.write(report_fd, report_bytes)
+            os.lseek(report_fd, 0, os.SEEK_SET)
+            fcntl.fcntl(report_fd, F_ADD_SEALS, REQUIRED_SEALS)
+            if fcntl.fcntl(report_fd, F_GET_SEALS) & REQUIRED_SEALS != \
+                    REQUIRED_SEALS:
+                raise LaunchRefused("REPORT_SNAPSHOT_SEAL_INCOMPLETE")
+        except Exception:
+            os.close(report_fd)
+            raise
     result_r, result_w = os.pipe()
     devnull = os.open(os.devnull, os.O_RDONLY)
     child_pid = None
@@ -514,13 +613,16 @@ def _run_runtime_gate(gate: str, gate_fd: int, argv, env: dict) -> bytes:
         except OSError as exc:
             raise LaunchError(f"{gate}_FORK_FAILED: {exc!r}") from exc
         if child_pid == 0:
-            _gate_child(gate_fd, result_w, devnull, argv, env)
+            _gate_child(gate_fd, result_w, devnull, argv, env, report_fd)
         os.close(result_w)
         result_w = None
         os.close(devnull)
         devnull = None
+        if report_fd is not None:
+            os.close(report_fd)     # parent copy: only the child holds it
+            report_fd = None
         os.set_blocking(result_r, False)
-        deadline = time.monotonic() + RUNTIME_GATE_TIMEOUT
+        deadline = time.monotonic() + timeout
         output = b""
         eof = False
         exitcode = None
@@ -528,8 +630,8 @@ def _run_runtime_gate(gate: str, gate_fd: int, argv, env: dict) -> bytes:
             if time.monotonic() >= deadline:
                 _kill_and_reap(child_pid)
                 raise LaunchRefused(
-                    f"{gate}_TIMEOUT: gate did not finish within "
-                    f"{RUNTIME_GATE_TIMEOUT}s; failing closed")
+                    f"{gate}_TIMEOUT: did not finish within "
+                    f"{timeout}s; failing closed")
             progressed = False
             if not eof:
                 try:
@@ -545,9 +647,9 @@ def _run_runtime_gate(gate: str, gate_fd: int, argv, env: dict) -> bytes:
                         if len(output) > RUNTIME_GATE_RESULT_MAX:
                             _kill_and_reap(child_pid)
                             raise LaunchRefused(
-                                f"{gate}_OUTPUT_TOO_LARGE: gate emitted "
-                                f"more than {RUNTIME_GATE_RESULT_MAX} "
-                                f"result bytes")
+                                f"{gate}_OUTPUT_TOO_LARGE: emitted more "
+                                f"than {RUNTIME_GATE_RESULT_MAX} result "
+                                f"bytes")
             if exitcode is None:
                 waited_pid, status = os.waitpid(child_pid, os.WNOHANG)
                 if waited_pid == child_pid:
@@ -560,13 +662,12 @@ def _run_runtime_gate(gate: str, gate_fd: int, argv, env: dict) -> bytes:
         if exitcode != 0:
             reason = ("EXEC_FAILED" if exitcode == CHILD_EXIT_EXEC_FAIL
                       else "NONZERO_EXIT")
-            raise LaunchRefused(f"{gate}_{reason}: gate exited {exitcode}")
+            raise LaunchRefused(f"{gate}_{reason}: exited {exitcode}")
         if not output:
-            raise LaunchRefused(f"{gate}_OUTPUT_MISSING: gate produced no "
-                                "result bytes")
+            raise LaunchRefused(f"{gate}_OUTPUT_MISSING: no result bytes")
         return output
     finally:
-        for fd in (result_r, result_w, devnull):
+        for fd in (result_r, result_w, devnull, report_fd):
             if fd is not None:
                 try:
                     os.close(fd)
@@ -694,13 +795,41 @@ _RUNTIME_GATE_VALIDATORS = {
 }
 
 
+VALIDATOR_RESULT_FIELDS = ("schema", "status", "event_id", "auditor_role",
+                           "attempt_id", "output_name", "report_sha256",
+                           "report_size")
+
+
+def _validate_validator_result(output: bytes, binding, digest: str,
+                               size: int) -> None:
+    """Strict fail-closed validation of the structural-validator result
+    envelope (AUCDEV-023-REPORT-VALIDATOR-RESULT-V1; the CR-EBS-S1-007
+    §25 barrier): the shared envelope core PLUS exact match of
+    output_name/report_sha256/report_size with the EXACT screened
+    immutable snapshot that was validated; PASS is never inferred from
+    the exit code."""
+    result = _strict_gate_envelope(output, binding, "OUTPUT_VALIDATOR",
+                                   VALIDATOR_RESULT_FIELDS,
+                                   VALIDATOR_RESULT_SCHEMA)
+    if result["output_name"] != binding.output_identity["name"] or \
+            result["report_sha256"] != digest or \
+            result["report_size"] != size:
+        raise LaunchRefused(
+            "OUTPUT_VALIDATOR_RESULT_SNAPSHOT_MISMATCH: result output/"
+            "digest/size differ from the exact screened snapshot")
+
+
 def _child_setup(launcher_fd: int, metadata_w: int, fail_w: int,
                  devnull: int, custody_fd: int, auditor_fd: int,
                  invocation_fd: int, argv, env: dict) -> None:
-    """Child-side preparation: fixed fd contract, hygiene, then exec of
-    the verified open fd.  Never returns.  The fixed inherited contract
-    (S1-004/-006): CRED_FD=3 sealed custody, FAIL_FD=4 CLOEXEC exec-fail
-    pipe, AUDITOR_EXEC_FD=5 the HELD verified auditor executable,
+    """Child-side preparation: session isolation, fixed fd contract,
+    hygiene, then exec of the verified open fd.  Never returns.  The
+    boundary child first establishes its OWN SESSION (CR-EBS-S1-008:
+    setsid before exec, so the attempt's whole descendant tree is
+    killable as one exact process group on timeout — never an unrelated
+    host process).  The fixed inherited contract (S1-004/-006):
+    CRED_FD=3 sealed custody, FAIL_FD=4 CLOEXEC exec-fail pipe,
+    AUDITOR_EXEC_FD=5 the HELD verified auditor executable,
     AUDITOR_INVOCATION_FD=6 the sealed canonical frozen-argv spec.  The
     remap is alias-safe: every source is first duplicated to fresh fds
     (os.dup never returns an open descriptor, so the phase-one copies are
@@ -708,6 +837,7 @@ def _child_setup(launcher_fd: int, metadata_w: int, fail_w: int,
     slot 3-6 is occupied, so the phase-two copies land outside 3-6 and
     the final dup2s can only clobber originals."""
     try:
+        os.setsid()
         os.dup2(devnull, 0)
         os.dup2(metadata_w, 1)
         os.dup2(devnull, 2)
@@ -735,10 +865,22 @@ def _child_setup(launcher_fd: int, metadata_w: int, fail_w: int,
 
 
 @dataclass(frozen=True)
-class ChildResult:
+class AttemptResult:
+    """Outcome DATA ONLY — never authority (CR-EBS-S1-007).  Returned
+    strictly AFTER the attempt reached a terminal outcome:
+    returncode/exec_failed/metadata describe the boundary child;
+    timed_out marks the EBS-enforced auditor deadline;
+    report_state carries the terminal report outcome (REPORT_FROZEN /
+    REPORT_MISSING / REPORT_SCREEN_FAIL / REPORT_INVALID, or "" when no
+    report phase was semantically appropriate) with the frozen artifact
+    digest/size."""
     returncode: int
     exec_failed: bool
     metadata: dict
+    timed_out: bool
+    report_state: str
+    report_sha256: str
+    report_size: int
 
 
 class Supervisor:
@@ -781,6 +923,11 @@ class Supervisor:
             gate: open_runtime_gate(event_package_root, binding,
                                     event_result["document"], gate)
             for gate in RUNTIME_GATES}
+        # (6) CR-EBS-S1-007: hold the verified structural-validator fd
+        # from the SAME already-verified package tree (no public API can
+        # supply a validator path — no post-freeze substitution exists).
+        self._validator_fd = open_output_validator(
+            event_package_root, binding, event_result["document"])
         self._binding = binding
         self._store = store
         self._machine = StateMachine(store.last_state or PREPARED)
@@ -788,6 +935,8 @@ class Supervisor:
         self._custody = None       # Supervisor-owned sealed custody (S1-004)
         self._auditor_fd = None    # held verified live auditor executable
         self._invocation_fd = None  # sealed canonical frozen-argv spec
+        self._out_dir_fd = None    # pre-opened operator custody dir (S1-007)
+        self._staging_path = None
         self._spent = False          # irreversible launch-spent guard
         self._gates_executed = False   # exactly-once runtime gate pair
 
@@ -828,7 +977,14 @@ class Supervisor:
                      b.auditor_identity["executable_sha256"],
                  "auditor_invocation_argc": len(b.auditor_invocation),
                  "auditor_invocation_sha256": hashlib.sha256(
-                     canonical_bytes(list(b.auditor_invocation))).hexdigest()}
+                     canonical_bytes(list(b.auditor_invocation))).hexdigest(),
+                 "output_validator_identity":
+                     b.output_validator["identity"],
+                 "output_validator_sha256": b.output_validator["sha256"],
+                 "auditor_timeout_seconds":
+                     b.execution_limits["auditor_timeout_seconds"],
+                 "validator_timeout_seconds":
+                     b.execution_limits["validator_timeout_seconds"]}
         for prefix, ident in (("boundary_launcher", b.boundary_launcher),
                               ("tool_wrapper", b.tool_wrapper)):
             facts[f"{prefix}_identity"] = ident["identity"]
@@ -872,31 +1028,46 @@ class Supervisor:
         return evidence
 
     def run_attempt(self, credential_source_fd: int, launcher_path,
-                    auditor_executable_path) -> ChildResult:
+                    auditor_executable_path, report_staging_path,
+                    output_root) -> AttemptResult:
         """THE single public authority operation (CR-EBS-S1-004/-005/
-        -006): the COMPLETE one-shot launch lifecycle in ONE
-        caller-uninterruptible call — custody established with the role
-        derived ONLY from the binding -> sealed frozen-argv spec ->
-        launcher + LIVE auditor executable verified and HELD ->
-        NETWORK_READINESS once -> RESOURCE_GATE once LAST -> held-fd
-        re-hash -> durable GATES_PASSED -> durable CONSUMED_PRE_EXEC ->
-        irreversible spend -> IMMEDIATE fork/exec -> EXEC_ATTEMPTED ->
-        wait/result -> return ChildResult.  No public operation ever
-        returns control in GATES_PASSED or CONSUMED_PRE_EXEC (S1-005);
-        no grant, no consume()/execute() split, and NO caller surface
-        for a custody object, a role, an argv tail, or an environment
-        override (S1-004/-006).  Accepts ONLY the credential SOURCE fd
-        plus the two NON-AUTHORITATIVE byte-identity locator paths (each
-        opened once, hashed against the binding's exact SHA-256, and
-        HELD — path substitution cannot change executed bytes).  Any
-        pre-consumption failure terminalizes fail-closed with authority
-        unconsumed and no same-attempt retry."""
+        -006/-007/-008): the COMPLETE one-shot attempt lifecycle in ONE
+        caller-uninterruptible call — custody (role derived ONLY from
+        the binding) -> sealed frozen-argv spec -> launcher + LIVE
+        auditor executable verified/HELD -> NETWORK_READINESS once ->
+        RESOURCE_GATE once LAST -> held-fd re-hash -> durable
+        GATES_PASSED -> CONSUMED_PRE_EXEC -> irreversible spend ->
+        IMMEDIATE fork/exec (own session) -> EXEC_ATTEMPTED ->
+        deadline-bounded wait -> report snapshot -> SAME-custody screen
+        -> frozen structural validator on the exact clean snapshot ->
+        freeze of the exact screened+validated bytes -> report outcome
+        -> TERMINAL -> custody and held fds closed -> AttemptResult.
+        No public operation ever returns control in GATES_PASSED,
+        CONSUMED_PRE_EXEC, EXEC_ATTEMPTED or any report outcome state;
+        no grant, no consume()/execute() split, no adopt_report, no
+        finish-later API, no caller surface for a custody object, role,
+        argv tail, environment override, timeout, or validator path.
+        Inputs: the credential SOURCE fd; the two NON-AUTHORITATIVE
+        byte-identity locator paths (each opened once, hashed against
+        the binding's exact SHA-256, and HELD); the two NON-AUTHORITATIVE
+        report locators (supplied BEFORE any authority is consumed; the
+        artifact name derives ONLY from binding.output_identity; the
+        output custody directory is pre-opened fail-closed PREEXEC and
+        held).  Any pre-consumption failure terminalizes fail-closed
+        with authority unconsumed and no same-attempt retry."""
         if not isinstance(credential_source_fd, int) or \
                 isinstance(credential_source_fd, bool):
             raise LaunchError(
                 "RUN_ATTEMPT_REQUIRES_CREDENTIAL_SOURCE_FD: the public "
                 "authority operation ingests a credential SOURCE fd, "
                 "never a CredentialCustody or any other object")
+        for name, value in (("report_staging_path", report_staging_path),
+                            ("output_root", output_root)):
+            if not isinstance(value, (str, os.PathLike)):
+                raise LaunchError(
+                    f"RUN_ATTEMPT_REQUIRES_{name.upper()}: the report "
+                    "locators are mandatory path inputs — no default, "
+                    "no bypass")
         if self._machine.state != PREPARED:
             raise LaunchError(
                 f"RUN_ATTEMPT_REFUSED_STATE_{self._machine.state}: the "
@@ -907,6 +1078,12 @@ class Supervisor:
                               "no second authority operation exists")
         self._gates_executed = True
         try:
+            # (S1-007 §21) output custody PRE-OPENED and HELD before any
+            # authority is consumed: unsafe/absent custody directories
+            # fail closed PREEXEC, and the freeze later happens through
+            # THIS fd (no post-exec pathname re-interpretation).
+            self._out_dir_fd = open_custody_dir(output_root)
+            self._staging_path = os.fspath(report_staging_path)
             # (S1-004) CUSTODY FIRST — non-dumpable ingest, source
             # discipline, bounded read, four seals — BEFORE any gate and
             # BEFORE CONSUMED_PRE_EXEC; the role label comes ONLY from
@@ -971,20 +1148,25 @@ class Supervisor:
                 f"{self._binding.auditor_identity['executable_sha256']} "
                 f"got {got}")
 
-    def _fork_and_launch(self) -> ChildResult:
-        """Post-consumption continuation (S1-005), called ONLY from
-        run_attempt after the irreversible spend: defense-in-depth
-        re-hash, IMMEDIATE fork/exec, EXEC_ATTEMPTED accounting, and
-        wait/result — all before any return to the caller.  The
-        launcher's own argv carries only EBS-bound non-secret context;
-        the auditor client's exact argv travels on the sealed
-        AUDITOR_INVOCATION_FD and the child environment is entirely
-        EBS-defined (S1-006)."""
+    def _fork_and_launch(self) -> AttemptResult:
+        """Post-consumption continuation (S1-005/-007/-008), called ONLY
+        from run_attempt after the irreversible spend: defense-in-depth
+        re-hash, IMMEDIATE fork/exec into a DEDICATED SESSION,
+        EXEC_ATTEMPTED accounting, the MONOTONIC-deadline bounded wait
+        (all parent pipes NONBLOCKING), timeout kill of the EXACT
+        attempt process group with consumed terminal accounting, and the
+        process-bound report lifecycle — all before any return.  The
+        launcher's argv carries only EBS-bound non-secret context; the
+        auditor argv travels on the sealed AUDITOR_INVOCATION_FD; the
+        child environment is entirely EBS-defined (S1-006)."""
         child_pid = None
         waited = False
         md_r = md_w = fail_r = fail_w = devnull = None
         fail_byte = b""
         metadata_raw = b""
+        timeout = self._binding.execution_limits["auditor_timeout_seconds"]
+        timed_out = False
+        status = 0
         try:
             self._rehash_held("AFTER_CONSUMPTION")
             argv = [self._binding.boundary_launcher["identity"],
@@ -1010,16 +1192,70 @@ class Supervisor:
             self._store.append(EXEC_ATTEMPTED, extra={"child_pid":
                                                       child_pid})
             self._machine.transition(EXEC_ATTEMPTED)
-            fail_byte = os.read(fail_r, 1)
-            os.close(fail_r)
-            fail_r = None
-            _, status = os.waitpid(child_pid, 0)
-            waited = True
-            while len(metadata_raw) < METADATA_MAX:
-                chunk = os.read(md_r, 65536)
-                if not chunk:
+            # (S1-008) bounded wait: BOTH pipes nonblocking, WNOHANG
+            # reap, monotonic deadline from the FROZEN binding — no
+            # parent-side child interaction can block past it.
+            os.set_blocking(fail_r, False)
+            os.set_blocking(md_r, False)
+            deadline = time.monotonic() + timeout
+            fail_eof = False
+            md_eof = False
+            exitcode = None
+            grace_deadline = None
+            while True:
+                if time.monotonic() >= deadline:
+                    # deadline boundary race: one final nonblocking reap
+                    # decides timeout-vs-completed honestly
+                    wpid, wstatus = os.waitpid(child_pid, os.WNOHANG)
+                    if wpid == child_pid:
+                        waited = True
+                        status = wstatus
+                        exitcode = os.waitstatus_to_exitcode(status)
+                        break
+                    timed_out = True
                     break
-                metadata_raw += chunk
+                progressed = False
+                if not fail_eof:
+                    try:
+                        chunk = os.read(fail_r, 1)
+                    except BlockingIOError:
+                        chunk = None
+                    if chunk is not None:
+                        progressed = True
+                        if chunk:
+                            fail_byte = chunk
+                        else:
+                            fail_eof = True
+                if exitcode is None:
+                    wpid, wstatus = os.waitpid(child_pid, os.WNOHANG)
+                    if wpid == child_pid:
+                        waited = True
+                        status = wstatus
+                        exitcode = os.waitstatus_to_exitcode(status)
+                        progressed = True
+                if not md_eof and len(metadata_raw) < METADATA_MAX:
+                    try:
+                        chunk = os.read(md_r, 65536)
+                    except BlockingIOError:
+                        chunk = None
+                    if chunk is not None:
+                        progressed = True
+                        if chunk:
+                            metadata_raw += chunk
+                        else:
+                            md_eof = True
+                if fail_eof and exitcode is not None:
+                    if md_eof:
+                        break                    # complete: reaped + EOFs
+                    if grace_deadline is None:
+                        # bounded final metadata drain (a descendant may
+                        # still hold the write end; never an unbounded
+                        # read — the overall deadline still bounds it)
+                        grace_deadline = time.monotonic() + METADATA_GRACE
+                    elif time.monotonic() >= grace_deadline:
+                        break
+                if not progressed:
+                    time.sleep(0.01)               # bounded poll, no spin
         except BaseException as exc:
             # Post-consumption failure: close remaining parent fds (a
             # metadata-blocked child unblocks and dies), reap the child,
@@ -1031,8 +1267,9 @@ class Supervisor:
                     except OSError:
                         pass
             if child_pid and not waited:
+                self._kill_attempt_group(child_pid)
                 try:
-                    os.waitpid(child_pid, 0)
+                    os.waitpid(child_pid, 0)   # deterministic post-kill reap
                 except OSError:
                     pass
             if self._machine.state == CONSUMED_PRE_EXEC:
@@ -1046,14 +1283,51 @@ class Supervisor:
                         os.close(fd)
                     except OSError:
                         pass
+        if timed_out:
+            # (S1-008 §16/§17) timeout is AFTER durable
+            # CONSUMED_PRE_EXEC: authority CONSUMED, model engagement
+            # CONSUMED FAIL-CLOSED (inference status never assumed
+            # absent), the EXACT attempt process group SIGKILLed
+            # (descendants included, unrelated processes untouched),
+            # the direct child reaped, no report accepted, TERMINAL with
+            # the exact durable classification, custody and held fds
+            # closed — all before any return to the caller.
+            self._kill_attempt_group(child_pid)
+            if not waited:
+                _, status = os.waitpid(child_pid, 0)
+                waited = True
+            self._store.append(TERMINAL, extra={
+                "terminal_reason": "TIMEOUT_AFTER_CONSUMPTION",
+                "auditor_timeout_seconds": timeout,
+                "child_pid": child_pid})
+            self._machine.transition(TERMINAL)
+            self._close_custody()
+            self._close_held_fds()
+            return AttemptResult(os.waitstatus_to_exitcode(status), False,
+                                 {}, True, "", "", 0)
         metadata = None
         if metadata_raw:
             try:
                 metadata = json.loads(metadata_raw.decode())
             except (UnicodeDecodeError, json.JSONDecodeError):
                 metadata = None
-        return ChildResult(os.waitstatus_to_exitcode(status),
-                           fail_byte == b"E", metadata)
+        core = (os.waitstatus_to_exitcode(status), fail_byte == b"E",
+                metadata or {})
+        return self._report_and_terminalize(core)
+
+    def _kill_attempt_group(self, child_pid: int) -> None:
+        """SIGKILL the EXACT attempt process group (the child called
+        setsid, so pgid == child_pid covers the whole descendant tree
+        and NEVER an unrelated process; the pgid guard falls back to the
+        direct child only) and reap the direct child (a SIGKILLed
+        process cannot block)."""
+        try:
+            if os.getpgid(child_pid) == child_pid:
+                os.killpg(child_pid, SIGKILL)
+            else:
+                os.kill(child_pid, SIGKILL)
+        except OSError:
+            pass          # already dead: the caller reaps deterministically
 
     def _close_custody(self) -> None:
         """Close the Supervisor-held sealed custody (idempotent; S1-004
@@ -1062,9 +1336,11 @@ class Supervisor:
             self._custody.close()
 
     def _close_held_fds(self) -> None:
-        """Close the held launcher/auditor-executable/invocation fds."""
+        """Close the held launcher/auditor-executable/invocation/
+        validator fds and the pre-opened output-custody directory fd."""
         for fd in (self._launcher_fd, self._auditor_fd,
-                   self._invocation_fd):
+                   self._invocation_fd, self._validator_fd,
+                   self._out_dir_fd):
             if fd is not None:
                 try:
                     os.close(fd)
@@ -1072,6 +1348,8 @@ class Supervisor:
                     pass
         self._launcher_fd = self._auditor_fd = None
         self._invocation_fd = None
+        self._validator_fd = None
+        self._out_dir_fd = None
 
     def _terminalize_after_consumption(self, reason: str) -> None:
         """Best-effort durable TERMINAL after a post-consumption failure;
@@ -1086,33 +1364,124 @@ class Supervisor:
             self._close_custody()
             self._close_held_fds()
 
-    def adopt_report(self, staging_path, output_root,
-                     size_limit: int = DEFAULT_SIZE_LIMIT) -> dict:
-        """Report custody + leak screen (S1-004 §7): uses the SAME
-        Supervisor-held sealed custody that served the boundary child —
-        no caller-supplied CredentialCustody exists; records the outcome
-        and finishes the attempt (one-shot process exits after
-        TERMINAL)."""
-        if self._machine.state != EXEC_ATTEMPTED:
-            raise LaunchError(
-                f"REPORT_CUSTODY_REFUSED_STATE_{self._machine.state}")
-        if self._custody is None:
-            raise LaunchError("REPORT_CUSTODY_REFUSED_NO_HELD_CUSTODY")
-        outcome = collect(staging_path, output_root,
-                          self._binding.output_identity["name"],
-                          custody=self._custody, size_limit=size_limit)
-        self._store.append(outcome["state"])
-        self._machine.transition(outcome["state"])
-        self.finish()
-        return outcome
-
-    def finish(self) -> None:
-        if self._machine.state in (TERMINAL, TERMINAL_PREEXEC_STOP):
-            self._close_custody()
-            return
-        self._store.append(TERMINAL)
+    def _settle(self, state, extra: dict) -> None:
+        """Process-bound terminal settlement (S1-007): durably record the
+        report outcome state (if any), then TERMINAL, then close the
+        custody and EVERY held fd — inside the single authority call; no
+        same-attempt continuation exists after this."""
+        if state is not None:
+            self._store.append(state, extra=extra)
+            self._machine.transition(state)
+            terminal_extra = {"terminal_reason": "ATTEMPT_SETTLED"}
+        else:
+            terminal_extra = extra      # direct settle: the exact reason
+        self._store.append(TERMINAL, extra=terminal_extra)
         self._machine.transition(TERMINAL)
         self._close_custody()
+        self._close_held_fds()
+
+    def _run_validator(self, snapshot: bytes) -> None:
+        """Execute the HELD frozen structural validator ONCE on the EXACT
+        clean immutable snapshot (CR-EBS-S1-007): held fd re-hashed
+        immediately before execution; only frozen non-secret binding
+        context in the argv; minimal EBS-defined environment; NO
+        credential fd; sealed-memfd snapshot delivery; the frozen
+        validator_timeout_seconds bounds the run.  Any refusal is
+        classified REPORT_INVALID by the caller; never a second
+        execution."""
+        descriptor = self._binding.output_validator
+        got = _hash_fd(self._validator_fd)
+        os.lseek(self._validator_fd, 0, os.SEEK_SET)
+        if got != descriptor["sha256"]:
+            raise LaunchRefused(
+                "OUTPUT_VALIDATOR_FD_DRIFT: the held validator fd no "
+                "longer matches the bound artifact")
+        digest = hashlib.sha256(snapshot).hexdigest()
+        b = self._binding
+        output = _run_runtime_gate(
+            "OUTPUT_VALIDATOR", self._validator_fd,
+            [descriptor["identity"], b.event_id, b.auditor_role,
+             b.attempt_id, b.output_identity["name"], digest,
+             str(len(snapshot))],
+            {"PATH": "/usr/bin:/bin", "LANG": "C"},
+            timeout=b.execution_limits["validator_timeout_seconds"],
+            report_bytes=snapshot)
+        _validate_validator_result(output, b, digest, len(snapshot))
+
+    def _report_and_terminalize(self, core) -> AttemptResult:
+        """Process-bound post-exec report lifecycle (CR-EBS-S1-007): ONE
+        immutable snapshot -> SAME-custody screen (contaminated =
+        REPORT_SCREEN_FAIL terminal, validator NEVER run) -> frozen
+        structural validator on exactly that snapshot -> freeze of the
+        EXACT screened+validated bytes 0444 under the pre-opened custody
+        fd -> TERMINAL -> custody and held fds closed.  Every refusal
+        terminalizes fail-closed inside THIS call; no second report
+        attempt.  Digest/size are recorded only AFTER the screen passes."""
+        returncode, exec_failed, metadata = core
+        outcome = {"report_state": "", "report_sha256": "",
+                   "report_size": 0}
+        try:
+            if exec_failed:
+                # the boundary never exec'd: no report phase is
+                # semantically appropriate — direct consumed terminal
+                self._settle(None, {"terminal_reason":
+                                    "EXEC_FAILED_AFTER_CONSUMPTION"})
+            else:
+                snapshot = snapshot_staging(self._staging_path)
+                if snapshot is None:
+                    self._settle(REPORT_MISSING, {"terminal_reason":
+                                                  "REPORT_MISSING"})
+                    outcome["report_state"] = REPORT_MISSING
+                elif self._custody.contains(snapshot):
+                    discard_staging(self._staging_path)
+                    self._settle(REPORT_SCREEN_FAIL,
+                                 {"terminal_reason": "REPORT_SCREEN_FAIL"})
+                    outcome["report_state"] = REPORT_SCREEN_FAIL
+                else:
+                    try:
+                        self._run_validator(snapshot)
+                    except (LaunchError, LaunchRefused) as exc:
+                        self._settle(
+                            REPORT_INVALID,
+                            {"terminal_reason":
+                             f"REPORT_INVALID: {exc}"[:256]})
+                        outcome["report_state"] = REPORT_INVALID
+                    else:
+                        frozen = freeze_snapshot(
+                            snapshot, self._out_dir_fd,
+                            self._binding.output_identity["name"])
+                        discard_staging(self._staging_path)
+                        self._settle(
+                            REPORT_FROZEN,
+                            {"terminal_reason": "REPORT_FROZEN",
+                             "report_sha256": frozen["sha256"],
+                             "report_size": frozen["size"],
+                             "report_mode": frozen["mode"]})
+                        outcome.update(report_state=REPORT_FROZEN,
+                                       report_sha256=frozen["sha256"],
+                                       report_size=frozen["size"])
+        except ReportRefused as exc:
+            # operational report-custody refusal (invalid staging object,
+            # oversize, unsafe output, no-overwrite collision): terminal
+            # fail-closed, no retry; custody/fds closed by _settle, or by
+            # the best-effort terminalization if even the durable append
+            # now fails
+            try:
+                self._settle(None, {"terminal_reason":
+                                    f"REPORT_CUSTODY_REFUSED: {exc}"[:256]})
+            except Exception:
+                self._terminalize_after_consumption(
+                    f"REPORT_CUSTODY_REFUSED: {exc!r}")
+        except Exception as exc:
+            self._terminalize_after_consumption(
+                f"REPORT_LIFECYCLE_FAILURE_AFTER_CONSUMPTION: {exc!r}")
+            if self._machine.state not in (TERMINAL,
+                                           TERMINAL_PREEXEC_STOP):
+                self._machine.transition(TERMINAL)
+        return AttemptResult(returncode, exec_failed, metadata, False,
+                             outcome["report_state"],
+                             outcome["report_sha256"],
+                             outcome["report_size"])
 
     def _preexec_stop(self) -> None:
         """Fail-closed terminalization of a refused pre-exec attempt: the

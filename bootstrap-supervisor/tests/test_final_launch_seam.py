@@ -78,9 +78,9 @@ def build(cust_dir, binding_doc, event_package):
     return Supervisor(binding, store, event_package)
 
 
-def run(sup, launcher, auditor_exe):
+def run(sup, launcher, auditor_exe, stage, cust_out):
     return sup.run_attempt(pipe_source(), str(launcher[0]),
-                           str(auditor_exe[0]))
+                           str(auditor_exe[0]), stage, cust_out)
 
 
 def gate_count(paths):
@@ -109,7 +109,7 @@ def custody_is_closed(sup) -> bool:
 # ============================ S1-004 ====================================
 
 def test_s1_004_public_api_ingests_source_fd_never_custody(
-        launcher, auditor_exe, cust_dir, binding_doc, event_package):
+        launcher, auditor_exe, cust_dir, binding_doc, event_package, stage, cust_out):
     """The public authority operation's exact parameter set is the
     credential SOURCE fd plus the two byte-identity locator paths; a
     CredentialCustody object (or any non-fd) is refused before the
@@ -117,31 +117,32 @@ def test_s1_004_public_api_ingests_source_fd_never_custody(
     params = list(pyinspect.signature(
         Supervisor.run_attempt).parameters)
     assert params == ["self", "credential_source_fd", "launcher_path",
-                      "auditor_executable_path"]
+                      "auditor_executable_path", "report_staging_path",
+                      "output_root"]
     sup = build(cust_dir, binding_doc, event_package)
     custody = CredentialCustody.ingest(pipe_source(), "AUDITOR_A")
     try:
         with pytest.raises(LaunchError,
                            match="RUN_ATTEMPT_REQUIRES_CREDENTIAL_SOURCE"):
             sup.run_attempt(custody, str(launcher[0]),
-                            str(auditor_exe[0]))
+                            str(auditor_exe[0]), stage, cust_out)
     finally:
         custody.close()
     assert sup.state == "PREPARED"        # refusal spent nothing
     assert gate_count(nr_paths) == 0
     # the unspent attempt still runs (a custody OBJECT is not a source):
-    result = run(sup, launcher, auditor_exe)
+    result = run(sup, launcher, auditor_exe, stage, cust_out)
     assert not result.exec_failed
 
 
 def test_s1_004_role_derived_only_from_binding(launcher, auditor_exe,
                                                cust_dir, binding_doc,
-                                               event_package, tmp_path):
+                                               event_package, tmp_path, stage, cust_out):
     """The custody role label is derived ONLY from binding.auditor_role:
     AUDITOR_A and AUDITOR_B bindings both succeed with their OWN role,
     and no role parameter exists anywhere on the public surface."""
     sup = build(cust_dir, binding_doc, event_package)
-    run(sup, launcher, auditor_exe)
+    run(sup, launcher, auditor_exe, stage, cust_out)
     assert sup._custody.role == "AUDITOR_A"
     from conftest import valid_binding_document
     doc_b = valid_binding_document(
@@ -150,15 +151,15 @@ def test_s1_004_role_derived_only_from_binding(launcher, auditor_exe,
     pkg_b = make_event_package(doc_b, tmp_path, name="pkg-role-b")
     sup_b = build(cust_dir, doc_b, pkg_b)
     sup_b.run_attempt(pipe_source(), str(launcher[0]),
-                      str(auditor_exe[0]))
+                      str(auditor_exe[0]), stage, cust_out)
     assert sup_b._custody.role == "AUDITOR_B"
-    assert sup_b.state == EXEC_ATTEMPTED
+    assert sup_b.state == TERMINAL
 
 
 def test_s1_004_defense_in_depth_role_check_trips(cust_dir, binding_doc,
                                                   event_package, launcher,
                                                   auditor_exe,
-                                                  monkeypatch):
+                                                  monkeypatch, stage, cust_out):
     """Runtime proof the internal exact-role assertion exists: a
     monkeypatched ingest returning a WRONG-role custody is refused
     PREEXEC with authority unconsumed, no gate executed, no fork."""
@@ -174,7 +175,7 @@ def test_s1_004_defense_in_depth_role_check_trips(cust_dir, binding_doc,
             lambda fd, role: WrongRoleCustody())}))
     sup = build(cust_dir, binding_doc, event_package)
     with pytest.raises(LaunchRefused, match="CUSTODY_ROLE_MISMATCH"):
-        run(sup, launcher, auditor_exe)
+        run(sup, launcher, auditor_exe, stage, cust_out)
     monkeypatch.undo()
     assert sup.state == "TERMINAL_PREEXEC_STOP"
     assert states_of(cust_dir, sup) == ["PREPARED",
@@ -225,7 +226,7 @@ S1_004_BAD_SOURCES = [
                          ids=[case[0] for case in S1_004_BAD_SOURCES])
 def test_s1_004_bad_credential_source_blocks_preexec(
         name, refusal, make_source, cust_dir, binding_doc, event_package,
-        launcher, auditor_exe, tmp_path):
+        launcher, auditor_exe, tmp_path, stage, cust_out):
     """Every malformed/invalid credential SOURCE fails PREEXEC: wrapped
     refusal, authority unconsumed, NO dynamic gate executed, NO
     GATES_PASSED/CONSUMED record, no fork, and no same-attempt retry."""
@@ -233,7 +234,7 @@ def test_s1_004_bad_credential_source_blocks_preexec(
     try:
         sup = build(cust_dir, binding_doc, event_package)
         with pytest.raises(LaunchRefused, match=refusal):
-            sup.run_attempt(source, str(launcher[0]), str(auditor_exe[0]))
+            sup.run_attempt(source, str(launcher[0]), str(auditor_exe[0]), stage, cust_out)
     finally:
         try:
             os.close(source)
@@ -244,13 +245,13 @@ def test_s1_004_bad_credential_source_blocks_preexec(
     assert gate_count(nr_paths) == 0        # custody admission BEFORE gates
     assert gate_count(rg_paths) == 0
     with pytest.raises(LaunchError, match="RUN_ATTEMPT_REFUSED"):
-        run(sup, launcher, auditor_exe)     # no same-attempt retry
+        run(sup, launcher, auditor_exe, stage, cust_out)     # no same-attempt retry
     assert custody_is_closed(sup)
 
 
 def test_s1_004_seal_failure_blocks_preexec(cust_dir, binding_doc,
                                             event_package, launcher,
-                                            auditor_exe, monkeypatch):
+                                            auditor_exe, monkeypatch, stage, cust_out):
     """A custody memfd/sealing infrastructure failure is PREEXEC."""
     def broken_memfd(name, flags):
         raise CustodyError("CUSTODY_MEMFD_UNAVAILABLE: injected")
@@ -258,7 +259,7 @@ def test_s1_004_seal_failure_blocks_preexec(cust_dir, binding_doc,
     monkeypatch.setattr("ebs.custody.memfd_create", broken_memfd)
     sup = build(cust_dir, binding_doc, event_package)
     with pytest.raises(LaunchRefused, match="MEMFD_UNAVAILABLE"):
-        run(sup, launcher, auditor_exe)
+        run(sup, launcher, auditor_exe, stage, cust_out)
     assert sup.state == "TERMINAL_PREEXEC_STOP"
     assert gate_count(nr_paths) == 0
 
@@ -266,7 +267,7 @@ def test_s1_004_seal_failure_blocks_preexec(cust_dir, binding_doc,
 def test_s1_004_nondumpable_failure_blocks_preexec(cust_dir, binding_doc,
                                                    event_package, launcher,
                                                    auditor_exe,
-                                                   monkeypatch):
+                                                   monkeypatch, stage, cust_out):
     """Non-dumpable unavailability is PREEXEC (it precedes any read)."""
     def broken_dumpable():
         raise CustodyError("NON_DUMPABLE_NOT_ESTABLISHED: injected")
@@ -275,81 +276,69 @@ def test_s1_004_nondumpable_failure_blocks_preexec(cust_dir, binding_doc,
                         broken_dumpable)
     sup = build(cust_dir, binding_doc, event_package)
     with pytest.raises(LaunchRefused, match="NON_DUMPABLE"):
-        run(sup, launcher, auditor_exe)
+        run(sup, launcher, auditor_exe, stage, cust_out)
     assert sup.state == "TERMINAL_PREEXEC_STOP"
     assert gate_count(nr_paths) == 0
 
 
 def test_s1_004_gate_failure_after_custody_closes_custody(
-        cust_dir, binding_doc, event_package, launcher, auditor_exe):
+        cust_dir, binding_doc, event_package, launcher, auditor_exe, stage, cust_out):
     """A custody that WAS established closes when a later preexec step
     (here: a dynamic gate) terminalizes."""
     write_nr_state(ATTEMPT, "route-fail")
     sup = build(cust_dir, binding_doc, event_package)
     with pytest.raises(LaunchRefused):
-        run(sup, launcher, auditor_exe)
+        run(sup, launcher, auditor_exe, stage, cust_out)
     assert sup.state == "TERMINAL_PREEXEC_STOP"
     assert custody_is_closed(sup)          # held fd released terminal-side
 
 
 def test_s1_004_same_custody_serves_child_and_report_screen(
         launcher, auditor_exe, cust_dir, binding_doc, event_package,
-        tmp_path, out_dir):
+        stage, cust_out):
     """The ONE Supervisor-held custody serves BOTH the child's CRED_FD
-    and the report credential-leak screen: a planted staging report
-    carrying the synthetic credential marker is screened by the SAME
-    custody (REPORT_SCREEN_FAIL, boolean only, nothing persisted), and
-    the custody is closed once the attempt is terminal."""
-    staging = tmp_path / "staging"
-    staging.mkdir()
-    stage = staging / "stage.json"
+    and the report credential-leak screen INSIDE the single call: a
+    planted staging report carrying the synthetic credential marker is
+    screened by the SAME custody (REPORT_SCREEN_FAIL, boolean only,
+    nothing persisted), the custody is closed before the call returns,
+    and the state is terminal."""
     sup = build(cust_dir, binding_doc, event_package)
-    result = run(sup, launcher, auditor_exe)
-    assert result.metadata["credential_fd3_len"] == len(SYNTH_CRED)
-    assert not custody_is_closed(sup)       # alive for the report screen
     stage.write_bytes(b'{"report": "clean-prefix"}' + SYNTH_CRED +
                       b'{"report": "contaminated"}')
-    outcome = sup.adopt_report(str(stage), str(out_dir))
-    assert outcome["state"] == "REPORT_SCREEN_FAIL"
-    assert not (out_dir / sup._binding.output_identity["name"]).exists()
+    result = run(sup, launcher, auditor_exe, stage, cust_out)
+    assert result.metadata["credential_fd3_len"] == len(SYNTH_CRED)
+    assert result.report_state == "REPORT_SCREEN_FAIL"
+    assert not (cust_out / sup._binding.output_identity["name"]).exists()
     assert not stage.exists()               # contaminated staging removed
-    assert custody_is_closed(sup)           # closed at terminal
-    assert sup.state == TERMINAL            # adopt_report finishes
-    assert "REPORT_SCREEN_FAIL" in states_of(cust_dir, sup)
+    assert custody_is_closed(sup)           # closed BEFORE return
+    assert sup.state == TERMINAL
+    assert states_of(cust_dir, sup)[-2:] == ["REPORT_SCREEN_FAIL",
+                                             "TERMINAL"]
 
 
 def test_s1_004_clean_report_freezes_and_closes_custody(
         launcher, auditor_exe, cust_dir, binding_doc, event_package,
-        tmp_path, out_dir):
-    """Positive report path: clean report freezes 0444 under operator
-    custody and the attempt (with its custody) terminalizes."""
-    staging = tmp_path / "staging"
-    staging.mkdir()
-    stage = staging / "stage.json"
+        stage, cust_out):
+    """Positive report path: clean report is structurally validated and
+    frozen 0444 under operator custody INSIDE the single call; the
+    attempt (with its custody) terminalizes before the call returns."""
     report = b'{"synthetic": "inert first-pass double"}\n'
     stage.write_bytes(report)
     sup = build(cust_dir, binding_doc, event_package)
-    run(sup, launcher, auditor_exe)
-    outcome = sup.adopt_report(str(stage), str(out_dir))
-    assert outcome["state"] == "REPORT_FROZEN"
-    frozen = out_dir / sup._binding.output_identity["name"]
+    result = run(sup, launcher, auditor_exe, stage, cust_out)
+    assert result.report_state == "REPORT_FROZEN"
+    frozen = cust_out / sup._binding.output_identity["name"]
     assert frozen.read_bytes() == report
-    assert outcome["sha256"] == sha_hex(report)
+    assert result.report_sha256 == sha_hex(report)
+    assert result.report_size == len(report)
     assert custody_is_closed(sup)
     assert sup.state == TERMINAL
-    assert "REPORT_FROZEN" in states_of(cust_dir, sup)
-
-
-def test_s1_004_adopt_report_has_no_custody_parameter():
-    """adopt_report takes no caller-supplied CredentialCustody."""
-    params = list(pyinspect.signature(
-        Supervisor.adopt_report).parameters)
-    assert params == ["self", "staging_path", "output_root", "size_limit"]
+    assert states_of(cust_dir, sup)[-2:] == ["REPORT_FROZEN", "TERMINAL"]
 
 
 def test_s1_004_custody_closed_on_post_consumption_terminal(
         cust_dir, binding_doc, event_package, launcher, auditor_exe,
-        monkeypatch):
+        monkeypatch, stage, cust_out):
     """Post-consumption terminal failure (boundary fork) also closes the
     held custody."""
     calls = {"n": 0}
@@ -364,7 +353,7 @@ def test_s1_004_custody_closed_on_post_consumption_terminal(
     sup = build(cust_dir, binding_doc, event_package)
     monkeypatch.setattr(os, "fork", broken_boundary_fork)
     with pytest.raises(LaunchError, match="FORK"):
-        run(sup, launcher, auditor_exe)
+        run(sup, launcher, auditor_exe, stage, cust_out)
     monkeypatch.undo()
     assert sup.state == TERMINAL
     assert custody_is_closed(sup)
@@ -374,7 +363,7 @@ def test_s1_004_custody_closed_on_post_consumption_terminal(
 
 def test_s1_005_consumption_precedes_fork_in_the_same_call(
         cust_dir, binding_doc, event_package, launcher, auditor_exe,
-        monkeypatch):
+        monkeypatch, stage, cust_out):
     """THE immediacy proof: at the moment of the BOUNDARY fork, the
     durable record's last state is ALREADY CONSUMED_PRE_EXEC (the fsync'd
     append happened before the fork) and the in-process state is
@@ -393,21 +382,27 @@ def test_s1_005_consumption_precedes_fork_in_the_same_call(
 
     sup = build(cust_dir, binding_doc, event_package)
     monkeypatch.setattr(os, "fork", spy_fork)
-    result = run(sup, launcher, auditor_exe)
+    result = run(sup, launcher, auditor_exe, stage, cust_out)
     monkeypatch.undo()
     assert not result.exec_failed
-    assert calls["n"] == 3                     # 2 gate forks + 1 boundary
+    # 2 gate forks + 1 boundary fork — ALL inside the ONE public call
+    # (no staging report exists here, so no validator child is forked;
+    # the validator fork inside the SAME call is proven by the
+    # REPORT_FROZEN path in test_final_execution_lifecycle.py)
+    assert calls["n"] == 3
     boundary = captured["at_fork"][-1]
     assert boundary[1] == "CONSUMED_PRE_EXEC"  # in-process state at fork
     assert boundary[2] == "CONSUMED_PRE_EXEC"  # DURABLE record at fork
     assert states_of(cust_dir, sup) == ["PREPARED", "GATES_PASSED",
                                         "CONSUMED_PRE_EXEC",
-                                        "EXEC_ATTEMPTED"]
+                                        "EXEC_ATTEMPTED", "REPORT_MISSING",
+                                        "TERMINAL"]
+    assert result.timed_out is False
 
 
 def test_s1_005_gate_order_and_exactly_once_inside_one_call(
         cust_dir, binding_doc, event_package, launcher, auditor_exe,
-        monkeypatch):
+        monkeypatch, stage, cust_out):
     """NETWORK_READINESS executes exactly once FIRST and RESOURCE_GATE
     exactly once LAST, both inside the single public call."""
     order = []
@@ -418,7 +413,7 @@ def test_s1_005_gate_order_and_exactly_once_inside_one_call(
         return original(self, gate)
 
     monkeypatch.setattr(Supervisor, "_execute_runtime_gate", recording_gate)
-    run(build(cust_dir, binding_doc, event_package), launcher, auditor_exe)
+    run(build(cust_dir, binding_doc, event_package), launcher, auditor_exe, stage, cust_out)
     monkeypatch.undo()
     assert order == list(RUNTIME_GATES)
     assert gate_count(nr_paths) == 1
@@ -427,7 +422,7 @@ def test_s1_005_gate_order_and_exactly_once_inside_one_call(
 
 def test_s1_005_fork_failure_after_consumption_is_terminal_no_retry(
         cust_dir, binding_doc, event_package, launcher, auditor_exe,
-        monkeypatch):
+        monkeypatch, stage, cust_out):
     """Injected BOUNDARY fork failure after consumption: terminal
     (consumed semantics — never relabeled unconsumed), no retry."""
     calls = {"n": 0}
@@ -442,19 +437,19 @@ def test_s1_005_fork_failure_after_consumption_is_terminal_no_retry(
     sup = build(cust_dir, binding_doc, event_package)
     monkeypatch.setattr(os, "fork", broken_boundary_fork)
     with pytest.raises(LaunchError, match="FORK"):
-        run(sup, launcher, auditor_exe)
+        run(sup, launcher, auditor_exe, stage, cust_out)
     monkeypatch.undo()
     assert sup.state == TERMINAL
     assert states_of(cust_dir, sup)[-1] == TERMINAL
     with pytest.raises(LaunchError, match="RUN_ATTEMPT_REFUSED"):
-        run(sup, launcher, auditor_exe)
+        run(sup, launcher, auditor_exe, stage, cust_out)
     assert gate_count(nr_paths) == 1          # gates never re-executed
     assert gate_count(rg_paths) == 1
 
 
 def test_s1_005_no_authority_shaped_public_object(launcher, auditor_exe,
                                                   cust_dir, binding_doc,
-                                                  event_package):
+                                                  event_package, stage, cust_out):
     """After a successful run there is no public authority object at all:
     the returned ChildResult is plain outcome data, the Supervisor exposes
     no grant/capability/token attribute, and re-running is refused by
@@ -462,25 +457,26 @@ def test_s1_005_no_authority_shaped_public_object(launcher, auditor_exe,
     import ebs.launch as launch_mod
     assert not hasattr(launch_mod, "LaunchGrant")
     sup = build(cust_dir, binding_doc, event_package)
-    result = run(sup, launcher, auditor_exe)
+    result = run(sup, launcher, auditor_exe, stage, cust_out)
     assert set(type(result).__dataclass_fields__) == \
-        {"returncode", "exec_failed", "metadata"}
+        {"returncode", "exec_failed", "metadata", "timed_out",
+         "report_state", "report_sha256", "report_size"}
     for name, value in vars(sup).items():
         assert not isinstance(value, launch_mod.Supervisor)
         assert value is not result
     with pytest.raises(LaunchError, match="RUN_ATTEMPT_REFUSED"):
-        run(sup, launcher, auditor_exe)
+        run(sup, launcher, auditor_exe, stage, cust_out)
 
 
 # ============================ S1-006 ====================================
 
 def test_s1_006_child_observes_held_auditor_executable_identity(
-        launcher, auditor_exe, cust_dir, binding_doc, event_package):
+        launcher, auditor_exe, cust_dir, binding_doc, event_package, stage, cust_out):
     """The boundary launcher observes the HELD verified auditor
     executable under the fixed fd contract: the fd-5 byte SHA equals the
     binding's executable_sha256 and the live fixture bytes."""
     sup = build(cust_dir, binding_doc, event_package)
-    md = run(sup, launcher, auditor_exe).metadata
+    md = run(sup, launcher, auditor_exe, stage, cust_out).metadata
     binding = parse_binding(json.dumps(binding_doc).encode())
     assert md["auditor_exec_fd5_sha256"] == \
         binding.auditor_identity["executable_sha256"]
@@ -490,12 +486,12 @@ def test_s1_006_child_observes_held_auditor_executable_identity(
 
 
 def test_s1_006_exact_frozen_argv_reaches_child_unchanged(
-        launcher, auditor_exe, cust_dir, binding_doc, event_package):
+        launcher, auditor_exe, cust_dir, binding_doc, event_package, stage, cust_out):
     """The boundary launcher parses the sealed invocation spec and sees
     EXACTLY the binding-frozen auditor argv, byte-for-byte (canonical
     digest equality), with ordering preserved."""
     sup = build(cust_dir, binding_doc, event_package)
-    md = run(sup, launcher, auditor_exe).metadata
+    md = run(sup, launcher, auditor_exe, stage, cust_out).metadata
     binding = parse_binding(json.dumps(binding_doc).encode())
     assert md["invocation_fd6_argv"] == binding.auditor_invocation
     assert md["invocation_fd6_sha256"] == sha_hex(json.dumps(
@@ -504,12 +500,12 @@ def test_s1_006_exact_frozen_argv_reaches_child_unchanged(
 
 
 def test_s1_006_child_argv_and_env_are_entirely_ebs_defined(
-        launcher, auditor_exe, cust_dir, binding_doc, event_package):
+        launcher, auditor_exe, cust_dir, binding_doc, event_package, stage, cust_out):
     """The launcher's OWN argv is exactly the EBS-bound context (no
     caller tail can extend it) and the child environment is exactly the
     minimal EBS-defined PATH/LANG class (no caller override surface)."""
     sup = build(cust_dir, binding_doc, event_package)
-    md = run(sup, launcher, auditor_exe).metadata
+    md = run(sup, launcher, auditor_exe, stage, cust_out).metadata
     binding = parse_binding(json.dumps(binding_doc).encode())
     assert md["argv"] == ["--role", binding.auditor_role,
                           "--attempt", binding.attempt_id,
@@ -524,7 +520,7 @@ def _remake_package(doc, tmp_path):
 
 def test_s1_006_live_auditor_sha_mismatch_blocks_preexec(
         launcher, auditor_exe, cust_dir, binding_doc, event_package,
-        tmp_path):
+        tmp_path, stage, cust_out):
     """A binding pinning a DIFFERENT auditor-executable SHA is refused at
     live verification BEFORE the dynamic gates and BEFORE consumption:
     PREEXEC_EXECUTABLE_IDENTITY_FAIL, both gate counts 0, no fork, no
@@ -541,7 +537,7 @@ def test_s1_006_live_auditor_sha_mismatch_blocks_preexec(
     with pytest.raises(LaunchRefused,
                        match="PREEXEC_EXECUTABLE_IDENTITY_FAIL"):
         sup.run_attempt(pipe_source(), str(launcher[0]),
-                        str(auditor_exe[0]))
+                        str(auditor_exe[0]), stage, cust_out)
     assert sup.state == "TERMINAL_PREEXEC_STOP"
     assert states_of(cust_dir, sup) == ["PREPARED",
                                         "TERMINAL_PREEXEC_STOP"]
@@ -551,40 +547,43 @@ def test_s1_006_live_auditor_sha_mismatch_blocks_preexec(
 
 def test_s1_006_auditor_symlink_refused(launcher, auditor_exe, cust_dir,
                                         binding_doc, event_package,
-                                        tmp_path):
+                                        tmp_path, stage, cust_out):
     """No-final-symlink discipline: a symlinked auditor executable is
     refused PREEXEC."""
     link = tmp_path / "auditor_link.py"
     link.symlink_to(auditor_exe[0])
     sup = build(cust_dir, binding_doc, event_package)
     with pytest.raises(LaunchRefused, match="OPEN_REFUSED"):
-        sup.run_attempt(pipe_source(), str(launcher[0]), str(link))
+        sup.run_attempt(pipe_source(), str(launcher[0]), str(link),
+                        stage, cust_out)
     assert sup.state == "TERMINAL_PREEXEC_STOP"
 
 
 def test_s1_006_auditor_non_executable_refused(launcher, auditor_exe,
                                                cust_dir, binding_doc,
-                                               event_package, tmp_path):
+                                               event_package, tmp_path, stage, cust_out):
     """A non-executable-mode auditor executable is refused PREEXEC."""
     static_copy = tmp_path / "static_auditor.py"
     static_copy.write_bytes(auditor_exe[0].read_bytes())
     os.chmod(static_copy, 0o644)
     sup = build(cust_dir, binding_doc, event_package)
     with pytest.raises(LaunchRefused, match="NOT_EXECUTABLE"):
-        sup.run_attempt(pipe_source(), str(launcher[0]), str(static_copy))
+        sup.run_attempt(pipe_source(), str(launcher[0]), str(static_copy),
+                        stage, cust_out)
     assert sup.state == "TERMINAL_PREEXEC_STOP"
 
 
 def test_s1_006_auditor_non_regular_refused(launcher, auditor_exe,
                                             cust_dir, binding_doc,
-                                            event_package, tmp_path):
+                                            event_package, tmp_path, stage, cust_out):
     """A non-regular auditor 'executable' (directory) is refused
     PREEXEC."""
     directory = tmp_path / "not-a-file"
     directory.mkdir()
     sup = build(cust_dir, binding_doc, event_package)
     with pytest.raises(LaunchRefused, match="NOT_REGULAR"):
-        sup.run_attempt(pipe_source(), str(launcher[0]), str(directory))
+        sup.run_attempt(pipe_source(), str(launcher[0]), str(directory),
+                        stage, cust_out)
     assert sup.state == "TERMINAL_PREEXEC_STOP"
 
 
@@ -604,7 +603,7 @@ def _drift_during_gates(monkeypatch, target_path):
 
 def test_s1_006_auditor_fd_drift_during_gates_is_preexec(
         cust_dir, binding_doc, event_package, launcher, auditor_exe,
-        monkeypatch):
+        monkeypatch, stage, cust_out):
     """Held-fd re-hash BEFORE gate acceptance: auditor-executable drift
     during the gate interval is PREEXEC — authority unconsumed, no
     GATES_PASSED record, no fork, no retry."""
@@ -612,7 +611,7 @@ def test_s1_006_auditor_fd_drift_during_gates_is_preexec(
     sup = build(cust_dir, binding_doc, event_package)
     with pytest.raises(LaunchRefused,
                        match="AUDITOR_EXECUTABLE_IDENTITY_FAIL"):
-        run(sup, launcher, auditor_exe)
+        run(sup, launcher, auditor_exe, stage, cust_out)
     monkeypatch.undo()
     assert sup.state == "TERMINAL_PREEXEC_STOP"
     assert "GATES_PASSED" not in states_of(cust_dir, sup)
@@ -622,12 +621,12 @@ def test_s1_006_auditor_fd_drift_during_gates_is_preexec(
 
 def test_s1_006_launcher_fd_drift_during_gates_is_preexec(
         cust_dir, binding_doc, event_package, launcher, auditor_exe,
-        monkeypatch):
+        monkeypatch, stage, cust_out):
     """The same re-hash covers the HELD launcher fd preexec."""
     _drift_during_gates(monkeypatch, launcher[0])
     sup = build(cust_dir, binding_doc, event_package)
     with pytest.raises(LaunchRefused, match="LAUNCHER_DIGEST_MISMATCH"):
-        run(sup, launcher, auditor_exe)
+        run(sup, launcher, auditor_exe, stage, cust_out)
     monkeypatch.undo()
     assert sup.state == "TERMINAL_PREEXEC_STOP"
     assert "GATES_PASSED" not in states_of(cust_dir, sup)
@@ -635,7 +634,7 @@ def test_s1_006_launcher_fd_drift_during_gates_is_preexec(
 
 def test_s1_006_auditor_drift_after_consumption_is_terminal(
         cust_dir, binding_doc, event_package, launcher, auditor_exe,
-        monkeypatch):
+        monkeypatch, stage, cust_out):
     """Defense-in-depth post-consumption re-hash: auditor-executable
     drift injected immediately after the durable CONSUMED_PRE_EXEC append
     terminalizes with CONSUMED semantics (no unconsumed relabeling, no
@@ -653,17 +652,17 @@ def test_s1_006_auditor_drift_after_consumption_is_terminal(
     monkeypatch.setattr(AccountingStore, "append", drift_after_consume)
     with pytest.raises(LaunchRefused,
                        match="AUDITOR_EXECUTABLE_IDENTITY_FAIL"):
-        run(sup, launcher, auditor_exe)
+        run(sup, launcher, auditor_exe, stage, cust_out)
     monkeypatch.undo()
     assert sup.state == TERMINAL
     assert states_of(cust_dir, sup)[-1] == TERMINAL
     with pytest.raises(LaunchError):
-        run(sup, launcher, auditor_exe)
+        run(sup, launcher, auditor_exe, stage, cust_out)
 
 
 def test_s1_006_auditor_path_substitution_cannot_change_identity(
         cust_dir, binding_doc, event_package, launcher, launcher_b,
-        auditor_exe, tmp_path, monkeypatch):
+        auditor_exe, tmp_path, monkeypatch, stage, cust_out):
     """Same-path REPLACEMENT after the verified fd is held cannot alter
     the delivered auditor-executable identity: the child observes the
     ORIGINAL binding SHA even though the pathname now holds different
@@ -681,7 +680,7 @@ def test_s1_006_auditor_path_substitution_cannot_change_identity(
     monkeypatch.setattr(Supervisor, "_execute_runtime_gate",
                         substituting_gate)
     sup = build(cust_dir, binding_doc, event_package)
-    md = run(sup, launcher, auditor_exe).metadata
+    md = run(sup, launcher, auditor_exe, stage, cust_out).metadata
     monkeypatch.undo()
     binding = parse_binding(json.dumps(binding_doc).encode())
     assert md["auditor_exec_fd5_sha256"] == \
@@ -691,13 +690,13 @@ def test_s1_006_auditor_path_substitution_cannot_change_identity(
 
 def test_s1_006_fixed_fd_contract_observed(launcher, auditor_exe,
                                            cust_dir, binding_doc,
-                                           event_package):
+                                           event_package, stage, cust_out):
     """The child inherits EXACTLY the fixed contract: fd 3 sealed
     credential memfd, fd 4 nothing (CLOEXEC), fd 5 the held regular
     auditor executable, fd 6 the sealed invocation memfd."""
     from ebs.launch import AUDITOR_EXEC_FD, AUDITOR_INVOCATION_FD, CRED_FD
     sup = build(cust_dir, binding_doc, event_package)
-    md = run(sup, launcher, auditor_exe).metadata
+    md = run(sup, launcher, auditor_exe, stage, cust_out).metadata
     fd_map = {int(k): v for k, v in md["fd_map"].items()}
     assert "memfd:" in fd_map[CRED_FD]
     assert "memfd:" in fd_map[AUDITOR_INVOCATION_FD]
@@ -710,12 +709,12 @@ def test_s1_006_fixed_fd_contract_observed(launcher, auditor_exe,
 
 
 def test_s1_006_credential_absent_from_argv_env_and_accounting(
-        launcher, auditor_exe, cust_dir, binding_doc, event_package):
+        launcher, auditor_exe, cust_dir, binding_doc, event_package, stage, cust_out):
     """The synthetic credential bytes never appear in the child argv, the
     invocation argv, the child environment, or ANY durable accounting
     record (including the invocation digest and gate evidence)."""
     sup = build(cust_dir, binding_doc, event_package)
-    md = run(sup, launcher, auditor_exe).metadata
+    md = run(sup, launcher, auditor_exe, stage, cust_out).metadata
     assert SYNTH_CRED not in json.dumps(md).encode()
     for arg in md["argv"] + md["invocation_fd6_argv"]:
         assert SYNTH_CRED not in arg.encode()

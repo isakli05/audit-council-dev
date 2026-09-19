@@ -31,7 +31,8 @@ if str(EBS_ROOT) not in sys.path:
 from ebs.binding import (EVENT_MANIFEST_SCHEMA, FROZEN_TARGET,  # noqa: E402
                          NETWORK_READINESS_RESULT_SCHEMA, OUTPUT_KIND,
                          POLICY_ID, RESOURCE_GATE_RESULT_SCHEMA,
-                         REQUIRED_GATES, ROLE_PROVIDER_ROLES, attempt_id_for,
+                         REQUIRED_GATES, ROLE_PROVIDER_ROLES,
+                         VALIDATOR_RESULT_SCHEMA, attempt_id_for,
                          output_name_for)
 
 # The one synthetic inert credential literal used by the whole battery.
@@ -73,7 +74,9 @@ def valid_binding_document(event_id, role, launcher_sha256,
                            provider_role=None, ebs_manifest_sha256=None,
                            ebs_package_sha256=None,
                            executable_sha256=None,
-                           evidence_seed="synthetic-evidence") -> dict:
+                           evidence_seed="synthetic-evidence",
+                           auditor_timeout_seconds=30,
+                           validator_timeout_seconds=10) -> dict:
     """Build one well-formed SYNTHETIC binding document (test aid only).
 
     The EBS package identity pair defaults to the LIVE shipped package so
@@ -111,6 +114,19 @@ def valid_binding_document(event_id, role, launcher_sha256,
             "sha256": seed_sha(evidence_seed, "resource-gate"),
             "result_schema": RESOURCE_GATE_RESULT_SCHEMA,
         },
+    }
+    # S1-007/S1-008 V5: the frozen structural output-validator descriptor
+    # and the frozen bounded execution limits (both pinned to real bytes
+    # by make_event_package / make_validator below).
+    output_validator = {
+        "identity": "SYNTHETIC-INERT-OUTPUT-VALIDATOR-V1",
+        "path": "runtime/output-validator.py",
+        "sha256": seed_sha(evidence_seed, "output-validator"),
+        "result_schema": VALIDATOR_RESULT_SCHEMA,
+    }
+    execution_limits = {
+        "auditor_timeout_seconds": auditor_timeout_seconds,
+        "validator_timeout_seconds": validator_timeout_seconds,
     }
     return {
         "policy_id": POLICY_ID,
@@ -150,6 +166,8 @@ def valid_binding_document(event_id, role, launcher_sha256,
                             "name": output_name_for(attempt)},
         "gate_evidence": gates,
         "runtime_gates": runtime_gate,
+        "output_validator": output_validator,
+        "execution_limits": execution_limits,
     }
 
 
@@ -181,8 +199,11 @@ def make_event_package(doc, tmp_path, name=EVENT_PKG_NAME,
         root / "runtime" / "network-readiness.py")
     gate_path, gate_sha = make_resource_gate(
         root / "runtime" / "resource-gate.py")
+    val_path, val_sha = make_validator(root / "runtime" /
+                                       "output-validator.py")
     doc["runtime_gates"]["NETWORK_READINESS"]["sha256"] = nr_sha
     doc["runtime_gates"]["RESOURCE_GATE"]["sha256"] = gate_sha
+    doc["output_validator"]["sha256"] = val_sha
     payloads = {
         "SYNTHETIC-INERT-MARKER.txt": EVENT_PKG_MARKER,
         "transport/prompt-contract.json": json.dumps(
@@ -195,6 +216,7 @@ def make_event_package(doc, tmp_path, name=EVENT_PKG_NAME,
             sort_keys=True).encode(),
         "runtime/network-readiness.py": nr_path.read_bytes(),
         "runtime/resource-gate.py": gate_path.read_bytes(),
+        "runtime/output-validator.py": val_path.read_bytes(),
     }
     (root / "transport").mkdir(parents=True)
     for rel, data in payloads.items():
@@ -302,10 +324,41 @@ def make_network_readiness_gate(dst: Path) -> "tuple[Path, str]":
     return dst, sha_hex(dst.read_bytes())
 
 
+def make_validator(dst: Path) -> "tuple[Path, str]":
+    """Materialize the inert SYNTHETIC STRUCTURAL OUTPUT VALIDATOR fixture
+    (S1-007) — same shebang-rewrite discipline; returns (path, sha256).
+    Behavior is driven by an EXTERNAL /tmp state file keyed by attempt id
+    (absent = honest PASS).  NOT qualification-harness code, NOT the
+    Audit Council, never a provider client."""
+    src = FIXTURES / "inert_validator.py"
+    text = src.read_text()
+    text = text.replace("#!/usr/bin/python3\n", f"#!{sys.executable}\n", 1)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_text(text)
+    os.chmod(dst, 0o755)
+    return dst, sha_hex(dst.read_bytes())
+
+
+def make_hanging_launcher(tmp_path: Path) -> "tuple[Path, str]":
+    """Materialize the inert HANGING BOUNDARY LAUNCHER fixture (S1-008):
+    writes honest metadata, records its pids to a /tmp track keyed by
+    attempt id, forks a descendant, and never exits — same shebang-rewrite
+    discipline."""
+    src = FIXTURES / "inert_hanging_boundary_launcher.py"
+    dst = tmp_path / "hanging_launcher.py"
+    text = src.read_text()
+    text = text.replace("#!/usr/bin/python3\n", f"#!{sys.executable}\n", 1)
+    dst.write_text(text)
+    os.chmod(dst, 0o755)
+    return dst, sha_hex(dst.read_bytes())
+
+
 # Attempt-keyed /tmp "live resource state" tracks read/written by the
 # inert gate fixtures (deterministic, host-local, cleaned per test).
 RG_BASE = "/tmp/aucdev023-rg-"
 NR_BASE = "/tmp/aucdev023-nr-"
+VAL_BASE = "/tmp/aucdev023-val-state-"
+HANG_BASE = "/tmp/aucdev023-hang-"
 
 
 def rg_paths(attempt_id: str):
@@ -332,6 +385,30 @@ def write_nr_state(attempt_id: str, mode: str) -> None:
     fixture samples fresh at execution time (absent = honest PASS)."""
     with open(nr_paths(attempt_id)[0], "w") as handle:
         json.dump({"mode": mode}, handle)
+
+
+def write_val_state(attempt_id: str, mode: str) -> None:
+    """Flip the EXTERNAL state the inert structural-validator fixture
+    reads at execution time (absent = honest PASS)."""
+    with open(VAL_BASE + attempt_id + ".json", "w") as handle:
+        json.dump({"mode": mode}, handle)
+
+
+def clear_val_tracks(attempt_id: str) -> None:
+    for path in (VAL_BASE + attempt_id + ".json",
+                 HANG_BASE + attempt_id):
+        if os.path.exists(path):
+            os.unlink(path)
+
+
+def hang_track(attempt_id: str):
+    """Read the hanging-launcher pid track (launcher_pid, descendant_pid)
+    written by the S1-008 fixture, or None when not yet written."""
+    path = HANG_BASE + attempt_id
+    if not os.path.exists(path):
+        return None
+    with open(path) as handle:
+        return json.load(handle)
 
 
 def _clear_tracks(paths) -> None:
@@ -369,6 +446,25 @@ def write_binding(tmp_path: Path, doc: dict) -> Path:
 @pytest.fixture
 def cust_dir(tmp_path):
     root = tmp_path / "accounting"
+    root.mkdir(mode=0o700)
+    os.chmod(root, 0o700)
+    return root
+
+
+@pytest.fixture
+def stage(tmp_path):
+    """Default NON-AUTHORITATIVE report staging FILE path for the single
+    run_attempt call (no staging file exists unless a test plants one,
+    so the default report outcome is REPORT_MISSING)."""
+    root = tmp_path / "staging"
+    root.mkdir()
+    return root / "stage.json"
+
+
+@pytest.fixture
+def cust_out(tmp_path):
+    """Default operator custody output directory for run_attempt."""
+    root = tmp_path / "custody-out"
     root.mkdir(mode=0o700)
     os.chmod(root, 0o700)
     return root

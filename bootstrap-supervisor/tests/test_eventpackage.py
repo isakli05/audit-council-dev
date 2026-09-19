@@ -133,25 +133,25 @@ def test_event_package_fixture_is_unmistakably_synthetic(event_package):
 
 def test_exact_synthetic_package_reaches_consumption(cust_dir, binding_doc,
                                                      event_package,
-                                                     launcher, auditor_exe):
+                                                     launcher, auditor_exe, stage, cust_out):
     result = verify_event_package(event_package,
                                   parse_binding(json.dumps(
                                       binding_doc).encode()))
-    assert result["files"] == 5   # marker + 2 transport + 2 runtime gates
+    assert result["files"] == 6   # marker + 2 transport + 2 gates + validator
     binding, store = binding_and_store(cust_dir, binding_doc)
     sup = Supervisor(binding, store, event_package)
     result = sup.run_attempt(pipe_source(), str(launcher[0]),
-                             str(auditor_exe[0]))
+                             str(auditor_exe[0]), stage, cust_out)
     assert not result.exec_failed
-    assert sup.state == "EXEC_ATTEMPTED"
+    assert sup.state == "TERMINAL"
 
 
 def test_positive_path_through_consumption(launcher, auditor_exe, cust_dir,
-                                           binding_doc, event_package):
+                                           binding_doc, event_package, stage, cust_out):
     binding, store = binding_and_store(cust_dir, binding_doc)
     sup = Supervisor(binding, store, event_package)
-    sup.run_attempt(pipe_source(), str(launcher[0]), str(auditor_exe[0]))
-    assert sup.state == "EXEC_ATTEMPTED"
+    sup.run_attempt(pipe_source(), str(launcher[0]), str(auditor_exe[0]), stage, cust_out)
+    assert sup.state == "TERMINAL"
 
 
 # ---------------- package identity (against the pins) ----------------
@@ -315,12 +315,31 @@ def test_event_manifest_v3_schema_refused(cust_dir, binding_doc,
         == "PREPARED"
 
 
-def test_event_manifest_v4_is_the_live_schema(event_package):
-    """The required manifest schema is exactly V4, and a freshly built
-    synthetic package carries the V4 tag."""
+def test_event_manifest_v4_schema_refused(cust_dir, binding_doc,
+                                          event_package):
+    """S1-007/S1-008: the manifest schema advanced V4 -> V5 (the frozen
+    structural output-validator descriptor, the frozen execution limits,
+    and the process-bound report lifecycle behind them); a
+    self-consistent V4 package with matching pins is REFUSED exactly
+    like a V1/V2/V3 one — no silent acceptance, no compatibility
+    machinery, no real V4 package exists to migrate."""
+    rewrite_manifest(event_package, binding_doc,
+                     lambda m: m.update(
+                         schema="AUCDEV-023-EVENT-PACKAGE-MANIFEST-V4"))
+    binding, store = binding_and_store(cust_dir, binding_doc)
+    with pytest.raises(LaunchRefused, match="EVENT_MANIFEST_SCHEMA"):
+        Supervisor(binding, store, event_package)
+    assert inspect_accounting_record(
+        cust_dir, binding.attempt_id, binding.digest)["last_state"] \
+        == "PREPARED"
+
+
+def test_event_manifest_v5_is_the_live_schema(event_package):
+    """The required manifest schema is exactly V5, and a freshly built
+    synthetic package carries the V5 tag."""
     from ebs.binding import EVENT_MANIFEST_SCHEMA
     assert EVENT_MANIFEST_SCHEMA == \
-        "AUCDEV-023-EVENT-PACKAGE-MANIFEST-V4"
+        "AUCDEV-023-EVENT-PACKAGE-MANIFEST-V5"
     manifest = json.loads((event_package / "MANIFEST.json").read_bytes())
     assert manifest["schema"] == EVENT_MANIFEST_SCHEMA
 
@@ -412,6 +431,19 @@ BINDING_MUTATIONS = [
     ("reordered-auditor-invocation",
      lambda d: d.update(auditor_invocation=list(reversed(
          d["auditor_invocation"])))),
+    ("altered-output-validator-identity",
+     lambda d: d["output_validator"].update(
+         identity="SYNTHETIC-INERT-OUTPUT-VALIDATOR-V2")),
+    ("altered-output-validator-sha",
+     lambda d: d["output_validator"].update(
+         sha256=seed_sha("crossbind-alternate", "validator"))),
+    ("altered-output-validator-path",
+     lambda d: d["output_validator"].update(
+         path="runtime/output-validator-alt.py")),
+    ("altered-auditor-timeout",
+     lambda d: d["execution_limits"].update(auditor_timeout_seconds=31)),
+    ("altered-validator-timeout",
+     lambda d: d["execution_limits"].update(validator_timeout_seconds=11)),
 ]
 
 
@@ -507,6 +539,23 @@ PACKAGE_MUTATIONS = [
          "synthetic-inert-auditor-client", "--mode", "regenerated"])),
     ("auditor-invocation-dropped",
      lambda p: p.pop("auditor_invocation")),
+    ("output-validator-descriptor-identity",
+     lambda p: p["output_validator"].update(
+         identity="SYNTHETIC-INERT-OUTPUT-VALIDATOR-V2")),
+    ("output-validator-descriptor-sha",
+     lambda p: p["output_validator"].update(
+         sha256=seed_sha("crossbind-alternate", "validator"))),
+    ("output-validator-descriptor-path",
+     lambda p: p["output_validator"].update(
+         path="runtime/output-validator-alt.py")),
+    ("output-validator-descriptor-dropped",
+     lambda p: p.pop("output_validator")),
+    ("execution-limits-auditor-timeout",
+     lambda p: p["execution_limits"].update(auditor_timeout_seconds=29)),
+    ("execution-limits-validator-timeout",
+     lambda p: p["execution_limits"].update(validator_timeout_seconds=9)),
+    ("execution-limits-dropped",
+     lambda p: p.pop("execution_limits")),
     ("missing-projection-field",
      lambda p: p.pop("sandbox_profile_id")),
     ("unknown-projection-field",
@@ -665,7 +714,7 @@ def test_rem2_001_row_type_refusal_is_at_row_validation(
 
 
 def test_rem2_001_manifest_row_bytes_valid_int_control_accepted(
-        cust_dir, binding_doc, event_package, launcher, auditor_exe):
+        cust_dir, binding_doc, event_package, launcher, auditor_exe, stage, cust_out):
     """Positive control: exact INTEGER byte counts remain ACCEPTED —
     including bytes=0 for a REAL zero-byte regular payload and bytes=1
     for a one-byte payload; the strict rule refuses only non-int, bool,
@@ -682,5 +731,5 @@ def test_rem2_001_manifest_row_bytes_valid_int_control_accepted(
     rewrite_manifest(event_package, binding_doc, mutate)
     binding, store = binding_and_store(cust_dir, binding_doc)
     sup = Supervisor(binding, store, event_package)
-    sup.run_attempt(pipe_source(), str(launcher[0]), str(auditor_exe[0]))
-    assert sup.state == "EXEC_ATTEMPTED"
+    sup.run_attempt(pipe_source(), str(launcher[0]), str(auditor_exe[0]), stage, cust_out)
+    assert sup.state == "TERMINAL"

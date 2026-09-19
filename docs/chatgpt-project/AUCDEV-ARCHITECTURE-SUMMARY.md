@@ -322,13 +322,34 @@ NONBLOCKING residual at implementation-readback strength
 (NOT_STANDING_AUTHORITY) — while NEW blocking FINAL EXECUTION-LIFECYCLE
 findings AUCDEV023-CR-EBS-S1-007 (report-custody validation and
 terminalization not process-bound) and AUCDEV023-CR-EBS-S1-008 (auditor
-execution timeout not EBS-enforced) remain OPEN, a test-environment
-completeness limitation (host CPython 3.14.7 + pytest 9.1.1 battery;
-NOT production/event runtime compatibility) is recorded, and
-event-package preparation remains AUTHORIZED / PAUSED pending final
-execution-lifecycle remediation and fresh readback; the EBS is
-NOT installed Audit Council runtime and the product/runtime source
-baseline of this document is unchanged.
+execution timeout not EBS-enforced) remained OPEN. Under the operator's
+2026-09-20 narrow final execution-lifecycle remediation authority, a
+bounded candidate for BOTH findings was then implemented and published
+at implementer strength ONLY (canonical report:
+[AUCDEV-023-EBS-FINAL-EXECUTION-LIFECYCLE-REMEDIATION-REPORT](AUCDEV-023-EBS-FINAL-EXECUTION-LIFECYCLE-REMEDIATION-REPORT.md)):
+the ONE public operation extends to run_attempt(credential_source_fd,
+launcher_path, auditor_executable_path, report_staging_path,
+output_root) -> AttemptResult — the separate public
+adopt_report()/finish() surface is REMOVED; after the bounded child
+wait the SAME call takes ONE immutable report snapshot, screens it with
+the SAME held custody, runs the FROZEN STRUCTURAL VALIDATOR (V5
+output_validator descriptor, held fd, sealed-snapshot delivery, strict
+AUCDEV-023-REPORT-VALIDATOR-RESULT-V1 envelope, its own frozen
+validator timeout) and freezes the exact screened+validated bytes 0444
+through a pre-opened custody fd before TERMINAL; the boundary child
+runs in its own session under the frozen
+execution_limits.auditor_timeout_seconds monotonic deadline with
+process-group SIGKILL and TIMEOUT_AFTER_CONSUMPTION consumed
+accounting; manifest schema V5 with V1-V4 refused;
+AUCDEV023-CR-EBS-S1-007/-008 = REMEDIATION_IMPLEMENTED /
+AWAITING_CONTROL_ROOM_READBACK, prior closures =
+PRIOR_CONTROL_ROOM_CLOSURE / REGRESSION_EVIDENCE_HELD /
+NEW_SHA_AWAITING_FRESH_CONTROL_ROOM_READBACK; production LOC 2349 →
+2800 disclosed NEW_TCB_GROWTH / AWAITING_CONTROL_ROOM_ACCEPTANCE;
+zero provider/model/auditor executions; real event package NOT
+PREPARED; existing S1 authorization PRESERVED / PAUSED / NOT CONSUMED;
+the EBS is NOT installed Audit Council runtime and the
+product/runtime source baseline of this document is unchanged.
 
 The adopted design (Control Room readback-accepted revision, architecture R1)
 introduces, for at most one future AUCDEV-023 harness-audit event only:

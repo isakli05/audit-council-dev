@@ -44,6 +44,21 @@ fact, never a live-extracted claim) and the NEW top-level dimension
 total bytes; NUL and every control character refused; order preserved).
 Both are digest- and projection-covered; the event-package manifest
 schema advances V3 -> V4 with every older tag refused.
+
+Final execution-lifecycle remediation (CR-EBS-S1-007/-008): the
+transport binding advances to V5 — the NEW `output_validator` dimension
+freezes the structural first-pass validator as an exact
+executable-artifact descriptor (identity / safe event-package-relative
+path / exact SHA-256 / exact result schema
+`AUCDEV-023-REPORT-VALIDATOR-RESULT-V1`), verified/HELD/executed by the
+EBS on the exact screened report snapshot inside the single authority
+operation, and the NEW `execution_limits` dimension freezes the ONLY
+bounded post-consumption timeouts (`auditor_timeout_seconds`,
+`validator_timeout_seconds`: exact positive ints, bool refused, policy
+maximum enforced at parse — no env var, no caller override, no silent
+no-timeout fallback).  Both are digest- and projection-covered; the
+event-package manifest schema advances V4 -> V5 with every older tag
+refused.
 """
 from __future__ import annotations
 
@@ -109,6 +124,18 @@ RUNTIME_GATE_RESULT_SCHEMAS = {
     "RESOURCE_GATE": RESOURCE_GATE_RESULT_SCHEMA,
 }
 
+# S1-007: the frozen STRUCTURAL FIRST-PASS VALIDATOR descriptor (V5) —
+# same descriptor shape as a runtime gate, held/executed by the EBS on
+# the exact screened report snapshot (strict result envelope in
+# launch.py).  S1-008: the frozen bounded post-consumption execution
+# limits (V5) — the ONLY timeout source; exact positive int, bool
+# refused, policy maximum enforced at parse.
+OUTPUT_VALIDATOR_FIELDS = ("identity", "path", "sha256", "result_schema")
+VALIDATOR_RESULT_SCHEMA = "AUCDEV-023-REPORT-VALIDATOR-RESULT-V1"
+EXECUTION_LIMITS_FIELDS = ("auditor_timeout_seconds",
+                           "validator_timeout_seconds")
+EXECUTION_LIMITS_MAX_SECONDS = 3600
+
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 EVENT_ID_RE = re.compile(r"^evt-[0-9a-f]{16}$")
 # Pinned identity strings (executable/sandbox/wrapper): safe tokens only.
@@ -139,7 +166,7 @@ TOP_LEVEL = ("policy_id", "event_id", "auditor_role", "attempt_id", "target",
              "boundary_launcher", "auditor_identity", "sandbox_profile_id",
              "tool_wrapper", "ebs_package", "event_package",
              "output_identity", "gate_evidence", "runtime_gates",
-             "auditor_invocation")
+             "auditor_invocation", "output_validator", "execution_limits")
 
 # --- versioned strict event-package manifest contract (CR-EBS-REM-001;
 # full semantics in README.md + second-remediation report): a frozen
@@ -155,10 +182,16 @@ TOP_LEVEL = ("policy_id", "event_id", "auditor_role", "attempt_id", "target",
 # change AGAIN — auditor_identity gains executable_version and the NEW
 # auditor_invocation dimension freezes the exact auditor-client argv,
 # with the whole authority path collapsed into the single
-# run_attempt(credential_source_fd, ...) operation.  Each advance
-# REFUSES the older tag, never silently accepting it as equivalent; no
-# real V1/V2/V3 event package exists to migrate. ---
-EVENT_MANIFEST_SCHEMA = "AUCDEV-023-EVENT-PACKAGE-MANIFEST-V4"
+# run_attempt(credential_source_fd, ...) operation.  V5 (CR-EBS-S1-007/
+# -008 final execution-lifecycle): they change AGAIN — the report
+# custody/validation/terminalization lifecycle is collapsed into the
+# single run_attempt operation behind a frozen structural
+# output-validator artifact, and both post-consumption execution phases
+# (auditor child wait, validator execution) become timeout-bounded by
+# the frozen execution_limits.  Each advance REFUSES the older tag,
+# never silently accepting it as equivalent; no real V1-V4 event
+# package exists to migrate. ---
+EVENT_MANIFEST_SCHEMA = "AUCDEV-023-EVENT-PACKAGE-MANIFEST-V5"
 EVENT_MANIFEST_KEYS = frozenset(
     ("schema", "transport_binding", "files", "package_sha256"))
 # Every binding security dimension EXCEPT event_package itself (the
@@ -286,6 +319,24 @@ def _safe_relpath(value, where):
     return value
 
 
+def _execution_limits_field(value):
+    """The frozen bounded post-consumption execution limits (S1-008):
+    exactly auditor_timeout_seconds and validator_timeout_seconds, each
+    an EXACT strictly-positive int (bool refused) under the conservative
+    policy maximum — the ONLY timeout authority; no environment
+    variable, caller value, or silent no-timeout fallback can exist."""
+    _exact_keys(value, EXECUTION_LIMITS_FIELDS, "EXECUTION_LIMITS")
+    limits = {}
+    for key in EXECUTION_LIMITS_FIELDS:
+        seconds = value[key]
+        if isinstance(seconds, bool) or not isinstance(seconds, int) \
+                or not 0 < seconds <= EXECUTION_LIMITS_MAX_SECONDS:
+            raise BindingError(
+                f"EXECUTION_LIMIT_{key.upper()}_INVALID: {seconds!r}")
+        limits[key] = seconds
+    return limits
+
+
 def _package_fields(value, where):
     """Validate one pinned package-identity pair (exact keys, digests)."""
     _exact_keys(value, PACKAGE_FIELDS, where)
@@ -313,6 +364,8 @@ class Binding:
     gate_evidence: dict
     runtime_gates: dict
     auditor_invocation: list
+    output_validator: dict
+    execution_limits: dict
     digest: str
 
 
@@ -445,6 +498,19 @@ def parse_binding(data) -> Binding:
                 f"{descriptor['result_schema']!r}")
         descriptors[runtime_gate] = dict(descriptor)
 
+    # S1-007/S1-008 V5: the frozen structural output-validator descriptor
+    # (same discipline as a runtime gate) and the frozen execution
+    # limits; both digest- and projection-covered like every dimension.
+    validator = doc["output_validator"]
+    _exact_keys(validator, OUTPUT_VALIDATOR_FIELDS, "OUTPUT_VALIDATOR")
+    _identity_field(validator["identity"], "OUTPUT_VALIDATOR_IDENTITY")
+    _safe_relpath(validator["path"], "OUTPUT_VALIDATOR_PATH")
+    _sha_field(validator["sha256"], "OUTPUT_VALIDATOR_SHA256")
+    if validator["result_schema"] != VALIDATOR_RESULT_SCHEMA:
+        raise BindingError("OUTPUT_VALIDATOR_RESULT_SCHEMA_UNEXPECTED: "
+                           f"{validator['result_schema']!r}")
+    execution_limits = _execution_limits_field(doc["execution_limits"])
+
     return Binding(
         policy_id=doc["policy_id"], event_id=event_id, auditor_role=role,
         attempt_id=attempt, target=dict(doc["target"]),
@@ -461,6 +527,8 @@ def parse_binding(data) -> Binding:
         runtime_gates=descriptors,
         auditor_invocation=_invocation_field(doc["auditor_invocation"],
                                              "AUDITOR_INVOCATION"),
+        output_validator=dict(validator),
+        execution_limits=execution_limits,
         digest=hashlib.sha256(canonical_bytes(doc)).hexdigest())
 
 

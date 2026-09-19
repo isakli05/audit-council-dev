@@ -52,31 +52,31 @@ def build_supervisor(cust_dir, binding_doc, pkg_root):
     return Supervisor(binding, store, pkg_root)
 
 
-def run_once(sup, launcher, auditor_exe):
+def run_once(sup, launcher, auditor_exe, stage, cust_out):
     return sup.run_attempt(pipe_source(), str(launcher[0]),
-                           str(auditor_exe[0]))
+                           str(auditor_exe[0]), stage, cust_out)
 
 
 def test_verified_open_fd_launcher_identity(launcher, auditor_exe, cust_dir,
-                                            binding_doc, event_package):
+                                            binding_doc, event_package, stage, cust_out):
     sup = build_supervisor(cust_dir, binding_doc, event_package)
-    result = run_once(sup, launcher, auditor_exe)
+    result = run_once(sup, launcher, auditor_exe, stage, cust_out)
     assert not result.exec_failed
     md = result.metadata
     assert md["synthetic_marker"] == MARKER
     assert md["variant"] == "INERT-FIXTURE-A"
     assert md["credential_fd3_len"] == len(SYNTH_CRED)
-    assert sup.state == EXEC_ATTEMPTED
-    assert sup.store.last_state == EXEC_ATTEMPTED
+    assert sup.state == TERMINAL            # S1-007: single call settles
+    assert sup.store.last_state == TERMINAL   # (no staging -> REPORT_MISSING)
 
 
 def test_child_receives_only_synthetic_nonsecret_metadata(launcher,
                                                           auditor_exe,
                                                           cust_dir,
                                                           binding_doc,
-                                                          event_package):
+                                                          event_package, stage, cust_out):
     sup = build_supervisor(cust_dir, binding_doc, event_package)
-    md = run_once(sup, launcher, auditor_exe).metadata
+    md = run_once(sup, launcher, auditor_exe, stage, cust_out).metadata
     assert SYNTH_CRED not in json.dumps(md).encode()
     # EBS-controlled env only (LC_CTYPE may be added by the interpreter's
     # C-locale coercion, PEP 538 — still non-secret and NO EBS-uncontrolled
@@ -91,11 +91,11 @@ def test_child_receives_only_synthetic_nonsecret_metadata(launcher,
 
 
 def test_credential_and_auditor_fds_inherited_unintended_closed(
-        launcher, auditor_exe, cust_dir, binding_doc, event_package):
+        launcher, auditor_exe, cust_dir, binding_doc, event_package, stage, cust_out):
     sup = build_supervisor(cust_dir, binding_doc, event_package)
     junk = [os.open("/dev/null", os.O_RDONLY) for _ in range(8)]
     try:
-        md = run_once(sup, launcher, auditor_exe).metadata
+        md = run_once(sup, launcher, auditor_exe, stage, cust_out).metadata
     finally:
         for fd in junk:
             os.close(fd)
@@ -116,7 +116,7 @@ def test_consumed_record_durable_before_child_begins(launcher, auditor_exe,
                                                      cust_dir,
                                                      binding_doc,
                                                      event_package,
-                                                     monkeypatch):
+                                                     monkeypatch, stage, cust_out):
     """CR-EBS-002: the CONSUMED_PRE_EXEC record is durable BEFORE any
     child can begin — and under S1-005 the append failure inside the
     single operation returns NO ChildResult and terminalizes fail-closed
@@ -132,23 +132,23 @@ def test_consumed_record_durable_before_child_begins(launcher, auditor_exe,
     monkeypatch.setattr(AccountingStore, "append", refusing_append)
     with pytest.raises(LaunchRefused,
                        match="PREEXEC_CONSUME_RECORD_FAILED"):
-        run_once(sup, launcher, auditor_exe)
+        run_once(sup, launcher, auditor_exe, stage, cust_out)
     monkeypatch.undo()
     assert sup.state == "TERMINAL_PREEXEC_STOP"   # never left consumable
     with pytest.raises(LaunchError, match="RUN_ATTEMPT_REFUSED"):
-        run_once(sup, launcher, auditor_exe)      # no retry, no forgery
+        run_once(sup, launcher, auditor_exe, stage, cust_out)      # no retry, no forgery
 
 
 def test_consumed_record_persists_full_binding_facts(launcher, auditor_exe,
                                                      cust_dir,
                                                      binding_doc,
-                                                     event_package):
+                                                     event_package, stage, cust_out):
     """CR-EBS-001 complete transport-binding inventory: CONSUMED_PRE_EXEC
     durably records the complete non-secret binding identity set (V4 adds
     the executable version and the exact-invocation digest/count), not
     merely an opaque digest."""
     sup = build_supervisor(cust_dir, binding_doc, event_package)
-    run_once(sup, launcher, auditor_exe)
+    run_once(sup, launcher, auditor_exe, stage, cust_out)
     view = inspect_accounting_record(cust_dir, sup._binding.attempt_id,
                                      sup._binding.digest)
     rec = [r for r in view["records"]
@@ -195,7 +195,7 @@ def test_consumed_record_persists_full_binding_facts(launcher, auditor_exe,
 
 
 def test_wrong_digest_refused_before_fork(launcher, auditor_exe, cust_dir,
-                                          binding_doc, tmp_path):
+                                          binding_doc, tmp_path, stage, cust_out):
     """Launcher identity verification happens INSIDE the single
     run_attempt operation, BEFORE the dynamic gates: disk bytes differing
     from the bound digest refuse with no fork, no gate execution, and a
@@ -206,7 +206,7 @@ def test_wrong_digest_refused_before_fork(launcher, auditor_exe, cust_dir,
     pkg = make_event_package(doc, tmp_path, name="pkg-mutated-launcher")
     sup = build_supervisor(cust_dir, doc, pkg)
     with pytest.raises(LaunchRefused, match="DIGEST"):
-        run_once(sup, launcher, auditor_exe)
+        run_once(sup, launcher, auditor_exe, stage, cust_out)
     assert sup.state == "TERMINAL_PREEXEC_STOP"   # no fork, unconsumed
     assert sup.launcher_fd is None
     with pytest.raises(LaunchRefused, match="DIGEST"):
@@ -215,7 +215,7 @@ def test_wrong_digest_refused_before_fork(launcher, auditor_exe, cust_dir,
 
 def test_post_consumption_drift_spends_authority_permanently(
         launcher, auditor_exe, cust_dir, binding_doc, event_package,
-        monkeypatch):
+        monkeypatch, stage, cust_out):
     """CR-EBS-002 regression: held-launcher drift AFTER consumption
     (injected right after the durable CONSUMED_PRE_EXEC append, before
     the pre-fork re-hash) permanently spends the one-shot authority
@@ -233,19 +233,19 @@ def test_post_consumption_drift_spends_authority_permanently(
     sup = build_supervisor(cust_dir, binding_doc, event_package)
     monkeypatch.setattr(AccountingStore, "append", drift_after_consume)
     with pytest.raises(LaunchRefused, match="LAUNCHER_DIGEST_MISMATCH"):
-        run_once(sup, launcher, auditor_exe)
+        run_once(sup, launcher, auditor_exe, stage, cust_out)
     monkeypatch.undo()
     assert sup.state == TERMINAL       # terminalized, not unconsumed
     assert inspect_accounting_record(
         cust_dir, sup._binding.attempt_id,
         sup._binding.digest)["last_state"] == TERMINAL
     with pytest.raises(LaunchError):   # no retry path exists at all
-        run_once(sup, launcher, auditor_exe)
+        run_once(sup, launcher, auditor_exe, stage, cust_out)
 
 
 def test_injected_fork_failure_spends_authority_permanently(
         launcher, auditor_exe, cust_dir, binding_doc, event_package,
-        monkeypatch):
+        monkeypatch, stage, cust_out):
     """CR-EBS-002 regression: a pre-child failure (fork) after
     consumption permanently spends the authority; no retry path exists.
     The injection is BOUNDARY-only: the first two forks inside
@@ -265,12 +265,12 @@ def test_injected_fork_failure_spends_authority_permanently(
     sup = build_supervisor(cust_dir, binding_doc, event_package)
     monkeypatch.setattr(os, "fork", broken_boundary_fork)
     with pytest.raises(LaunchError, match="FORK"):
-        run_once(sup, launcher, auditor_exe)
+        run_once(sup, launcher, auditor_exe, stage, cust_out)
     monkeypatch.undo()
     assert calls["n"] == 3   # two gate forks + the failing boundary fork
     assert sup.state == TERMINAL
     with pytest.raises(LaunchError):
-        run_once(sup, launcher, auditor_exe)
+        run_once(sup, launcher, auditor_exe, stage, cust_out)
     assert inspect_accounting_record(
         cust_dir, sup._binding.attempt_id,
         sup._binding.digest)["last_state"] == TERMINAL
@@ -281,7 +281,7 @@ def test_exec_record_failure_after_fork_spends_authority(launcher,
                                                          cust_dir,
                                                          binding_doc,
                                                          event_package,
-                                                         monkeypatch):
+                                                         monkeypatch, stage, cust_out):
     """CR-EBS-002 E: even when the EXEC_ATTEMPTED record cannot be
     reached, the authority is spent (in-process guard)."""
     from ebs.accounting import AccountingStore as Store
@@ -295,15 +295,15 @@ def test_exec_record_failure_after_fork_spends_authority(launcher,
 
     monkeypatch.setattr(Store, "append", refusing_exec_record)
     with pytest.raises(AccountingError):
-        run_once(sup, launcher, auditor_exe)
+        run_once(sup, launcher, auditor_exe, stage, cust_out)
     monkeypatch.undo()
     with pytest.raises(LaunchError):
-        run_once(sup, launcher, auditor_exe)
+        run_once(sup, launcher, auditor_exe, stage, cust_out)
 
 
 def test_launcher_substitution_cannot_change_executed_program(
         launcher, launcher_b, auditor_exe, cust_dir, binding_doc,
-        event_package, tmp_path, monkeypatch):
+        event_package, tmp_path, monkeypatch, stage, cust_out):
     """The launcher fd is verified and HELD inside run_attempt; a PATH
     SUBSTITUTION (attacker payload replacing the launcher path on disk
     during the gate interval) cannot change the executed program."""
@@ -321,30 +321,30 @@ def test_launcher_substitution_cannot_change_executed_program(
 
     monkeypatch.setattr(Supervisor, "_execute_runtime_gate",
                         substituting_gate)
-    result = run_once(sup, launcher, auditor_exe)
+    result = run_once(sup, launcher, auditor_exe, stage, cust_out)
     monkeypatch.undo()
     assert result.metadata["variant"] == "INERT-FIXTURE-A"  # verified fd won
 
 
 def test_same_ebs_cannot_run_twice(launcher, auditor_exe, cust_dir,
-                                   binding_doc, event_package):
+                                   binding_doc, event_package, stage, cust_out):
     sup = build_supervisor(cust_dir, binding_doc, event_package)
-    run_once(sup, launcher, auditor_exe)
+    run_once(sup, launcher, auditor_exe, stage, cust_out)
     with pytest.raises(LaunchError):                      # spent authority
-        run_once(sup, launcher, auditor_exe)
+        run_once(sup, launcher, auditor_exe, stage, cust_out)
 
 
 def test_run_attempt_refused_after_terminal_preexec_stop(
-        launcher, auditor_exe, cust_dir, binding_doc, event_package):
+        launcher, auditor_exe, cust_dir, binding_doc, event_package, stage, cust_out):
     """From a non-PREPARED state the single authority operation is
     refused (here: after a dynamic-gate failure left the absorbing
     TERMINAL_PREEXEC_STOP)."""
     write_rg_state(ATTEMPT, "fail-status")
     sup = build_supervisor(cust_dir, binding_doc, event_package)
     with pytest.raises(LaunchRefused):
-        run_once(sup, launcher, auditor_exe)
+        run_once(sup, launcher, auditor_exe, stage, cust_out)
     with pytest.raises(LaunchError, match="RUN_ATTEMPT_REFUSED"):
-        run_once(sup, launcher, auditor_exe)
+        run_once(sup, launcher, auditor_exe, stage, cust_out)
 
 
 def test_supervisor_requires_matching_store_attempt(cust_dir, binding_doc,
@@ -373,45 +373,45 @@ def test_supervisor_requires_matching_store_binding_digest(cust_dir,
 
 def test_existing_record_blocks_new_authority_process(launcher, auditor_exe,
                                                       cust_dir, binding_doc,
-                                                      event_package):
+                                                      event_package, stage, cust_out):
     """CR-EBS-002 regressions 1-3: an existing same-attempt record can
     never revive authority in a new process; the history stays read-only
     inspectable."""
     sup = build_supervisor(cust_dir, binding_doc, event_package)
-    run_once(sup, launcher, auditor_exe)
+    run_once(sup, launcher, auditor_exe, stage, cust_out)
     binding = sup._binding
     with pytest.raises(AccountingError):
         AccountingStore.create(cust_dir, binding.attempt_id, binding.digest)
     view = inspect_accounting_record(cust_dir, binding.attempt_id,
                                      binding.digest)
-    assert view["last_state"] == EXEC_ATTEMPTED  # inspectable, not revivable
+    assert view["last_state"] == TERMINAL  # inspectable, not revivable
 
 
 def test_exec_failure_after_consumption_is_honest(launcher, auditor_exe,
-                                                  cust_dir, tmp_path):
+                                                  cust_dir, tmp_path, stage, cust_out):
     bogus = tmp_path / "bogus_launcher.py"
     bogus.write_text("this is not an executable image\n")
     doc = binding_for(sha_hex(bogus.read_bytes()),
                       auditor_sha256=auditor_exe[1])
     pkg = make_event_package(doc, tmp_path, name="pkg-bogus-launcher")
     sup = build_supervisor(cust_dir, doc, pkg)
-    result = sup.run_attempt(pipe_source(), str(bogus), str(auditor_exe[0]))
+    result = sup.run_attempt(pipe_source(), str(bogus), str(auditor_exe[0]), stage, cust_out)
     assert result.exec_failed
     assert result.returncode != 0
-    assert sup.state == EXEC_ATTEMPTED  # attempt honestly recorded
+    assert sup.state == TERMINAL  # exec-fail settles consumed-terminal
 
 
 def test_launcher_symlink_refused(launcher, auditor_exe, cust_dir,
-                                  binding_doc, event_package, tmp_path):
+                                  binding_doc, event_package, tmp_path, stage, cust_out):
     sup = build_supervisor(cust_dir, binding_doc, event_package)
     link = tmp_path / "link.py"
     link.symlink_to(launcher[0])
     with pytest.raises(LaunchRefused):
-        sup.run_attempt(pipe_source(), str(link), str(auditor_exe[0]))
+        sup.run_attempt(pipe_source(), str(link), str(auditor_exe[0]), stage, cust_out)
     assert sup.state == "TERMINAL_PREEXEC_STOP"
 
 
-def test_open_verified_launcher_checks(launcher, auditor_exe):
+def test_open_verified_launcher_checks(launcher, auditor_exe, stage, cust_out):
     fd = open_verified_launcher(str(launcher[0]), launcher[1])
     try:
         assert os.fstat(fd).st_size > 0

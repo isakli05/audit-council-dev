@@ -190,7 +190,7 @@ def test_symlinked_payload_refused(tmp_path):
         verify_package_identity(pkg, *pins_of(pkg))
 
 
-def test_self_check_runs_before_gates_can_pass(cust_dir, tmp_path, launcher):
+def test_self_check_runs_before_gates_can_pass(cust_dir, tmp_path, launcher, stage, cust_out):
     """CR-EBS-003 D: a binding pinning a WRONG package identity cannot
     even construct a supervisor, so gates can never pass; the production
     entry takes no parameters (no bypass surface)."""
@@ -220,8 +220,8 @@ def test_self_check_runs_before_gates_can_pass(cust_dir, tmp_path, launcher):
     store2 = AccountingStore.create(cust_dir, binding2.attempt_id,
                                     binding2.digest)
     sup = Supervisor(binding2, store2, pkg2)
-    sup.run_attempt(pipe_source(), str(launcher[0]), str(auditor_exe2[0]))
-    assert sup.state == "EXEC_ATTEMPTED"
+    sup.run_attempt(pipe_source(), str(launcher[0]), str(auditor_exe2[0]), stage, cust_out)
+    assert sup.state == "TERMINAL"
 
 
 def test_no_environment_or_flag_bypass_surface():

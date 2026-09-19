@@ -286,7 +286,78 @@ CASES = [
      lambda d: d.update(auditor_invocation=["x" * 1000] * 9)),
     ("auditor invocation too many items",
      lambda d: d.update(auditor_invocation=[f"arg{i}" for i in range(33)])),
+    # ---- S1-007/S1-008 V5: output_validator + execution_limits ----
+    ("output validator missing",
+     lambda d: d.pop("output_validator")),
+    ("output validator wrong type",
+     lambda d: d.update(output_validator="validator")),
+    ("output validator unknown field",
+     lambda d: d["output_validator"].update(extra=1)),
+    ("output validator missing field",
+     lambda d: d["output_validator"].pop("sha256")),
+    ("output validator identity unsafe",
+     lambda d: d["output_validator"].update(identity="a validator id!")),
+    ("output validator path absolute",
+     lambda d: d["output_validator"].update(path="/etc/validator.py")),
+    ("output validator path traversal",
+     lambda d: d["output_validator"].update(
+         path="../../outside/validator.py")),
+    ("output validator sha malformed",
+     lambda d: d["output_validator"].update(sha256="zzz")),
+    ("output validator result schema wrong",
+     lambda d: d["output_validator"].update(
+         result_schema="AUCDEV-023-REPORT-VALIDATOR-RESULT-V0")),
+    ("execution limits missing",
+     lambda d: d.pop("execution_limits")),
+    ("execution limits wrong type",
+     lambda d: d.update(execution_limits=[30])),
+    ("execution limits unknown key",
+     lambda d: d["execution_limits"].update(extra=5)),
+    ("execution limits missing key",
+     lambda d: d["execution_limits"].pop("validator_timeout_seconds")),
+    ("auditor timeout bool",
+     lambda d: d["execution_limits"].update(auditor_timeout_seconds=True)),
+    ("auditor timeout float",
+     lambda d: d["execution_limits"].update(auditor_timeout_seconds=30.0)),
+    ("auditor timeout string",
+     lambda d: d["execution_limits"].update(auditor_timeout_seconds="30")),
+    ("auditor timeout zero",
+     lambda d: d["execution_limits"].update(auditor_timeout_seconds=0)),
+    ("auditor timeout negative",
+     lambda d: d["execution_limits"].update(auditor_timeout_seconds=-1)),
+    ("auditor timeout oversize",
+     lambda d: d["execution_limits"].update(auditor_timeout_seconds=3601)),
+    ("validator timeout bool",
+     lambda d: d["execution_limits"].update(
+         validator_timeout_seconds=False)),
+    ("validator timeout float",
+     lambda d: d["execution_limits"].update(
+         validator_timeout_seconds=10.0)),
+    ("validator timeout zero",
+     lambda d: d["execution_limits"].update(validator_timeout_seconds=0)),
+    ("validator timeout oversize",
+     lambda d: d["execution_limits"].update(
+         validator_timeout_seconds=10 ** 9)),
 ]
+
+
+def test_s1_007_008_v5_dimensions_digest_covered(binding_doc,
+                                                 parsed_binding):
+    """S1-007/S1-008: output_validator and execution_limits are mandatory
+    V5 dimensions, exactly parsed, and covered by Binding.digest (any
+    change to either changes the digest)."""
+    assert parsed_binding.output_validator == \
+        binding_doc["output_validator"]
+    assert parsed_binding.execution_limits == \
+        binding_doc["execution_limits"]
+    base = parse_binding(json.dumps(binding_doc).encode())
+    bumped = copy.deepcopy(binding_doc)
+    bumped["execution_limits"]["auditor_timeout_seconds"] = 31
+    assert parse_binding(json.dumps(bumped).encode()).digest != base.digest
+    swapped = copy.deepcopy(binding_doc)
+    swapped["output_validator"]["identity"] = \
+        "SYNTHETIC-INERT-OUTPUT-VALIDATOR-V2"
+    assert parse_binding(json.dumps(swapped).encode()).digest != base.digest
 
 
 def test_runtime_gate_set_is_exactly_two_dynamic_gates(parsed_binding):

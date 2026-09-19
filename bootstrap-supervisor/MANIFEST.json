@@ -1,14 +1,14 @@
 {
   "files": [
     {
-      "bytes": 24109,
+      "bytes": 28349,
       "path": "README.md",
-      "sha256": "b338fab0dc4fc46520f51b229c65e3912f2b17fe001e37933e6e88ac7199226f"
+      "sha256": "7e7de22fcfeee5b5af4062144bc3e237194f3e3bbfa06acd4bd2718819989ba9"
     },
     {
-      "bytes": 1664,
+      "bytes": 2395,
       "path": "ebs/__init__.py",
-      "sha256": "6e52f54da7d0aff307f9b127e0d0a88c475721317d7f558e31d5aa82bb1e417c"
+      "sha256": "a3ce80cc40f467f9457793f3cbbd45ce685e821c4998f2bc32ff3a2a14afc307"
     },
     {
       "bytes": 9077,
@@ -16,9 +16,9 @@
       "sha256": "d970e399ecdd772f998d7d5271db64b019213e7620033743a641bfa915aca47c"
     },
     {
-      "bytes": 21749,
+      "bytes": 25487,
       "path": "ebs/binding.py",
-      "sha256": "d63149ac6fa087448875426855173223c4b1805490f9a5127b7a4882d7a6f91f"
+      "sha256": "39bd966a94825f2e01d4613bf6a7e8be4070e8712266a4d58d99051632574184"
     },
     {
       "bytes": 2712,
@@ -31,24 +31,24 @@
       "sha256": "f1c1d0f7cba21225e977c49fc86c5d32824766a0eddebe6b1761b0111c11f5ca"
     },
     {
-      "bytes": 54337,
+      "bytes": 74406,
       "path": "ebs/launch.py",
-      "sha256": "c22c2eb466b65a905e2be29ed15202689cc8c1d8307b329412e2abf94a925786"
+      "sha256": "bf64581583909e0c1f3d5c9a783b6b04445b49cfeff6abc0547668f7a58ec740"
     },
     {
-      "bytes": 4017,
+      "bytes": 4613,
       "path": "ebs/reportcustody.py",
-      "sha256": "c148eab1084cb44bc95ebe1a9eb7387f40ccda20857834b2b374e20e927a64a5"
+      "sha256": "e83b5d53d607f9e2a046146165cdf23de9319abe1e330e87ef1d4edf11826f59"
     },
     {
-      "bytes": 2486,
+      "bytes": 2626,
       "path": "ebs/statemachine.py",
-      "sha256": "b3b864332736aeeb6c97a1908bb7dca31d0277cc2545a166268678f36d6846b9"
+      "sha256": "8a1f99898ebea75327c1a714514b4a7a3e256ae3ecf86dfc71850f248c014a66"
     },
     {
-      "bytes": 17305,
+      "bytes": 21106,
       "path": "tests/conftest.py",
-      "sha256": "c9cca4d96eda8646ffc947bf9c0f48e7f0d8decca2cb8fa7a1468d9ea02c12ee"
+      "sha256": "ca5836a901b564c300ca412cc402194110229ea82cc540c42caeea100e552cdb"
     },
     {
       "bytes": 1005,
@@ -66,6 +66,11 @@
       "sha256": "68f23c7350f9130ff165ae257aea04a444d78cb2b3c9979686587f2785fd513a"
     },
     {
+      "bytes": 1558,
+      "path": "tests/fixtures/inert_hanging_boundary_launcher.py",
+      "sha256": "74f63182ff9972bb56c80c5efa7ca51ce24e609e13db6d1b2015aeac38d5e14a"
+    },
+    {
       "bytes": 5528,
       "path": "tests/fixtures/inert_network_readiness_gate.py",
       "sha256": "562b99bf198533b81c0c103636ec6602036473e3750077e63b1d1ac4460045ab"
@@ -76,14 +81,19 @@
       "sha256": "be47891aba4521304e506e0675b4bc41df183ed848e6da85d56df04c9fc99804"
     },
     {
+      "bytes": 3629,
+      "path": "tests/fixtures/inert_validator.py",
+      "sha256": "da3b326c429560050a7ffa9dba1eaf3de657c2a2946604fe68409ed3d9d64ed3"
+    },
+    {
       "bytes": 9903,
       "path": "tests/test_accounting.py",
       "sha256": "e20c956f5beeb21770a39e0986e252f8a818b0b012ecb183fc31a213ca5edb54"
     },
     {
-      "bytes": 16583,
+      "bytes": 20034,
       "path": "tests/test_binding.py",
-      "sha256": "6d16023c5d08f13a671a553484a760c280a2487e12e8eb3c46d2af7fc1cca687"
+      "sha256": "576cfcb31719eaa87f455aa35c1c2bac1f62bbe1060e386e1641c42bffcb9e86"
     },
     {
       "bytes": 5504,
@@ -91,39 +101,44 @@
       "sha256": "f650aaaa318dac29b7e8751a0ebbfeb80959e640aae8744eccf5686efa7f9b31"
     },
     {
-      "bytes": 33156,
+      "bytes": 35713,
       "path": "tests/test_eventpackage.py",
-      "sha256": "8c108e7c253948eb4477184eb5fc650fc0602f49b710a4e8f6955a42f7de73cf"
+      "sha256": "af7473767a9a160056c4e6ef2f8697e3cf484b809dc8b33fa4e934fd7ad33919"
     },
     {
-      "bytes": 31922,
+      "bytes": 34259,
+      "path": "tests/test_final_execution_lifecycle.py",
+      "sha256": "edd4a26222fc5e88064b6bdd3a90567622f0734f171fb9e7f5da47ee44c8dc70"
+    },
+    {
+      "bytes": 33046,
       "path": "tests/test_final_launch_seam.py",
-      "sha256": "a1c84b6202cb58972fb96a8302ed13959e5ae5f8f64f17d2be4db9cf9ad4cd89"
+      "sha256": "0a600ea88b5e48360a74d21312dd7114ef22dc972b82b78d3b5e77545677332c"
     },
     {
-      "bytes": 20074,
+      "bytes": 20799,
       "path": "tests/test_launch.py",
-      "sha256": "35d6d80e0c65c92b74514c124f00793afca3c893259a74f3c4cf0ffa63e8dc93"
+      "sha256": "9875fd10a7d4f93b0e56de9d7ce244d92dd8ad28ac1954eb383463826e401ad6"
     },
     {
-      "bytes": 24572,
+      "bytes": 25113,
       "path": "tests/test_preexec_gates.py",
-      "sha256": "c3888db1789ea9aef2ee39c93d068f6d1e2d1331391b2fed5212e45601a9ee55"
+      "sha256": "e7f54523b454276b670c0d232d617b52e35dea6d6d384697601efa1ca4c03d2f"
     },
     {
-      "bytes": 4556,
+      "bytes": 6050,
       "path": "tests/test_report.py",
-      "sha256": "75d5f63f19a80a79977d4f6100ae7d6242fa0d31fff6d8f349ed6171edfcf2ca"
+      "sha256": "ca013571ba974b6b2b44553278d28b240ff36ba8f15d5de79ceeb2d22fba0a99"
     },
     {
-      "bytes": 19462,
+      "bytes": 19790,
       "path": "tests/test_resourcegate.py",
-      "sha256": "c4bf97db683783a7b1f9e5594b2e5dd13c6ad1875b1d69cd9cff3cf08bdb2360"
+      "sha256": "6b32ba350aaa1c4013302e5361c2fb82cceb76cc5a85e693d350e95b390fdc81"
     },
     {
-      "bytes": 11940,
+      "bytes": 11968,
       "path": "tests/test_selfcheck.py",
-      "sha256": "667d7c37bf066115d36890f5b1e749d44a9ac7b8f65ba6a14de22f4bd5bc0650"
+      "sha256": "104b1fb9d0de49ddfd604ca0401b2608617dba6b85479a2501b9a852f1c1098f"
     },
     {
       "bytes": 3835,
@@ -131,18 +146,18 @@
       "sha256": "1a8135b2fb13bb59e69ddbea69e28ee80866fca40a1d8e1ad341e0023bafaac5"
     },
     {
-      "bytes": 12578,
+      "bytes": 13725,
       "path": "tests/test_static.py",
-      "sha256": "44a7d3a482fee776b99832fd65103e8bc0ed1853e1261eb50286b4c7525f4701"
+      "sha256": "bc6afdb70d1d99933b4fc2ee71a5ddf27d497152fc577ea80fb2740c446c5276"
     }
   ],
-  "implementation_base_commit": "9bed708774ebe8900f345867e463f14e49a1aafe",
+  "implementation_base_commit": "f96330e548499462601400d423ccff7564c03871",
   "package": "bootstrap-supervisor",
-  "package_sha256": "582c9d4a5c65f214fb860ff3d02d18169311c37648179d3ea201db1f7e118d98",
+  "package_sha256": "6c39d889733ce02c5a4089933276a6b7dc13252485e783a020646b43da6d32fc",
   "policy_id": "AUCDEV-023-R1-CONTROLLERLESS-PROCESS-BOUND-TARGET-INDEPENDENT-ONE-SHOT",
   "qualification_claim": "NONE",
   "runtime_dependencies": "Python 3 standard library ONLY + Linux kernel primitives (memfd/seals, prctl, fsync, execveat, /proc); no third-party runtime package",
-  "status": "FINAL_LAUNCH_SEAM_REMEDIATION_CANDIDATE / AWAITING_FRESH_CONTROL_ROOM_READBACK",
+  "status": "FINAL_EXECUTION_LIFECYCLE_REMEDIATION_CANDIDATE / AWAITING_FRESH_CONTROL_ROOM_READBACK",
   "target": {
     "commit": "d4d584ffa47ad2848268ba947247f81a845b2322",
     "qh_tree": "5b8d5e5465923740470ff63ed9b8683f257a3787",
@@ -150,5 +165,5 @@
     "root_tree": "1d4b8b8eb0619cf0b854984b778e6ea081ad9aa7",
     "skill_tree": "c792933a862d9a5434681a88d183470dd8b15d2f"
   },
-  "task": "AUCDEV-023 bounded External Bootstrap Supervisor (EBS) final launch-seam remediation of AUCDEV023-CR-EBS-S1-004, AUCDEV023-CR-EBS-S1-005 and AUCDEV023-CR-EBS-S1-006"
+  "task": "AUCDEV-023 bounded External Bootstrap Supervisor (EBS) final execution-lifecycle remediation of AUCDEV023-CR-EBS-S1-007 and AUCDEV023-CR-EBS-S1-008"
 }

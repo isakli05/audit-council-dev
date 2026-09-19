@@ -1,12 +1,20 @@
-"""Generic report custody and credential leak screen.
+"""Report snapshot custody: one immutable snapshot, credential leak
+screen, and operator-custody freeze.
 
-A boundary child may stage ONE first-pass report artifact.  A missing
-staging report stays REPORT_MISSING — stdout/stderr are NEVER
-reconstructed as a report.  Staging is opened without symlink following,
-size-bounded, screened for credential plaintext BEFORE any persistence,
-hashing, or publication (only a boolean classification is ever recorded
-for a contaminated report), and a clean report is frozen read-only
-(0444) under operator custody with O_EXCL no-overwrite semantics.
+The post-exec report lifecycle (CR-EBS-S1-007) is process-bound inside
+the single authority operation: the staged artifact is snapshotted ONCE
+(no-final-symlink open, regular-file check, size bound, one exact read
+of the ALREADY-OPEN fd), and THAT SAME immutable byte sequence is then
+credential-screened, structurally validated, and frozen — the bytes are
+never re-read, so no validate-one-sequence/freeze-another (TOCTOU) gap
+exists.  A missing staging report stays REPORT_MISSING — stdout/stderr
+are NEVER reconstructed as a report.  Screening happens BEFORE any
+persistence, hashing, or publication (only a boolean classification is
+ever recorded for a contaminated report; the contaminated staging bytes
+are removed where possible), and the freeze creates the artifact
+read-only (0444) under operator custody with O_EXCL no-overwrite
+semantics through a PRE-OPENED held custody directory fd (validated
+before any authority is consumed; a pathname re-open is never used).
 """
 from __future__ import annotations
 
@@ -15,11 +23,8 @@ import hashlib
 import os
 import stat
 
-from .accounting import open_custody_dir
-from .statemachine import REPORT_FROZEN, REPORT_MISSING, REPORT_SCREEN_FAIL
-
-DEFAULT_SIZE_LIMIT = 16 * 1024 * 1024
 FROZEN_MODE = 0o444
+DEFAULT_SIZE_LIMIT = 16 * 1024 * 1024
 
 
 class ReportError(RuntimeError):
@@ -40,15 +45,18 @@ def _read_all(fd: int, limit: int) -> bytes:
     return data
 
 
-def collect(staging_path, output_root, artifact_name,
-            custody=None, size_limit: int = DEFAULT_SIZE_LIMIT) -> dict:
-    """Collect, screen, and freeze one staged first-pass report."""
-    if "/" in artifact_name or artifact_name in (".", ".."):
-        raise ReportRefused(f"ARTIFACT_NAME_UNSAFE: {artifact_name!r}")
+def snapshot_staging(staging_path,
+                     size_limit: int = DEFAULT_SIZE_LIMIT):
+    """Take the ONE immutable bounded snapshot of the staged report:
+    open without symlink following, require a regular file, enforce the
+    size bound, read the exact bytes of the ALREADY-OPEN fd once, and
+    return them — or None when no staging report exists (REPORT_MISSING;
+    stdout/stderr are never a substitute).  Every later phase (screen,
+    validator, freeze) operates on exactly these bytes."""
     try:
         st = os.stat(os.fspath(staging_path), follow_symlinks=False)
     except FileNotFoundError:
-        return {"state": REPORT_MISSING}
+        return None
     if stat.S_ISLNK(st.st_mode):
         raise ReportRefused("STAGING_IS_SYMLINK")
     if not stat.S_ISREG(st.st_mode):
@@ -67,38 +75,37 @@ def collect(staging_path, output_root, artifact_name,
         os.close(fd)
     if len(data) > size_limit:
         raise ReportRefused("REPORT_SIZE_LIMIT_AT_READ")
+    return data
 
-    if custody is not None and custody.contains(data):
-        try:  # remove the contaminated ephemeral staging where possible
-            os.unlink(os.fspath(staging_path))
-        except OSError:
-            pass
-        return {"state": REPORT_SCREEN_FAIL}
 
-    out_dir = None
+def discard_staging(staging_path) -> None:
+    """Best-effort removal of contaminated ephemeral staging bytes."""
     try:
-        try:
-            out_dir = open_custody_dir(output_root)
-        except ReportError:
-            raise
-        except Exception as exc:
-            raise ReportRefused(f"OUTPUT_DIR_UNSAFE: {exc!r}") from exc
-        try:
-            dest = os.open(artifact_name, os.O_WRONLY | os.O_CREAT
-                           | os.O_EXCL | os.O_NOFOLLOW, 0o600,
-                           dir_fd=out_dir)
-        except OSError as exc:
-            if exc.errno == errno.EEXIST:
-                raise ReportRefused(
-                    "OUTPUT_EXISTS_NO_OVERWRITE") from exc
+        os.unlink(os.fspath(staging_path))
+    except OSError:
+        pass
+
+
+def freeze_snapshot(snapshot: bytes, out_dir_fd: int,
+                    artifact_name: str) -> dict:
+    """Freeze the EXACT screened+validated snapshot bytes read-only
+    (0444) under operator custody through the PRE-OPENED held output
+    directory fd, with O_EXCL no-overwrite semantics and full fsync
+    durability.  The artifact name is ALWAYS binding-derived (checked by
+    the caller); no caller filename can replace it."""
+    if "/" in artifact_name or artifact_name in (".", ".."):
+        raise ReportRefused(f"ARTIFACT_NAME_UNSAFE: {artifact_name!r}")
+    try:
+        dest = os.open(artifact_name, os.O_WRONLY | os.O_CREAT
+                       | os.O_EXCL | os.O_NOFOLLOW, 0o600,
+                       dir_fd=out_dir_fd)
+    except OSError as exc:
+        if exc.errno == errno.EEXIST:
             raise ReportRefused(
-                f"OUTPUT_CREATE_REFUSED: {exc!r}") from exc
-    except Exception:
-        if out_dir is not None:
-            os.close(out_dir)
-        raise
+                "OUTPUT_EXISTS_NO_OVERWRITE") from exc
+        raise ReportRefused(f"OUTPUT_CREATE_REFUSED: {exc!r}") from exc
     try:
-        view = memoryview(data)
+        view = memoryview(snapshot)
         while view:
             view = view[os.write(dest, view):]
         os.fsync(dest)
@@ -106,13 +113,7 @@ def collect(staging_path, output_root, artifact_name,
         os.fsync(dest)
     finally:
         os.close(dest)
-    os.fsync(out_dir)
-    os.close(out_dir)
-    try:
-        os.unlink(os.fspath(staging_path))
-    except OSError:
-        pass
-    return {"state": REPORT_FROZEN,
-            "sha256": hashlib.sha256(data).hexdigest(),
-            "size": len(data),
+    os.fsync(out_dir_fd)
+    return {"sha256": hashlib.sha256(snapshot).hexdigest(),
+            "size": len(snapshot),
             "mode": f"{FROZEN_MODE:04o}"}
