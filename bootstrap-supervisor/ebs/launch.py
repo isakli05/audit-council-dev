@@ -11,7 +11,12 @@ no controller; no attach/revival path.  Before any authority exists the
 supervisor FAIL-CLOSED VERIFIES ITS OWN LIVE PACKAGE BYTES against the
 identities pinned by the frozen binding (verify_package_identity;
 construction + full semantics in README.md) — mandatory, in the startup
-path, with no flag and no environment override.
+path, with no flag and no environment override — and then verifies the
+supplied FROZEN EVENT PACKAGE (verify_event_package, CR-EBS-REM-001):
+package identity against the binding's independently pinned event_package
+pair PLUS exact transport-projection equality with the binding, before
+GATES_PASSED is reachable; the event-package root is a MANDATORY
+supervisor input with no default and no bypass of any kind.
 
 The frozen boundary-launcher executable is verified by opening it ONCE,
 hashing the ALREADY-OPEN file, and executing THAT OPEN FILE DESCRIPTOR
@@ -32,6 +37,9 @@ import stat
 from dataclasses import dataclass
 
 from .accounting import AccountingStore
+from .binding import (EVENT_MANIFEST_KEYS, EVENT_MANIFEST_SCHEMA,
+                      BindingError, binding_projection, canonical_bytes,
+                      strict_loads)
 from .custody import CredentialCustody, establish_non_dumpable
 from .reportcustody import DEFAULT_SIZE_LIMIT, collect
 from .statemachine import (CONSUMED_PRE_EXEC, EXEC_ATTEMPTED, GATES_PASSED,
@@ -152,7 +160,9 @@ def verify_package_identity(root, expected_manifest_sha256: str,
     """Fail-closed verification of the package at root: BOTH pinned
     identities, every per-file size/SHA-256, and exact payload-set
     equality (unsafe row paths cannot match the walked set — refused
-    structurally)."""
+    structurally).  The manifest is parsed strictly (duplicate JSON keys
+    and non-finite constants refused) and the parsed document is returned
+    as "document" for the event-package cross-binding check."""
     try:
         fd = os.open(os.path.join(os.fspath(root), PACKAGE_MANIFEST),
                      os.O_RDONLY | os.O_NOFOLLOW)
@@ -170,9 +180,9 @@ def verify_package_identity(root, expected_manifest_sha256: str,
     finally:
         os.close(fd)
     try:
-        doc = json.loads(data.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise LaunchRefused(f"PACKAGE_MANIFEST_MALFORMED: {exc!r}") from exc
+        doc = strict_loads(data)   # duplicate keys / non-finite refused
+    except BindingError as exc:
+        raise LaunchRefused(f"PACKAGE_MANIFEST_MALFORMED: {exc}") from exc
     if not isinstance(doc, dict):
         raise LaunchRefused("PACKAGE_MANIFEST_NOT_AN_OBJECT")
     live_manifest = hashlib.sha256(data).hexdigest()
@@ -243,7 +253,8 @@ def verify_package_identity(root, expected_manifest_sha256: str,
         raise LaunchRefused(f"PACKAGE_PAYLOAD_MISSING_FROM_LIVE_TREE: "
                             f"{sorted(recorded)}")
     return {"files": len(rows), "bytes": total_bytes,
-            "manifest_sha256": live_manifest, "package_sha256": declared}
+            "manifest_sha256": live_manifest, "package_sha256": declared,
+            "document": doc}
 
 
 def verify_live_package_identity(binding) -> dict:
@@ -255,6 +266,38 @@ def verify_live_package_identity(binding) -> dict:
     return verify_package_identity(
         root, binding.ebs_package["manifest_sha256"],
         binding.ebs_package["package_sha256"])
+
+
+def verify_event_package(root, binding) -> dict:
+    """(CR-EBS-REM-001) Fail-closed verification of the frozen event
+    package at root against the binding, BEFORE gates are reachable.
+    Reuses verify_package_identity (no second package verifier) for the
+    pinned manifest/package identities and the per-file/payload-set
+    checks; then enforces the strict versioned event-manifest contract
+    (exact key set + schema tag) and transport_binding == the binding's
+    own projection compared as canonical JSON bytes — so an internally-
+    valid binding with substituted component identities under the SAME
+    frozen package identity, or a regenerated self-consistent package
+    with updated pins, both fail closed here."""
+    result = verify_package_identity(
+        os.fspath(root), binding.event_package["manifest_sha256"],
+        binding.event_package["package_sha256"])
+    manifest = result["document"]
+    keys = set(manifest)
+    if keys != EVENT_MANIFEST_KEYS:
+        raise LaunchRefused(
+            f"EVENT_MANIFEST_KEYS_INVALID: "
+            f"unknown={sorted(keys - EVENT_MANIFEST_KEYS)} "
+            f"missing={sorted(EVENT_MANIFEST_KEYS - keys)}")
+    if manifest["schema"] != EVENT_MANIFEST_SCHEMA:
+        raise LaunchRefused(
+            f"EVENT_MANIFEST_SCHEMA_UNEXPECTED: {manifest['schema']!r}")
+    if canonical_bytes(manifest["transport_binding"]) != canonical_bytes(
+            binding_projection(binding)):
+        raise LaunchRefused(
+            "EVENT_PACKAGE_PROJECTION_MISMATCH: the frozen event package "
+            "declares component identities that differ from this binding")
+    return result
 
 
 def _child_setup(launcher_fd: int, metadata_w: int, fail_w: int,
@@ -309,18 +352,28 @@ class ChildResult:
 
 class Supervisor:
     """One-shot controllerless EBS orchestrator for a single attempt.
-    Startup (before any gate/authority operation): runtime package
-    self-identity verification, then mechanical binding to THIS store
-    (attempt id AND binding digest).  No attach/revival constructor
-    exists; an existing same-attempt record fails closed at store
-    creation (replacement = new operator authority + new attempt id +
-    new EBS process + new accounting)."""
+    Startup ordering (fail closed at every step, before any gate or
+    authority operation): (1) runtime EBS package self-identity
+    verification; (2) mechanical binding to THIS store (attempt id AND
+    binding digest); (3) frozen event-package identity verification
+    against the binding's event_package pins; (4) event-package
+    transport-projection equality; only then does a supervisor capable
+    of validate_gates() exist.  The event-package root is a MANDATORY
+    constructor input — no default, no flag, no environment bypass.  No
+    attach/revival constructor exists; an existing same-attempt record
+    fails closed at store creation (replacement = new operator authority
+    + new attempt id + new EBS process + new accounting)."""
 
-    def __init__(self, binding, store: AccountingStore) -> None:
+    def __init__(self, binding, store: AccountingStore,
+                 event_package_root) -> None:
         if not isinstance(store, AccountingStore):
             raise LaunchError("SUPERVISOR_REQUIRES_ACCOUNTING_STORE")
-        verify_live_package_identity(binding)
-        if store.attempt_id != binding.attempt_id:
+        if not isinstance(event_package_root, (str, os.PathLike)):
+            raise LaunchError(
+                "SUPERVISOR_REQUIRES_EVENT_PACKAGE_ROOT: a frozen event "
+                "package root is mandatory — no default, no bypass")
+        verify_live_package_identity(binding)          # (1) live EBS bytes
+        if store.attempt_id != binding.attempt_id:     # (2) store binding
             raise LaunchError(
                 f"STORE_ATTEMPT_MISMATCH: store holds {store.attempt_id!r} "
                 f"but binding declares {binding.attempt_id!r}")
@@ -328,6 +381,7 @@ class Supervisor:
             raise LaunchError("STORE_BINDING_DIGEST_MISMATCH: the store "
                               "was not created from this exact binding "
                               "document")
+        verify_event_package(event_package_root, binding)   # (3) + (4)
         self._binding = binding
         self._store = store
         self._machine = StateMachine(store.last_state or PREPARED)

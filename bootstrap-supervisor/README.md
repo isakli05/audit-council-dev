@@ -1,12 +1,15 @@
-# AUCDEV-023 External Bootstrap Supervisor (EBS) — remediation candidate
+# AUCDEV-023 External Bootstrap Supervisor (EBS) — second remediation candidate
 
 Bounded implementation of the operator-ADOPTED AUCDEV-023 auditor-bootstrap
 governance architecture **R1 = CONTROLLERLESS / PROCESS-BOUND /
 TARGET-INDEPENDENT / ONE-SHOT**, produced under the operator's 2026-09-19
-bounded implementation authority and the 2026-09-19 bounded **EBS
+bounded implementation authority, the 2026-09-19 bounded **EBS
 remediation** authority (Control Room findings AUCDEV023-CR-EBS-001/-002/
 -003; canonical remediation record:
-`docs/chatgpt-project/AUCDEV-023-EBS-REMEDIATION-REPORT.md`).
+`docs/chatgpt-project/AUCDEV-023-EBS-REMEDIATION-REPORT.md`), and the
+2026-09-19 bounded **second EBS remediation** authority (finding
+AUCDEV023-CR-EBS-REM-001; canonical record:
+`docs/chatgpt-project/AUCDEV-023-EBS-SECOND-REMEDIATION-REPORT.md`).
 
 ## What this is
 
@@ -14,10 +17,12 @@ remediation** authority (Control Room findings AUCDEV023-CR-EBS-001/-002/
   binding validation, a one-shot state machine, operator-custodied durable
   accounting with full binding-identity records, sealed credential
   custody, a verified-open-fd boundary-child launch mechanism, runtime
-  package self-identity verification, generic report custody with a
+  package self-identity verification, **generic fail-closed frozen
+  event-package verification with transport cross-binding (second
+  remediation)**, generic report custody with a
   credential leak screen, and an inspection-only CLI.
-- **A remediation candidate awaiting a FRESH independent Control Room
-  readback.** Not accepted, not trusted for any event.
+- **A second remediation candidate awaiting a FRESH independent Control
+  Room readback.** Not accepted, not trusted for any event.
 
 ## What this is NOT
 
@@ -55,6 +60,67 @@ event-package binding of the same attempt: the store refuses the digest
 mismatch and record creation for an existing attempt fails closed.
 Synthetic binding documents used by the zero-provider tests are built in
 `tests/conftest.py` — no document builder exists in the production TCB.
+
+## Frozen event-package cross-binding (CR-EBS-REM-001, second remediation)
+
+`ebs/launch.py: verify_event_package` is executed by EVERY Supervisor
+construction, BEFORE any gate can pass, immediately after the live EBS
+self-identity verification and the Supervisor⇄store binding. The frozen
+event package root is a **MANDATORY** `Supervisor` constructor input —
+no default, no flag, no environment variable, no CLI bypass (the CLI
+remains inspection-only).
+
+**Versioned strict event-package manifest contract**
+(`ebs/binding.py: EVENT_MANIFEST_SCHEMA` =
+`AUCDEV-023-EVENT-PACKAGE-MANIFEST-V1`): the package's `MANIFEST.json`
+parsed document has EXACTLY the key set `{schema, transport_binding,
+files, package_sha256}` — unknown or missing keys, a wrong schema tag,
+or duplicate/non-finite JSON are refused (the shared strict parser).
+`files` rows and `package_sha256` follow the SAME non-circular package
+identity construction as the EBS manifest above, and verification REUSES
+`verify_package_identity` (no second package verifier): raw manifest
+bytes against the binding-pinned `event_package.manifest_sha256`,
+non-circular package identity against the binding-pinned
+`event_package.package_sha256`, exact per-file byte size + SHA-256,
+exact payload-set equality, missing/stale/unrecorded payload and
+symlink refusal.
+
+**Non-circular cross-binding projection**: the manifest's
+`transport_binding` field must equal `binding_projection(binding)` —
+EVERY binding security dimension (policy id; event id; auditor role;
+attempt id; the exact frozen five-field target; prompt-contract digest;
+common-evidence manifest digest; boundary launcher identity+SHA-256;
+auditor identity incl. provider role, adapter id, executable
+identity+SHA-256; sandbox profile id; tool wrapper identity+SHA-256;
+EBS package identity pair; output identity; the COMPLETE gate-evidence
+record set) — EXCEPT `event_package` itself. The two sides are compared
+as canonical JSON bytes (type-strict: JSON `true` ≠ `1`, `1.0` ≠ `1`).
+The exclusion is what makes the construction non-circular: the
+projection is covered by the event-package manifest/package identity,
+while the event-package identity pair is pinned INDEPENDENTLY by the
+binding and verified against the actual package bytes. No field is
+verified by hashing itself.
+
+**Consequences** (both directions are tested in
+`tests/test_eventpackage.py`):
+
+- A binding that remains internally valid but substitutes ANY component
+  identity (launcher, sandbox, adapter, auditor executable, tool
+  wrapper, prompt/evidence digests, gate evidence, a recombined
+  event/attempt/output set) while RETAINING the same declared
+  event-package identity is REFUSED (`EVENT_PACKAGE_PROJECTION_MISMATCH`)
+  before `GATES_PASSED` — digest coverage of the binding document is
+  never used as event-package membership proof.
+- A regenerated, perfectly self-consistent event package whose manifest
+  projection declares a different component — including a different
+  frozen target — is REFUSED even when the binding's `event_package`
+  pins are updated to the new package identity: package identity
+  verification and component cross-binding are separate checks.
+
+Synthetic event packages for the zero-provider tests are built in
+`tests/conftest.py: make_event_package` (unmistakably inert temporary
+trees). The REAL AUCDEV-023 event package is NOT authorized, NOT built,
+NOT committed anywhere in this repository.
 
 ## Runtime self-identity verification (CR-EBS-003)
 
@@ -141,10 +207,12 @@ frozen; clean report frozen 0444; absorbing terminal states.
 ```
 ebs/                production source (Python 3 stdlib only, Linux-only)
   binding.py        frozen-binding parser/validator + policy constants
+                    + event-package manifest contract + binding projection
   statemachine.py   one-shot attempt state machine (absorbing terminals)
   accounting.py     hash-chained JSONL record + read-only inspection
   custody.py        non-dumpable sealed-memfd credential custody
-  launch.py         package self-verification + Supervisor + verified-fd exec
+  launch.py         package verification (EBS self + event package with
+                    transport cross-binding) + Supervisor + verified-fd exec
   reportcustody.py  report freeze + credential leak screen
   cli.py            inspection-only CLI (no authority operations)
 tests/              deterministic zero-provider test battery

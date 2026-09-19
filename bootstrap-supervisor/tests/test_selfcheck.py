@@ -204,18 +204,19 @@ def test_self_check_runs_before_gates_can_pass(cust_dir, tmp_path, launcher):
     store = AccountingStore.create(cust_dir, binding.attempt_id,
                                    binding.digest)
     with pytest.raises(LaunchRefused, match="MANIFEST_IDENTITY"):
-        Supervisor(binding, store)
+        Supervisor(binding, store, tmp_path / "never-reached-package")
     # with the correct live pins the same construction path works and
     # gates can pass (positive control; DISTINCT attempt id, live tree
     # untouched):
-    from conftest import valid_binding_document
+    from conftest import make_event_package, valid_binding_document
     doc2 = valid_binding_document(event_id="evt-0011223344556688",
                                   role="AUDITOR_B",
                                   launcher_sha256=launcher[1])
+    pkg2 = make_event_package(doc2, tmp_path, name="pkg-selfcheck-pos")
     binding2 = parse_binding(json.dumps(doc2).encode())
     store2 = AccountingStore.create(cust_dir, binding2.attempt_id,
                                     binding2.digest)
-    sup = Supervisor(binding2, store2)
+    sup = Supervisor(binding2, store2, pkg2)
     sup.validate_gates()
     assert sup.state == "GATES_PASSED"
 

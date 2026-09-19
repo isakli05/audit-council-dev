@@ -102,17 +102,20 @@ def test_no_plugin_or_extension_architecture():
 
 
 # Adopted design §4.3 bound: <= ~1500 production source lines (baseline
-# 1357 at the first implementation candidate).  The CR-EBS-001/-002/-003
-# remediation closed all three findings at EXACTLY 1571 lines — a
-# disclosed +71-line deviation from the task-preferred hard 1500 (floor
-# analysis in AUCDEV-023-EBS-REMEDIATION-REPORT.md); the battery now
-# enforces an EXACT freeze at 1571: ANY growth, even one line, fails.
-REMEDIATION_LOC_BOUND = 1571
+# 1357 at the first implementation candidate; 1571 at the CR-EBS-001/
+# -002/-003 remediation, accepted as residual by the Control Room and
+# frozen).  The CR-EBS-REM-001 second remediation adds the event-package
+# cross-binding boundary and closes at EXACTLY 1664 lines — +93 over the
+# 1571 freeze, classified NEW_TCB_GROWTH / AWAITING_CONTROL_ROOM_ACCEPTANCE
+# with exact function-level attribution in
+# AUCDEV-023-EBS-SECOND-REMEDIATION-REPORT.md; the battery now enforces
+# an EXACT freeze at 1664: ANY further growth, even one line, fails.
+SECOND_REMEDIATION_LOC_BOUND = 1664
 
 
 def test_production_loc_within_minimal_tcb_bound():
     total = sum(len(p.read_text().splitlines()) for p in PKG_FILES)
-    assert total <= REMEDIATION_LOC_BOUND, \
+    assert total <= SECOND_REMEDIATION_LOC_BOUND, \
         f"production source grew to {total} lines"
 
 

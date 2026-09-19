@@ -15,6 +15,12 @@ accounting store, and durably recorded at CONSUMED_PRE_EXEC — swapping
 ANY dimension changes the digest, which store and supervisor refuse for
 the same attempt.  Synthetic test documents are built in
 tests/conftest.py (no doc-builder lives in the TCB).
+
+Second remediation (CR-EBS-REM-001): this module also defines the
+VERSIONED STRICT EVENT-PACKAGE MANIFEST CONTRACT and the canonical
+transport projection `binding_projection`, established mechanically by
+`launch.verify_event_package` BEFORE GATES_PASSED (non-circular
+construction documented in README.md + the second-remediation report).
 """
 from __future__ import annotations
 
@@ -78,6 +84,19 @@ TOP_LEVEL = ("policy_id", "event_id", "auditor_role", "attempt_id", "target",
              "tool_wrapper", "ebs_package", "event_package",
              "output_identity", "gate_evidence")
 
+# --- versioned strict event-package manifest contract (CR-EBS-REM-001;
+# full semantics in README.md + second-remediation report): a frozen
+# event package's manifest has an EXACT key set, an EXACT schema tag,
+# and the COMPLETE transport projection below. ---
+EVENT_MANIFEST_SCHEMA = "AUCDEV-023-EVENT-PACKAGE-MANIFEST-V1"
+EVENT_MANIFEST_KEYS = frozenset(
+    ("schema", "transport_binding", "files", "package_sha256"))
+# Every binding security dimension EXCEPT event_package itself (the
+# package's own identity pair is pinned independently by the binding and
+# verified against the actual package bytes — no circular self-hashing).
+PROJECTION_FIELDS = tuple(name for name in TOP_LEVEL
+                          if name != "event_package")
+
 
 class BindingError(ValueError):
     """Refused binding document (fail closed)."""
@@ -110,7 +129,9 @@ def _reject_constant(name):
     raise BindingError(f"NON_FINITE_JSON_CONSTANT: {name}")
 
 
-def _strict_loads(data):
+def strict_loads(data):
+    """Strict JSON parse (shared by the binding document and both package
+    manifest verifiers): duplicate keys and non-finite constants refused."""
     if isinstance(data, str):
         data = data.encode()
     try:
@@ -175,7 +196,7 @@ class Binding:
 
 def parse_binding(data) -> Binding:
     """Parse and fully validate a frozen binding document (fail closed)."""
-    doc = _strict_loads(data)
+    doc = strict_loads(data)
     _exact_keys(doc, TOP_LEVEL, "BINDING")
 
     if doc["policy_id"] != POLICY_ID:
@@ -284,3 +305,16 @@ def parse_binding(data) -> Binding:
         output_identity=dict(doc["output_identity"]),
         gate_evidence={k: dict(v) for k, v in doc["gate_evidence"].items()},
         digest=hashlib.sha256(canonical_bytes(doc)).hexdigest())
+
+
+def binding_projection(binding: Binding) -> dict:
+    """Canonical transport projection of a parsed binding: the EXACT value
+    a frozen event-package manifest's transport_binding field must equal
+    (launch.verify_event_package compares the two as canonical JSON
+    bytes, so JSON type confusions such as true==1 cannot pass).  Covers
+    every security dimension in PROJECTION_FIELDS; event_package is
+    intentionally EXCLUDED — it is the package's own identity pair,
+    verified independently against the actual package bytes (the
+    non-circular construction).  Internal use only: the result is
+    serialized, never mutated."""
+    return {name: getattr(binding, name) for name in PROJECTION_FIELDS}

@@ -4,14 +4,18 @@ Every credential byte in this battery is SYNTHETIC and INERT.  Every
 launched child is a repository test fixture.  No provider client, network
 call, or real credential exists anywhere in this battery.
 
-This module also owns the SYNTHETIC BINDING-DOCUMENT BUILDER (moved out
-of the production TCB at remediation time: no doc-builder lives in
-ebs/**).  The builder pins the LIVE shipped EBS package identity by
-deriving it INDEPENDENTLY from MANIFEST.json bytes — the same
-non-circular construction the production verifier uses (README.md) —
-so every Supervisor-based test exercises the true positive runtime
-self-identity path, and any live-tree tampering fails the battery.
+This module also owns the SYNTHETIC BINDING-DOCUMENT BUILDER and the
+SYNTHETIC EVENT-PACKAGE BUILDER (both moved/kept out of the production
+TCB: no doc/package builder lives in ebs/**).  The binding builder pins
+the LIVE shipped EBS package identity by deriving it INDEPENDENTLY from
+MANIFEST.json bytes — the same non-circular construction the production
+verifier uses (README.md) — so every Supervisor-based test exercises the
+true positive runtime self-identity path, and any live-tree tampering
+fails the battery.  The event-package builder constructs ONLY
+unmistakably synthetic/inert temporary event packages (the REAL
+AUCDEV-023 event package is NOT authorized, NOT built, NOT committed).
 """
+import copy
 import hashlib
 import json
 import os
@@ -24,9 +28,10 @@ EBS_ROOT = Path(__file__).resolve().parents[1]
 if str(EBS_ROOT) not in sys.path:
     sys.path.insert(0, str(EBS_ROOT))
 
-from ebs.binding import (FROZEN_TARGET, OUTPUT_KIND, POLICY_ID,  # noqa: E402
-                         REQUIRED_GATES, ROLE_PROVIDER_ROLES,
-                         attempt_id_for, output_name_for)
+from ebs.binding import (EVENT_MANIFEST_SCHEMA, FROZEN_TARGET,  # noqa: E402
+                         OUTPUT_KIND, POLICY_ID, REQUIRED_GATES,
+                         ROLE_PROVIDER_ROLES, attempt_id_for,
+                         output_name_for)
 
 # The one synthetic inert credential literal used by the whole battery.
 SYNTH_CRED = b"EBS-SYNTHETIC-INERT-CREDENTIAL-7c31d9f0-NOT-REAL-0001"
@@ -117,6 +122,60 @@ def valid_binding_document(event_id, role, launcher_sha256,
     }
 
 
+EVENT_PKG_NAME = "event-package"
+EVENT_PKG_MARKER = (b"EBS-SYNTHETIC-INERT-EVENT-PACKAGE-FIXTURE-"
+                    b"NOT-A-REAL-EVENT-PACKAGE-7c31d9f0-0002")
+
+
+def make_event_package(doc, tmp_path, name=EVENT_PKG_NAME,
+                       projection_mutator=None) -> Path:
+    """Build ONE unmistakably synthetic/inert event package for a binding
+    document and pin its live identity into doc["event_package"].
+
+    Test aid ONLY (no package builder lives in the production TCB): the
+    REAL AUCDEV-023 event package is NOT authorized, NOT built here, and
+    NOT committed anywhere.  The manifest follows the production versioned
+    event-package contract: exact key set (schema, transport_binding,
+    files, package_sha256), the transport projection = every binding
+    dimension EXCEPT event_package, and the non-circular package identity
+    (digest of the manifest document EXCLUDING its own package_sha256
+    key).  Optional projection_mutator alters ONLY the manifest
+    transport_binding projection (PACKAGE->BINDING negatives)."""
+    payloads = {
+        "SYNTHETIC-INERT-MARKER.txt": EVENT_PKG_MARKER,
+        "transport/prompt-contract.json": json.dumps(
+            {"synthetic_inert": True,
+             "for_digest": doc["prompt_contract_digest"]},
+            sort_keys=True).encode(),
+        "transport/common-evidence-manifest.json": json.dumps(
+            {"synthetic_inert": True,
+             "for_digest": doc["common_evidence_manifest_digest"]},
+            sort_keys=True).encode(),
+    }
+    root = tmp_path / name
+    (root / "transport").mkdir(parents=True)
+    for rel, data in payloads.items():
+        (root / rel).write_bytes(data)
+    projection = {key: copy.deepcopy(value) for key, value in doc.items()
+                  if key != "event_package"}
+    if projection_mutator is not None:
+        projection_mutator(projection)
+    manifest = {
+        "schema": EVENT_MANIFEST_SCHEMA,
+        "transport_binding": projection,
+        "files": [{"path": rel, "bytes": len(data),
+                   "sha256": sha_hex(data)}
+                  for rel, data in sorted(payloads.items())],
+    }
+    manifest["package_sha256"] = sha_hex(json.dumps(
+        manifest, sort_keys=True, separators=(",", ":")).encode())
+    raw = (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode()
+    (root / "MANIFEST.json").write_bytes(raw)
+    doc["event_package"] = {"manifest_sha256": sha_hex(raw),
+                            "package_sha256": manifest["package_sha256"]}
+    return root
+
+
 def pipe_source(data: bytes = SYNTH_CRED) -> int:
     """Operator-style pipe credential source (writer closes after write)."""
     r, w = os.pipe()
@@ -196,8 +255,19 @@ def launcher_b(tmp_path):
 
 
 @pytest.fixture
-def binding_doc(launcher):
-    return binding_for(launcher[1])
+def binding_doc(launcher, tmp_path):
+    doc = binding_for(launcher[1])
+    make_event_package(doc, tmp_path)   # binds + pins a synthetic package
+    return doc
+
+
+@pytest.fixture
+def event_package(tmp_path, binding_doc):
+    """Root of the synthetic event package bound (and in-place pinned) by
+    the binding_doc fixture — same tmp_path instance, so the pins in
+    binding_doc match this tree exactly (depends on binding_doc so the
+    package always exists when this fixture is requested)."""
+    return tmp_path / EVENT_PKG_NAME
 
 
 @pytest.fixture
