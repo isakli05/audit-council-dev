@@ -200,8 +200,13 @@ with no revival and read-only record inspection; runtime package
 self-identity verification pinned non-circularly in the binding; canonical
 report:
 [AUCDEV-023-EBS-REMEDIATION-REPORT](AUCDEV-023-EBS-REMEDIATION-REPORT.md)).
-The remediation is NOT Control Room accepted — a FRESH independent Control
-Room readback of the remediation candidate is the single next action — and
+The fresh Control Room readback of that remediation candidate returned
+PARTIALLY_ACCEPTED / SECOND_BOUNDED_REMEDIATION_REQUIRED (canonical record:
+[AUCDEV-023-EBS-REMEDIATION-READBACK](AUCDEV-023-EBS-REMEDIATION-READBACK.md)):
+AUCDEV023-CR-EBS-002 and AUCDEV023-CR-EBS-003 CLOSED at Control Room
+implementation-readback strength, AUCDEV023-CR-EBS-001 PARTIALLY_REMEDIATED /
+OPEN_BLOCKING, and NEW blocking finding AUCDEV023-CR-EBS-REM-001
+(event-package component cross-binding not established) — and
 the EBS is NOT installed Audit Council runtime; the product/runtime source
 baseline of this document is unchanged.
 
@@ -239,8 +244,12 @@ candidate: the EBS is separate bootstrap tooling under
 authority; sealed-memfd custody; verified-open-fd launch; durable
 accounting; report custody with leak screen; inert synthetic test fixtures
 only; zero provider/model executions; qualification NONE / installation
-NONE), awaiting the fresh independent Control Room readback of the
-remediation candidate. It is NOT an event package and is NOT
+NONE), whose remediation-candidate Control Room readback returned
+CONTROL_ROOM_REMEDIATION_READBACK_PARTIAL / SECOND_BOUNDED_REMEDIATION_REQUIRED
+(CR-EBS-002/-003 CLOSED at Control Room implementation-readback strength;
+CR-EBS-001 PARTIALLY_REMEDIATED / OPEN_BLOCKING; CR-EBS-REM-001 OPEN /
+BLOCKING; closure of no finding transfers to a future SHA). It is NOT an
+event package and is NOT
 execution-authorized: GATE-W′ (REQUIRED/UNPROVEN) and real-client
 credential/tool isolation (UNPROVEN / EVENT_PREPARATION_GATE) remain future
 preparation gates, and the future networked boundary launcher / tool
