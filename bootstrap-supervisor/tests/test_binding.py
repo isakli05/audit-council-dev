@@ -25,10 +25,16 @@ def test_valid_synthetic_binding_accepted(binding_doc, parsed_binding):
 def test_binding_binds_every_required_field_class(parsed_binding):
     b = parsed_binding
     for name in ("policy_id", "event_id", "auditor_role", "attempt_id",
-                 "common_evidence_manifest_digest", "prompt_contract_digest"):
+                 "common_evidence_manifest_digest", "prompt_contract_digest",
+                 "sandbox_profile_id"):
         assert isinstance(getattr(b, name), str) and getattr(b, name)
     assert b.boundary_launcher["sha256"]
     assert b.auditor_identity["adapter_id"]
+    assert b.auditor_identity["executable_identity"]
+    assert b.auditor_identity["executable_sha256"]
+    assert b.tool_wrapper["identity"] and b.tool_wrapper["sha256"]
+    for pkg in (b.ebs_package, b.event_package):
+        assert set(pkg) == {"manifest_sha256", "package_sha256"}
     assert b.output_identity["name"].endswith(".first-pass-report.json")
 
 
@@ -113,6 +119,51 @@ CASES = [
          attempt_id="evt-ffffffffffffffff-A-01")),
     ("gate evidence unknown field",
      lambda d: d["gate_evidence"]["RESOURCE_GATE"].update(note="hi")),
+    # ---- new mandatory transport-binding dimensions (CR-EBS-001) ----
+    ("missing sandbox profile id", lambda d: d.pop("sandbox_profile_id")),
+    ("sandbox profile id unsafe",
+     lambda d: d.update(sandbox_profile_id="bad profile/id!")),
+    ("sandbox profile id wrong type",
+     lambda d: d.update(sandbox_profile_id=["SANDBOX"])),
+    ("tool wrapper missing",
+     lambda d: d.pop("tool_wrapper")),
+    ("tool wrapper unknown field",
+     lambda d: d["tool_wrapper"].update(extra=1)),
+    ("tool wrapper missing identity",
+     lambda d: d["tool_wrapper"].pop("identity")),
+    ("tool wrapper identity unsafe",
+     lambda d: d["tool_wrapper"].update(identity="TOOL WRAPPER!")),
+    ("tool wrapper sha malformed",
+     lambda d: d["tool_wrapper"].update(sha256="xyz")),
+    ("auditor executable identity missing",
+     lambda d: d["auditor_identity"].pop("executable_identity")),
+    ("auditor executable identity unsafe",
+     lambda d: d["auditor_identity"].update(
+         executable_identity="an executable identity string")),
+    ("auditor executable identity wrong type",
+     lambda d: d["auditor_identity"].update(executable_identity=7)),
+    ("auditor executable sha missing",
+     lambda d: d["auditor_identity"].pop("executable_sha256")),
+    ("auditor executable sha malformed",
+     lambda d: d["auditor_identity"].update(executable_sha256="A" * 64)),
+    ("ebs package missing",
+     lambda d: d.pop("ebs_package")),
+    ("ebs package unknown key",
+     lambda d: d["ebs_package"].update(extra="x")),
+    ("ebs package missing key",
+     lambda d: d["ebs_package"].pop("package_sha256")),
+    ("ebs package wrong type",
+     lambda d: d.update(ebs_package="pin")),
+    ("ebs package malformed sha",
+     lambda d: d["ebs_package"].update(manifest_sha256="0" * 63)),
+    ("event package missing",
+     lambda d: d.pop("event_package")),
+    ("event package wrong type",
+     lambda d: d.update(event_package=["pin"])),
+    ("event package malformed sha",
+     lambda d: d["event_package"].update(package_sha256="zzz")),
+    ("event package unknown key",
+     lambda d: d["event_package"].update(note="hi")),
 ]
 
 

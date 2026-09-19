@@ -186,12 +186,24 @@ Specialist blindness/grounding checks are heuristic and not release-enabled.
 Governance adopted 2026-09-19 by explicit operator decision — governance/
 policy acceptance ONLY. This is NOT runtime/current Audit Council product
 functionality, and adoption granted no execution authority. A bounded EBS
-IMPLEMENTATION CANDIDATE now exists under `bootstrap-supervisor/**`
-(published 2026-09-19 under separate bounded implementation authority;
-canonical report:
+implementation candidate was published 2026-09-19 under separate bounded
+implementation authority (canonical report:
 [AUCDEV-023-EBS-IMPLEMENTATION-REPORT](AUCDEV-023-EBS-IMPLEMENTATION-REPORT.md));
-it is NOT yet Control Room accepted and is NOT installed Audit Council
-runtime — the product/runtime source baseline of this document is unchanged.
+the Control Room readback of that candidate returned
+PARTIALLY_ACCEPTED / REMEDIATION_REQUIRED with three OPEN/BLOCKING findings
+(AUCDEV023-CR-EBS-001/-002/-003; canonical record:
+[AUCDEV-023-EBS-IMPLEMENTATION-READBACK](AUCDEV-023-EBS-IMPLEMENTATION-READBACK.md)),
+and a bounded REMEDIATION candidate now exists under `bootstrap-supervisor/**`
+(published 2026-09-19 under the operator's bounded remediation authority:
+complete mandatory transport binding; structurally closed one-shot authority
+with no revival and read-only record inspection; runtime package
+self-identity verification pinned non-circularly in the binding; canonical
+report:
+[AUCDEV-023-EBS-REMEDIATION-REPORT](AUCDEV-023-EBS-REMEDIATION-REPORT.md)).
+The remediation is NOT Control Room accepted — a FRESH independent Control
+Room readback of the remediation candidate is the single next action — and
+the EBS is NOT installed Audit Council runtime; the product/runtime source
+baseline of this document is unchanged.
 
 The adopted design (Control Room readback-accepted revision, architecture R1)
 introduces, for at most one future AUCDEV-023 harness-audit event only:
@@ -221,17 +233,19 @@ ordinary predecessor chain is not claimed. Canonical record:
 [AUCDEV-023-AUDITOR-BOOTSTRAP-GOVERNANCE-ADOPTION](AUCDEV-023-AUDITOR-BOOTSTRAP-GOVERNANCE-ADOPTION.md).
 
 The product/runtime source baseline of this document is unchanged by the
-adoption or by the implementation candidate: the EBS is separate bootstrap
-tooling under `bootstrap-supervisor/**` (stdlib-only minimal TCB; one-shot
-process-bound authority; sealed-memfd custody; verified-open-fd launch;
-durable accounting; report custody with leak screen; inert synthetic test
-fixtures only; zero provider/model executions; qualification NONE /
-installation NONE), awaiting independent Control Room readback. It is NOT
-an event package and is NOT execution-authorized: GATE-W′ (REQUIRED/
-UNPROVEN) and real-client credential/tool isolation (UNPROVEN /
-EVENT_PREPARATION_GATE) remain future preparation gates, and the future
-networked boundary launcher / tool wrapper / event-package artifacts remain
-separately authorized event-side stages.
+adoption, the implementation candidate, its readback, or the remediation
+candidate: the EBS is separate bootstrap tooling under
+`bootstrap-supervisor/**` (stdlib-only minimal TCB; one-shot process-bound
+authority; sealed-memfd custody; verified-open-fd launch; durable
+accounting; report custody with leak screen; inert synthetic test fixtures
+only; zero provider/model executions; qualification NONE / installation
+NONE), awaiting the fresh independent Control Room readback of the
+remediation candidate. It is NOT an event package and is NOT
+execution-authorized: GATE-W′ (REQUIRED/UNPROVEN) and real-client
+credential/tool isolation (UNPROVEN / EVENT_PREPARATION_GATE) remain future
+preparation gates, and the future networked boundary launcher / tool
+wrapper / event-package artifacts remain separately authorized event-side
+stages.
 
 ## Qualification and deeper sources
 

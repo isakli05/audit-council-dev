@@ -7,6 +7,14 @@ identity, wrong roles/identities, and incomplete or non-PASS mandatory
 gate evidence are all refused.  The binding is AUCDEV-023-specific:
 target-independence means independence from the audited code, NOT
 reusability of this policy for unrelated targets.
+
+The schema carries the COMPLETE adopted transport-binding dimension
+set (design §17; list and semantics in README.md): every dimension is
+mandatory, digest-covered by `Binding.digest`, mechanically bound to the
+accounting store, and durably recorded at CONSUMED_PRE_EXEC — swapping
+ANY dimension changes the digest, which store and supervisor refuse for
+the same attempt.  Synthetic test documents are built in
+tests/conftest.py (no doc-builder lives in the TCB).
 """
 from __future__ import annotations
 
@@ -56,13 +64,19 @@ REQUIRED_GATES = (
 
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 EVENT_ID_RE = re.compile(r"^evt-[0-9a-f]{16}$")
+# Pinned identity strings (executable/sandbox/wrapper): safe tokens only.
+IDENTITY_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 OUTPUT_KIND = "FIRST_PASS_REPORT"
 GATE_FIELDS = ("status", "evidence_sha256", "evidence_size", "role",
                "attempt_id")
+# A pinned package identity pair (see launch.py / README.md for the
+# non-circular construction of both digests).
+PACKAGE_FIELDS = ("manifest_sha256", "package_sha256")
 TOP_LEVEL = ("policy_id", "event_id", "auditor_role", "attempt_id", "target",
              "common_evidence_manifest_digest", "prompt_contract_digest",
-             "boundary_launcher", "auditor_identity", "output_identity",
-             "gate_evidence")
+             "boundary_launcher", "auditor_identity", "sandbox_profile_id",
+             "tool_wrapper", "ebs_package", "event_package",
+             "output_identity", "gate_evidence")
 
 
 class BindingError(ValueError):
@@ -125,6 +139,20 @@ def _sha_field(value, where):
     return value
 
 
+def _identity_field(value, where):
+    if not isinstance(value, str) or not IDENTITY_RE.match(value):
+        raise BindingError(f"{where}_NOT_A_SAFE_IDENTITY")
+    return value
+
+
+def _package_fields(value, where):
+    """Validate one pinned package-identity pair (exact keys, digests)."""
+    _exact_keys(value, PACKAGE_FIELDS, where)
+    _sha_field(value["manifest_sha256"], f"{where}_MANIFEST")
+    _sha_field(value["package_sha256"], f"{where}_PACKAGE")
+    return dict(value)
+
+
 @dataclass(frozen=True)
 class Binding:
     policy_id: str
@@ -136,46 +164,13 @@ class Binding:
     prompt_contract_digest: str
     boundary_launcher: dict
     auditor_identity: dict
+    sandbox_profile_id: str
+    tool_wrapper: dict
+    ebs_package: dict
+    event_package: dict
     output_identity: dict
     gate_evidence: dict
     digest: str
-
-
-def valid_binding_document(event_id: str, role: str, launcher_sha256: str,
-                           launcher_identity: str = "INERT-LOCAL-FIXTURE-LAUNCHER-V1",
-                           adapter_id: str = "synthetic_inert_local_v1",
-                           provider_role: str = None,
-                           evidence_seed: str = "synthetic-evidence") -> dict:
-    """Build one well-formed synthetic binding document (operator/test aid)."""
-    attempt = attempt_id_for(event_id, role)
-    prov = provider_role or next(iter(ROLE_PROVIDER_ROLES[role]))
-    manifest_digest = hashlib.sha256(
-        f"{evidence_seed}:common".encode()).hexdigest()
-    gates = {gate: {
-        "status": "PASS",
-        "evidence_sha256": manifest_digest
-        if gate == "COMMON_EVIDENCE_PARITY" else hashlib.sha256(
-            f"{evidence_seed}:{gate}".encode()).hexdigest(),
-        "evidence_size": 64,
-        "role": role,
-        "attempt_id": attempt,
-    } for gate in REQUIRED_GATES}
-    return {
-        "policy_id": POLICY_ID,
-        "event_id": event_id,
-        "auditor_role": role,
-        "attempt_id": attempt,
-        "target": dict(FROZEN_TARGET),
-        "common_evidence_manifest_digest": manifest_digest,
-        "prompt_contract_digest": hashlib.sha256(
-            f"{evidence_seed}:contract".encode()).hexdigest(),
-        "boundary_launcher": {"identity": launcher_identity,
-                              "sha256": launcher_sha256},
-        "auditor_identity": {"provider_role": prov, "adapter_id": adapter_id},
-        "output_identity": {"kind": OUTPUT_KIND,
-                            "name": output_name_for(attempt)},
-        "gate_evidence": gates,
-    }
 
 
 def parse_binding(data) -> Binding:
@@ -220,8 +215,9 @@ def parse_binding(data) -> Binding:
     _sha_field(doc["boundary_launcher"]["sha256"],
                "BOUNDARY_LAUNCHER_SHA256")
 
-    _exact_keys(doc["auditor_identity"], ("provider_role", "adapter_id"),
-                "AUDITOR_IDENTITY")
+    _exact_keys(doc["auditor_identity"],
+                ("provider_role", "adapter_id", "executable_identity",
+                 "executable_sha256"), "AUDITOR_IDENTITY")
     if doc["auditor_identity"]["provider_role"] not in \
             ROLE_PROVIDER_ROLES[role]:
         raise BindingError(
@@ -230,6 +226,19 @@ def parse_binding(data) -> Binding:
     if doc["auditor_identity"]["adapter_id"] not in ROLE_ADAPTERS[role]:
         raise BindingError(
             f"ADAPTER_ID_UNKNOWN: {doc['auditor_identity']['adapter_id']!r}")
+    _identity_field(doc["auditor_identity"]["executable_identity"],
+                    "AUDITOR_EXECUTABLE_IDENTITY")
+    _sha_field(doc["auditor_identity"]["executable_sha256"],
+               "AUDITOR_EXECUTABLE_SHA256")
+
+    _identity_field(doc["sandbox_profile_id"], "SANDBOX_PROFILE_ID")
+
+    _exact_keys(doc["tool_wrapper"], ("identity", "sha256"), "TOOL_WRAPPER")
+    _identity_field(doc["tool_wrapper"]["identity"], "TOOL_WRAPPER_IDENTITY")
+    _sha_field(doc["tool_wrapper"]["sha256"], "TOOL_WRAPPER_SHA256")
+
+    ebs_package = _package_fields(doc["ebs_package"], "EBS_PACKAGE")
+    event_package = _package_fields(doc["event_package"], "EVENT_PACKAGE")
 
     _exact_keys(doc["output_identity"], ("kind", "name"), "OUTPUT_IDENTITY")
     if doc["output_identity"]["kind"] != OUTPUT_KIND:
@@ -268,6 +277,10 @@ def parse_binding(data) -> Binding:
         prompt_contract_digest=doc["prompt_contract_digest"],
         boundary_launcher=dict(doc["boundary_launcher"]),
         auditor_identity=dict(doc["auditor_identity"]),
+        sandbox_profile_id=doc["sandbox_profile_id"],
+        tool_wrapper=dict(doc["tool_wrapper"]),
+        ebs_package=ebs_package,
+        event_package=event_package,
         output_identity=dict(doc["output_identity"]),
         gate_evidence={k: dict(v) for k, v in doc["gate_evidence"].items()},
         digest=hashlib.sha256(canonical_bytes(doc)).hexdigest())

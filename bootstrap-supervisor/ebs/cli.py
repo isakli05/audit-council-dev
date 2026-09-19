@@ -1,9 +1,9 @@
 """Inspection-only EBS command line interface.
 
 Deliberately read-only: it validates binding documents and inspects
-accounting history.  Authority operations exist ONLY as in-process
-state-machine control flow inside a supervisor object and are
-intentionally not exposed here as command invocations.
+accounting history through the read-only record view.  Authority
+operations exist ONLY as in-process state-machine control flow inside a
+supervisor object; no command can resume or revive an attempt.
 """
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import argparse
 import json
 import sys
 
-from .accounting import AccountingStore
+from .accounting import inspect_accounting_record
 from .binding import REQUIRED_GATES, parse_binding
 
 
@@ -26,6 +26,12 @@ def _validate_binding(path: str) -> int:
         "attempt_id": binding.attempt_id,
         "target_commit": binding.target["commit"],
         "binding_digest": binding.digest,
+        "sandbox_profile_id": binding.sandbox_profile_id,
+        "ebs_package_manifest_sha256":
+            binding.ebs_package["manifest_sha256"],
+        "ebs_package_sha256": binding.ebs_package["package_sha256"],
+        "event_package_manifest_sha256":
+            binding.event_package["manifest_sha256"],
         "gates_all_pass": sorted(REQUIRED_GATES),
     }
     print(json.dumps(summary, indent=2, sort_keys=True))
@@ -34,16 +40,10 @@ def _validate_binding(path: str) -> int:
 
 def _inspect_accounting(root: str, attempt_id: str,
                         binding_digest: str) -> int:
-    store = AccountingStore.attach(root, attempt_id, binding_digest)
-    summary = {
-        "ok": True,
-        "attempt_id": attempt_id,
-        "record_count": len(store.records),
-        "last_state": store.last_state,
-        "binding_digest": store.binding_digest,
-        "states": [rec["state"] for rec in store.records],
-    }
-    print(json.dumps(summary, indent=2, sort_keys=True))
+    view = inspect_accounting_record(root, attempt_id, binding_digest)
+    view["ok"] = True
+    view["record_count"] = len(view["records"])
+    print(json.dumps(view, indent=2, sort_keys=True))
     return 0
 
 
