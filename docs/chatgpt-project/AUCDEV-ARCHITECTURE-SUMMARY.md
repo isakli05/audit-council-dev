@@ -280,24 +280,34 @@ zero provider/model/auditor executions; real event package NOT
 PREPARED; existing S1 authorization PRESERVED / PAUSED / NOT CONSUMED.
 The fresh Control Room readback of that candidate returned
 PARTIALLY_ACCEPTED (canonical record:
-[AUCDEV-023-EBS-PREEXEC-GATE-REMEDIATION-READBACK](AUCDEV-023-EBS-PREEXEC-GATE-REMEDIATION-READBACK.md)):
-AUCDEV023-CR-EBS-S1-002 CLOSED / ACCEPTED and
-AUCDEV023-CR-EBS-S1-003 CLOSED / ACCEPTED, and
-AUCDEV023-CR-EBS-S1-001/-002/-003/REM-001/REM2-001 CLOSED /
-RECONFIRMED, all bound to EXACT SHA `6cf30f90…` with no transfer to
-a future changed SHA; CR-EBS-001 fresh reconfirmation WITHHELD
-(PRIOR_CLOSURE_ON_8E952D81 stands as historical fact; NEW
-S1-006 binding-completeness conflict); the +105 TCB growth
-(2035 → 2140) accepted as a NONBLOCKING residual at
-implementation-readback strength — while NEW blocking FINAL
+[AUCDEV-023-EBS-PREEXEC-GATE-REMEDIATION-READBACK](AUCDEV-023-EBS-PREEXEC-GATE-REMEDIATION-READBACK.md))
+and the 2026-09-20 implementer-strength follow-up
+([AUCDEV-023-EBS-FINAL-LAUNCH-SEAM-REMEDIATION-REPORT](AUCDEV-023-EBS-FINAL-LAUNCH-SEAM-REMEDIATION-REPORT.md)):
+S1-002/S1-003 were CLOSED / ACCEPTED and
+S1-001/-002/-003/REM-001/REM2-001 CLOSED / RECONFIRMED at EXACT SHA
+`6cf30f90…` (no transfer to a changed SHA), and the three FINAL
 LAUNCH-SEAM findings AUCDEV023-CR-EBS-S1-004 (credential custody and
 role not bound before consumption), AUCDEV023-CR-EBS-S1-005
-(consumption-to-execution immediacy not enforced), and
+(consumption-to-execution immediacy not enforced) and
 AUCDEV023-CR-EBS-S1-006 (frozen exec invocation binding incomplete)
-remain OPEN; event-package preparation remains AUTHORIZED / PAUSED
-pending final launch-seam remediation and fresh readback; the EBS is
-NOT installed Audit Council runtime and the product/runtime source
-baseline of this document is unchanged.
+are REMEDIATED AT IMPLEMENTER STRENGTH ONLY on the new candidate
+(`FINAL_LAUNCH_SEAM_REMEDIATION_CANDIDATE / AWAITING_FRESH_CONTROL_
+ROOM_READBACK`): Supervisor-owned binding-derived-role custody admitted
+before gates and consumption, the LaunchGrant/consume()/execute() split
+removed into one caller-uninterruptible run_attempt call through
+IMMEDIATE fork/exec, the live auditor executable verified/held against
+the binding SHA and delivered as AUDITOR_EXEC_FD=5, the exact frozen
+auditor argv and executable_version bound under manifest schema V4
+(V1/V2/V3 refused) and delivered byte-for-byte on a sealed
+AUDITOR_INVOCATION_FD=6, with no caller argv/env/custody/role/grant
+surface; CR-EBS-001 fresh reconfirmation remains WITHHELD (prior
+closure on 8e952d81 stands; the S1-006 conflict is remediated at
+implementer strength, awaiting fresh readback); the +209 TCB growth
+(2140 → 2349) is CANDIDATE_ONLY / NOT_CONTROL_ROOM_ACCEPTED
+(NEW_TCB_GROWTH / AWAITING_CONTROL_ROOM_ACCEPTANCE); event-package
+preparation remains AUTHORIZED / PAUSED pending the fresh final
+launch-seam readback; the EBS is NOT installed Audit Council runtime
+and the product/runtime source baseline of this document is unchanged.
 
 The adopted design (Control Room readback-accepted revision, architecture R1)
 introduces, for at most one future AUCDEV-023 harness-audit event only:

@@ -242,6 +242,50 @@ CASES = [
     ("network gate result schema is resource schema",
      lambda d: d["runtime_gates"]["NETWORK_READINESS"].update(
          result_schema="AUCDEV-023-RESOURCE-GATE-RESULT-V1")),
+    # ---- S1-006 V4: executable_version + exact auditor_invocation ----
+    ("executable version missing",
+     lambda d: d["auditor_identity"].pop("executable_version")),
+    ("executable version wrong type",
+     lambda d: d["auditor_identity"].update(executable_version=7)),
+    ("executable version empty",
+     lambda d: d["auditor_identity"].update(executable_version="")),
+    ("executable version has whitespace",
+     lambda d: d["auditor_identity"].update(
+         executable_version="1.0 0")),
+    ("executable version has control char",
+     lambda d: d["auditor_identity"].update(
+         executable_version="1.0\x00")),
+    ("executable version non-ascii",
+     lambda d: d["auditor_identity"].update(
+         executable_version="sürüm-1")),
+    ("executable version oversized",
+     lambda d: d["auditor_identity"].update(executable_version="v" * 65)),
+    ("auditor invocation missing",
+     lambda d: d.pop("auditor_invocation")),
+    ("auditor invocation wrong type dict",
+     lambda d: d.update(auditor_invocation={"argv": []})),
+    ("auditor invocation wrong type string",
+     lambda d: d.update(auditor_invocation="client --flag")),
+    ("auditor invocation empty list",
+     lambda d: d.update(auditor_invocation=[])),
+    ("auditor invocation non-string item",
+     lambda d: d.update(auditor_invocation=["client", 7])),
+    ("auditor invocation bool item",
+     lambda d: d.update(auditor_invocation=["client", True])),
+    ("auditor invocation null item",
+     lambda d: d.update(auditor_invocation=["client", None])),
+    ("auditor invocation empty item",
+     lambda d: d.update(auditor_invocation=["client", ""])),
+    ("auditor invocation NUL item",
+     lambda d: d.update(auditor_invocation=["client", "a\x00b"])),
+    ("auditor invocation newline item",
+     lambda d: d.update(auditor_invocation=["client", "a\nb"])),
+    ("auditor invocation item oversized",
+     lambda d: d.update(auditor_invocation=["client", "x" * 1025])),
+    ("auditor invocation total oversized",
+     lambda d: d.update(auditor_invocation=["x" * 1000] * 9)),
+    ("auditor invocation too many items",
+     lambda d: d.update(auditor_invocation=[f"arg{i}" for i in range(33)])),
 ]
 
 
@@ -278,6 +322,26 @@ def test_nan_refused(binding_doc):
                                            '"nan_field", NaN, "prompt_contract_digest"')
     with pytest.raises(BindingError):
         parse_binding(text.encode())
+
+
+def test_s1_006_v4_dimensions_digest_and_order_covered(binding_doc,
+                                                       parsed_binding):
+    """S1-006: executable_version and auditor_invocation are mandatory
+    V4 dimensions, exactly parsed with ordering preserved, and covered
+    by Binding.digest (any change to either changes the digest)."""
+    import copy as copy_mod
+    assert parsed_binding.auditor_identity["executable_version"] == \
+        binding_doc["auditor_identity"]["executable_version"]
+    assert parsed_binding.auditor_invocation == \
+        binding_doc["auditor_invocation"]          # exact ordered argv
+    base = parse_binding(json.dumps(binding_doc).encode())
+    reordered = copy_mod.deepcopy(binding_doc)
+    reordered["auditor_invocation"] = list(reversed(
+        reordered["auditor_invocation"]))
+    assert parse_binding(json.dumps(reordered).encode()).digest != base.digest
+    bumped = copy_mod.deepcopy(binding_doc)
+    bumped["auditor_identity"]["executable_version"] = "SYNTHETIC-INERT-1.0.1"
+    assert parse_binding(json.dumps(bumped).encode()).digest != base.digest
 
 
 def test_binding_is_target_specific(parsed_binding):

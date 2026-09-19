@@ -85,7 +85,7 @@ remains inspection-only).
 
 **Versioned strict event-package manifest contract**
 (`ebs/binding.py: EVENT_MANIFEST_SCHEMA` =
-`AUCDEV-023-EVENT-PACKAGE-MANIFEST-V3`, advanced from V2 by the
+`AUCDEV-023-EVENT-PACKAGE-MANIFEST-V4`, advanced from V3 by the
 S1-002/S1-003 preexec-gate remediation because the projection semantics
 materially changed again — the mandatory dynamic runtime-gate set became
 EXACTLY TWO descriptors (NETWORK_READINESS + RESOURCE_GATE) and the
@@ -180,56 +180,99 @@ fail-closed validated at parse; a `NETWORK_READINESS` or `RESOURCE_GATE`
 member inside `gate_evidence` is refused outright
 (`GATE_EVIDENCE_<GATE>_FORBIDDEN`). Both descriptors are covered by
 `binding.digest` and by the event-package transport projection (schema
-V3), so ANY substitution of EITHER gate fails cross-binding.
+V4), so ANY substitution of EITHER gate fails cross-binding.
 
-**The single preexec-consumption operation (CR-EBS-S1-003).** The
-formerly separate public operations `validate_gates()` /
-`verify_launcher()` / `consume()` NO LONGER EXIST. The ONE public
-preexec authority operation is `Supervisor.consume(launcher_path) ->
-LaunchGrant`, which performs — WITHOUT returning control to the caller
-between the steps:
+**The single authority operation (CR-EBS-S1-003 + final launch-seam
+CR-EBS-S1-004/-005/-006).** The formerly separate public operations
+`validate_gates()` / `verify_launcher()` / `consume()` / `execute()` NO
+LONGER EXIST, and NO `LaunchGrant` exists. The ONE public authority
+operation is `Supervisor.run_attempt(credential_source_fd,
+launcher_path, auditor_executable_path) -> ChildResult`, which performs
+— WITHOUT returning control to the caller between the steps:
 
-1. require an unspent, unissued attempt in state `PREPARED`;
-2. verify and HOLD the exact boundary launcher fd against the binding's
-   launcher SHA-256 (static byte identity, BEFORE the dynamic gates —
-   the launcher check is not a dynamic environmental gate);
-3. execute **NETWORK_READINESS exactly once**;
-4. execute **RESOURCE_GATE exactly once, LAST** — the final live
+1. require an unspent, unadvanced attempt in state `PREPARED`;
+2. ingest the credential SOURCE fd into Supervisor-owned sealed custody
+   (non-dumpable, source discipline, bounded read, four seals) with the
+   role derived ONLY from `binding.auditor_role` (plus a
+   defense-in-depth exact-role re-check) — BEFORE any gate and BEFORE
+   consumption (CR-EBS-S1-004);
+3. build the sealed read-only invocation-spec fd carrying the EXACT
+   frozen auditor argv as canonical binding bytes (CR-EBS-S1-006);
+4. verify and HOLD the exact boundary launcher fd AND the LIVE auditor
+   executable fd (regular + executable + exact binding SHA-256; a
+   mismatch is `PREEXEC_EXECUTABLE_IDENTITY_FAIL`) — static byte
+   identity, BEFORE the dynamic gates;
+5. execute **NETWORK_READINESS exactly once**;
+6. execute **RESOURCE_GATE exactly once, LAST** — the final live
    environmental gate before durable consumption;
-5. strictly validate both fresh results;
-6. durably append `GATES_PASSED` carrying BOTH fresh evidence sets;
-7. transition in-process to `GATES_PASSED` — a real but INTERNAL
+7. strictly validate both fresh results, then re-hash BOTH held fds
+   (gate-interval drift is still PREEXEC and authority-unconsumed);
+8. durably append `GATES_PASSED` carrying BOTH fresh evidence sets;
+9. transition in-process to `GATES_PASSED` — a real but INTERNAL
    TRANSIENT state: no public operation ever returns while the
    supervisor holds it;
-8. IMMEDIATELY durably append `CONSUMED_PRE_EXEC` with the complete
-   binding facts;
-9. transition to `CONSUMED_PRE_EXEC`, mint exactly one `LaunchGrant`,
-   and only then return.
+10. IMMEDIATELY durably append `CONSUMED_PRE_EXEC` with the complete
+    V4 binding facts (now including the executable version and the
+    exact-invocation digest/count);
+11. transition to `CONSUMED_PRE_EXEC`, irreversibly spend authority
+    in-process, and — still inside the SAME call — re-hash both held
+    fds (defense-in-depth), fork, give the child the fixed fd contract
+    (CRED_FD=3 sealed custody, FAIL_FD=4 CLOEXEC exec-fail pipe,
+    AUDITOR_EXEC_FD=5 the held verified auditor executable,
+    AUDITOR_INVOCATION_FD=6 the sealed frozen-argv spec), exec the
+    frozen boundary launcher via its held verified fd, record
+    `EXEC_ATTEMPTED`, wait, and only then return the `ChildResult`
+    (CR-EBS-S1-005).
 
-`GATES_PASSED` is therefore mechanically unreachable as a
-caller-visible state: there is no supported call sequence in which the
-EBS returns to caller code after the fresh `RESOURCE_GATE` PASS but
-before durable `CONSUMED_PRE_EXEC` — the exact
-freshness-not-coupled-to-consumption gap of CR-EBS-S1-003 is closed
+`GATES_PASSED` and `CONSUMED_PRE_EXEC` are therefore mechanically
+unreachable as caller-visible states: there is no supported call
+sequence in which the EBS returns to caller code after the fresh
+`RESOURCE_GATE` PASS but before the fork/exec attempt — the exact
+freshness-not-coupled-to-consumption gap of CR-EBS-S1-003 AND the
+consumption-to-execution immediacy gap of CR-EBS-S1-005 are closed
 STRUCTURALLY, with no wall-clock TTL, no second resource-gate
-execution, and no caller promises. Any failure — launcher identity,
-either gate, or either durable append (including a `CONSUMED_PRE_EXEC`
-append failure after `GATES_PASSED` persisted) — returns NO grant,
+execution, and no caller promises. Any pre-consumption failure —
+custody admission, invocation spec, launcher/auditor identity, either
+gate, or either durable append (including a `CONSUMED_PRE_EXEC` append
+failure after `GATES_PASSED` persisted) — returns NO ChildResult,
 terminalizes fail-closed (`TERMINAL_PREEXEC_STOP`), and permits no
 same-attempt retry; a persisted `GATES_PASSED` whose consumption append
-failed is never relabeled resumable.
+failed is never relabeled resumable. Post-consumption failures keep the
+consumed fail-closed semantics (terminal, never unconsumed, no retry).
+
+**Custody ownership and lifetime (CR-EBS-S1-004).** The Supervisor —
+not the caller — owns the sealed `CredentialCustody` for the attempt:
+the public API accepts a credential SOURCE fd and never a custody
+object, role, grant, argv tail, or environment override; the SAME held
+custody serves the child's `CRED_FD` and the report leak screen
+(`adopt_report` takes no custody argument), and is closed on every
+terminal path (preexec stop, post-consumption terminalization, report
+outcome/finish). No plaintext attribute, digest, hash, or log of the
+credential exists anywhere.
+
+**Exact frozen invocation (CR-EBS-S1-006).** The child environment is
+entirely EBS-defined (minimal `PATH`/`LANG`); the boundary launcher's
+own argv carries only EBS-bound non-secret context; and the auditor
+client's argv exists ONLY as the binding-frozen `auditor_invocation`
+delivered byte-for-byte on the sealed `AUDITOR_INVOCATION_FD`. There is
+no caller surface that can add, change, or remove any auditor argv
+element or any environment value. The binding's `executable_version` is
+a frozen declared version token (never a live-extracted claim); live
+byte identity is established ONLY by the exact SHA-256 of the held
+executable fd.
 
 **Runtime ordering** (every step fail-closed):
 
 1. live EBS package self-identity verification;
 2. Supervisor⇄store attempt + binding-digest equality;
 3. frozen event-package identity verification;
-4. event-package transport-projection equality (schema V3);
+4. event-package transport-projection equality (schema V4);
 5. BOTH runtime-gate artifacts identity-verified from the ALREADY
    verified package tree (manifest-row membership, regular executable
    file, `O_NOFOLLOW` open, exact SHA-256) and the verified open fds
    HELD;
-6. caller invokes the single `consume(launcher_path)` operation:
+6. caller invokes the single `run_attempt(credential_source_fd,
+   launcher_path, auditor_executable_path)` operation:
    launcher fd verified/held, then each held gate fd re-hashed
    immediately before its execution (held-fd drift refused) and EXECUTED
    exactly once — the SAME verified-fd `execveat(AT_EMPTY_PATH)`
@@ -315,18 +358,20 @@ stale row, no unrecorded authority-bearing production payload.
 - **Supervisor ⇄ store mechanical binding.** Before any gate/authority
   operation the supervisor requires `store.attempt_id ==
   binding.attempt_id` AND `store.binding_digest == binding.digest`.
-- **Single-issuance, exact-object grant.** `LaunchGrant` carries NO state
-  (empty `__slots__`); `execute()` accepts only the exact object returned
-  by THIS supervisor's `consume()` (identity comparison), and `consume()`
-  mints exactly one grant ever.
-- **Irreversible spend.** The moment `execute()` begins (after
-  precondition checks), `_spent` is set: a held-fd re-hash failure, fork
-  failure, pre-child setup failure, or unreachable EXEC record leaves the
-  authority permanently dead; the durable record gets a best-effort
-  `TERMINAL` append with a reason (`CONSUMED_PRE_EXEC → TERMINAL`), and
-  the event is never relabeled unconsumed. A replacement attempt requires
-  NEW operator authority + NEW attempt id + NEW EBS process + NEW
-  accounting/output identity. No reset/retry/mint API exists.
+- **No portable grant at all (final launch-seam).** The `LaunchGrant`
+  class, `consume()`, and `execute()` are REMOVED: no public authority
+  object exists whose possession separates consumption from exec, and
+  nothing authority-shaped can be forged, copied, or later presented
+  (statically asserted absent).
+- **Irreversible spend.** The moment the durable `CONSUMED_PRE_EXEC`
+  append succeeds inside `run_attempt`, `_spent` is set: a held-fd
+  re-hash failure, fork failure, pre-child setup failure, or unreachable
+  EXEC record leaves the authority permanently dead; the durable record
+  gets a best-effort `TERMINAL` append with a reason
+  (`CONSUMED_PRE_EXEC → TERMINAL`), and the event is never relabeled
+  unconsumed. A replacement attempt requires NEW operator authority +
+  NEW attempt id + NEW EBS process + NEW accounting/output identity. No
+  reset/retry/mint API exists.
 
 ## Durable accounting (hash-chained JSONL)
 
@@ -335,8 +380,9 @@ hash-chained with seq/prev; tamper, truncation, seq gaps, non-canonical
 lines, binding mismatch, symlink/FIFO records, unsafe custody dirs all
 refused at read. The `CONSUMED_PRE_EXEC` record persists the COMPLETE
 non-secret binding identity set (event, role, target trees, event-package
-identity, boundary launcher id/hash, auditor executable id/hash,
-provider/adapter, prompt digest, common-evidence digest, sandbox profile,
+identity, boundary launcher id/hash, auditor executable id/version/
+hash, the exact-invocation digest and argc, provider/adapter, prompt
+digest, common-evidence digest, sandbox profile,
 tool wrapper id/hash, output identity, EBS package identity, binding
 digest) — no credential or sensitive plaintext ever enters accounting.
 

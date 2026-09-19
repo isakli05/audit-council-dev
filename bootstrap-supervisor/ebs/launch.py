@@ -1,29 +1,56 @@
 """Controllerless one-shot verified boundary child execution.
 
 Primary launch authority is NON-EXPORTABLE EBS PROCESS STATE plus
-state-machine control flow: a single-use in-process grant minted only by
-the durably recorded GATES_PASSED -> CONSUMED_PRE_EXEC transition of
-THIS supervisor, spendable exactly once (identity-compared object;
-irreversible in-process spend; every post-consumption failure
-terminalizes the attempt — never retried, never relabeled unconsumed).
-No bearer token exists in any file, argv, environment, or IPC surface;
-no controller; no attach/revival path.  Before any authority exists the
-supervisor FAIL-CLOSED VERIFIES ITS OWN LIVE PACKAGE BYTES against the
-identities pinned by the frozen binding (verify_package_identity;
-construction + full semantics in README.md) — mandatory, in the startup
-path, with no flag and no environment override — and then verifies the
-supplied FROZEN EVENT PACKAGE (verify_event_package, CR-EBS-REM-001):
-package identity against the binding's independently pinned event_package
-pair PLUS exact transport-projection equality with the binding, before
-any gate is reachable; the event-package root is a MANDATORY supervisor
-input with no default and no bypass of any kind.
+state-machine control flow (adopted R1): the whole launch lifecycle —
+custody admission, static byte identities, both fresh runtime gates,
+durable GATES_PASSED -> CONSUMED_PRE_EXEC, the irreversible in-process
+spend, and the IMMEDIATE fork/exec attempt — happens inside ONE public
+authority operation `Supervisor.run_attempt(credential_source_fd,
+launcher_path, auditor_executable_path)` (final launch-seam remediation,
+CR-EBS-S1-004/-005/-006).  There is NO grant, NO consume()/execute()
+split, and NO public object whose possession separates consumption from
+exec; GATES_PASSED and CONSUMED_PRE_EXEC are internal transients in
+which no caller ever regains control (S1-005; no TTL, no timestamp
+window, no second resource gate, no retry).  No bearer token exists in
+any file, argv, environment, or IPC surface; no controller; no attach or
+revival path.  Before any authority exists the supervisor FAIL-CLOSED
+VERIFIES ITS OWN LIVE PACKAGE BYTES against the identities pinned by the
+frozen binding (verify_package_identity; construction + full semantics
+in README.md) — mandatory, in the startup path, with no flag and no
+environment override — and then verifies the supplied FROZEN EVENT
+PACKAGE (verify_event_package, CR-EBS-REM-001): package identity against
+the binding's independently pinned event_package pair PLUS exact
+transport-projection equality with the binding, before any gate is
+reachable; the event-package root is a MANDATORY supervisor input with
+no default and no bypass of any kind.
+
+CR-EBS-S1-004: the Supervisor OWNS the sealed credential custody.  The
+public authority operation accepts a CREDENTIAL SOURCE FD (never a
+CredentialCustody, never a role); ingest runs non-dumpable, source
+discipline, bounded read, and four-seal establishment BEFORE any gate
+and BEFORE CONSUMED_PRE_EXEC, with the custody role derived ONLY from
+binding.auditor_role (plus a defense-in-depth exact-role re-check).  The
+SAME held custody serves the child's CRED_FD and the report leak screen,
+and is closed on every terminal path.
 
 The frozen boundary-launcher executable is verified by opening it ONCE,
 hashing the ALREADY-OPEN file, and executing THAT OPEN FILE DESCRIPTOR
 via execveat(AT_EMPTY_PATH) (fexecve fallback).  A pathname re-open is
 never used after verification; unavailability of the identity-preserving
-exec method fails closed.  The held fd is re-hashed immediately before
-fork so same-inode drift after consumption also fails closed.
+exec method fails closed.  The held fd is re-hashed before gate
+acceptance and again immediately before fork so same-inode drift fails
+closed (pre-consumption PREEXEC; post-consumption terminal).
+
+CR-EBS-S1-006: the live AUDITOR EXECUTABLE gets the SAME discipline —
+opened once with no-final-symlink, required regular + executable, hashed
+as the ALREADY-OPEN fd against binding.auditor_identity's exact SHA-256
+(a mismatch is PREEXEC_EXECUTABLE_IDENTITY_FAIL: PREEXEC, authority
+unconsumed, no same-attempt retry), HELD, re-hashed before gate
+acceptance and again post-consumption, and passed to the boundary
+launcher as the fixed inherited AUDITOR_EXEC_FD.  The EXACT frozen
+auditor argv travels ONLY as canonical binding bytes on the sealed
+read-only AUDITOR_INVOCATION_FD — no caller argv tail, no caller
+environment override, and no caller string can reach the auditor client.
 
 Gate-timing remediation (CR-EBS-S1-001) + preexec-gate remediation
 (CR-EBS-S1-002/-003): the DYNAMIC runtime gates are NOT frozen evidence.
@@ -31,22 +58,20 @@ Every Supervisor construction holds the VERIFIED OPEN fd of BOTH runtime
 gate artifacts bound by the frozen descriptors (identity/path/SHA-256/
 result schema, digest- and projection-covered).  The externally
 separable preexec sequence validate_gates() -> verify_launcher() ->
-consume() NO LONGER EXISTS: the ONE public preexec authority operation
-`consume(launcher_path)` (see Supervisor.consume) verifies the launcher,
-executes both gates fresh in the required order, and durably records
-GATES_PASSED -> CONSUMED_PRE_EXEC without returning control to the
-caller in between — GATES_PASSED is an INTERNAL TRANSIENT state in which
-no caller ever regains control, so no caller-controlled pause can sit
-between the fresh RESOURCE_GATE PASS and durable consumption.  Each gate
-executes with a bounded fail-closed timeout, no credential fd inherited,
-a clean minimal environment, and strict result-envelope validation
-against the binding; any failure terminalizes the attempt with
-authority unconsumed and no same-attempt retry.
+consume() NO LONGER EXISTS: the ONE public authority operation executes
+both gates fresh in the required order (NETWORK_READINESS once, then
+RESOURCE_GATE once LAST) and durably records GATES_PASSED ->
+CONSUMED_PRE_EXEC without returning control to the caller in between.
+Each gate executes with a bounded fail-closed timeout, no credential fd
+inherited, a clean minimal environment, and strict result-envelope
+validation against the binding; any failure terminalizes the attempt
+with authority unconsumed and no same-attempt retry.
 """
 from __future__ import annotations
 
 import ctypes
 import errno
+import fcntl
 import hashlib
 import json
 import os
@@ -61,7 +86,9 @@ from .binding import (EVENT_MANIFEST_KEYS, EVENT_MANIFEST_SCHEMA,
                       RESOURCE_GATE_RESULT_SCHEMA, RUNTIME_GATES,
                       BindingError, binding_projection, canonical_bytes,
                       strict_loads)
-from .custody import CredentialCustody, establish_non_dumpable
+from .custody import (F_ADD_SEALS, F_GET_SEALS, MFD_ALLOW_SEALING,
+                      MFD_CLOEXEC, REQUIRED_SEALS, CredentialCustody,
+                      establish_non_dumpable, memfd_create)
 from .reportcustody import DEFAULT_SIZE_LIMIT, collect
 from .statemachine import (CONSUMED_PRE_EXEC, EXEC_ATTEMPTED, GATES_PASSED,
                            PREPARED, REPORT_FROZEN, REPORT_MISSING,
@@ -71,6 +98,8 @@ from .statemachine import (CONSUMED_PRE_EXEC, EXEC_ATTEMPTED, GATES_PASSED,
 CRED_FD = 3                    # fixed inherited-fd contract for the sealed
                                # credential memfd; the ONLY credential channel
 FAIL_FD = 4                    # exec-failure signal pipe (CLOEXEC: EOF = ok)
+AUDITOR_EXEC_FD = 5            # HELD verified live auditor-executable fd
+AUDITOR_INVOCATION_FD = 6      # sealed read-only canonical frozen-argv fd
 CHILD_EXIT_EXEC_FAIL = 98
 METADATA_MAX = 65536
 
@@ -164,26 +193,66 @@ def _hash_fd(fd: int) -> str:
     return digest.hexdigest()
 
 
-def open_verified_launcher(path, expected_sha256: str) -> int:
-    """Open (no symlink following), verify regular-file identity, hash the
-    ALREADY-OPEN file, and return the verified open fd."""
+def _open_verified(path, expected_sha256: str, kind: str,
+                   require_executable: bool) -> int:
+    """Shared verified-open core: open with NO final-symlink following,
+    require a regular file (plus executable mode when required), hash
+    the ALREADY-OPEN fd, require exact equality with expected_sha256,
+    rewind, and return the verified open HELD fd (a pathname re-open is
+    never used after verification)."""
     try:
         fd = os.open(os.fspath(path), os.O_RDONLY | os.O_NOFOLLOW)
     except OSError as exc:
-        raise LaunchRefused(
-            f"LAUNCHER_OPEN_REFUSED (symlink/unreadable?): {exc!r}") from exc
+        raise LaunchRefused(f"{kind}_OPEN_REFUSED (symlink/unreadable?): "
+                            f"{exc!r}") from exc
     try:
-        if not stat.S_ISREG(os.fstat(fd).st_mode):
-            raise LaunchRefused("LAUNCHER_NOT_REGULAR_FILE")
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode):
+            raise LaunchRefused(f"{kind}_NOT_REGULAR_FILE")
+        if require_executable and not info.st_mode & 0o111:
+            raise LaunchRefused(f"{kind}_NOT_EXECUTABLE")
         got = _hash_fd(fd)
+        os.lseek(fd, 0, os.SEEK_SET)
         if got != expected_sha256:
-            raise LaunchRefused(
-                f"LAUNCHER_DIGEST_MISMATCH: expected {expected_sha256} "
-                f"got {got}")
+            raise LaunchRefused(f"{kind}_DIGEST_MISMATCH: expected "
+                                f"{expected_sha256} got {got}")
     except Exception:
         os.close(fd)
         raise
-    os.lseek(fd, 0, os.SEEK_SET)
+    return fd
+
+
+def open_verified_launcher(path, expected_sha256: str) -> int:
+    """Verify and hold the frozen boundary-launcher executable."""
+    return _open_verified(path, expected_sha256, "LAUNCHER", False)
+
+
+def open_verified_auditor_executable(path, expected_sha256: str) -> int:
+    """CR-EBS-S1-006: verify and HOLD the LIVE auditor executable —
+    regular + EXECUTABLE + exact SHA-256 of the ALREADY-OPEN fd; every
+    refusal carries the PREEXEC_EXECUTABLE_IDENTITY_FAIL contract
+    (PREEXEC, authority unconsumed, no same-attempt retry)."""
+    return _open_verified(path, expected_sha256,
+                          "PREEXEC_EXECUTABLE_IDENTITY_FAIL", True)
+
+
+def make_invocation_fd(argv_list) -> int:
+    """CR-EBS-S1-006 exact-invocation transfer: a sealed read-only memfd
+    carrying the EXACT frozen auditor argv as canonical binding bytes
+    (canonical_bytes of the validated list).  The boundary launcher reads
+    THIS fd (AUDITOR_INVOCATION_FD); no caller string, argv tail, or
+    environment override can enter the auditor client's argv."""
+    fd = memfd_create("ebs-auditor-invocation",
+                      MFD_CLOEXEC | MFD_ALLOW_SEALING)
+    try:
+        os.write(fd, canonical_bytes(list(argv_list)))
+        os.lseek(fd, 0, os.SEEK_SET)
+        fcntl.fcntl(fd, F_ADD_SEALS, REQUIRED_SEALS)
+        if fcntl.fcntl(fd, F_GET_SEALS) & REQUIRED_SEALS != REQUIRED_SEALS:
+            raise LaunchRefused("INVOCATION_SPEC_SEAL_INCOMPLETE")
+    except Exception:
+        os.close(fd)
+        raise
     return fd
 
 
@@ -400,6 +469,17 @@ def _kill_and_reap(child_pid: int) -> None:
         pass
 
 
+def _close_all_except(keep) -> None:
+    """Close every open fd not in keep (child-side hygiene)."""
+    for entry in os.listdir("/proc/self/fd"):
+        fd = int(entry)
+        if fd not in keep:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+
+
 def _gate_child(gate_fd: int, result_w: int, devnull: int,
                 argv, env: dict) -> None:
     """Child-side preparation for a runtime gate: stdout is the bounded
@@ -408,19 +488,11 @@ def _gate_child(gate_fd: int, result_w: int, devnull: int,
     authority), every other fd is closed, and the ALREADY-VERIFIED open
     gate fd is exec'd (identity-preserving; no pathname re-open).
     Never returns."""
-    import fcntl
     try:
         os.dup2(devnull, 0)
         os.dup2(result_w, 1)
         os.dup2(devnull, 2)
-        keep = {0, 1, 2, gate_fd}
-        for entry in os.listdir("/proc/self/fd"):
-            fd = int(entry)
-            if fd not in keep:
-                try:
-                    os.close(fd)
-                except OSError:
-                    pass
+        _close_all_except({0, 1, 2, gate_fd})
         fcntl.fcntl(gate_fd, fcntl.F_SETFD, 0)  # survives exec (script fd)
         establish_non_dumpable()
         fd_exec(gate_fd, argv, env)
@@ -623,28 +695,34 @@ _RUNTIME_GATE_VALIDATORS = {
 
 
 def _child_setup(launcher_fd: int, metadata_w: int, fail_w: int,
-                 devnull: int, custody_fd: int, argv, env: dict) -> None:
+                 devnull: int, custody_fd: int, auditor_fd: int,
+                 invocation_fd: int, argv, env: dict) -> None:
     """Child-side preparation: fixed fd contract, hygiene, then exec of
-    the verified open fd.  Never returns."""
-    import fcntl
+    the verified open fd.  Never returns.  The fixed inherited contract
+    (S1-004/-006): CRED_FD=3 sealed custody, FAIL_FD=4 CLOEXEC exec-fail
+    pipe, AUDITOR_EXEC_FD=5 the HELD verified auditor executable,
+    AUDITOR_INVOCATION_FD=6 the sealed canonical frozen-argv spec.  The
+    remap is alias-safe: every source is first duplicated to fresh fds
+    (os.dup never returns an open descriptor, so the phase-one copies are
+    distinct and disjoint from every original), which guarantees every
+    slot 3-6 is occupied, so the phase-two copies land outside 3-6 and
+    the final dup2s can only clobber originals."""
     try:
         os.dup2(devnull, 0)
         os.dup2(metadata_w, 1)
         os.dup2(devnull, 2)
-        if custody_fd != CRED_FD:
-            os.dup2(custody_fd, CRED_FD)
-        if fail_w != FAIL_FD:
-            os.dup2(fail_w, FAIL_FD)
+        phase_one = [os.dup(src) for src in
+                     (custody_fd, fail_w, auditor_fd, invocation_fd)]
+        phase_two = [os.dup(copy) for copy in phase_one]
+        os.dup2(phase_two[0], CRED_FD)
+        os.dup2(phase_two[1], FAIL_FD)
+        os.dup2(phase_two[2], AUDITOR_EXEC_FD)
+        os.dup2(phase_two[3], AUDITOR_INVOCATION_FD)
         fcntl.fcntl(FAIL_FD, fcntl.F_SETFD, fcntl.FD_CLOEXEC)
-        keep = {0, 1, 2, CRED_FD, FAIL_FD, launcher_fd}
-        for entry in os.listdir("/proc/self/fd"):
-            fd = int(entry)
-            if fd not in keep:
-                try:
-                    os.close(fd)
-                except OSError:
-                    pass
-        for survivor in (launcher_fd, CRED_FD):
+        _close_all_except({0, 1, 2, CRED_FD, FAIL_FD, launcher_fd,
+                           AUDITOR_EXEC_FD, AUDITOR_INVOCATION_FD})
+        for survivor in (launcher_fd, CRED_FD, AUDITOR_EXEC_FD,
+                         AUDITOR_INVOCATION_FD):
             fcntl.fcntl(survivor, fcntl.F_SETFD, 0)  # fd contract survives
         establish_non_dumpable()
         fd_exec(launcher_fd, argv, env)
@@ -654,15 +732,6 @@ def _child_setup(launcher_fd: int, metadata_w: int, fail_w: int,
         except OSError:
             pass
         os._exit(CHILD_EXIT_EXEC_FAIL)
-
-
-class LaunchGrant:
-    """Single-use, non-exportable, in-process capability: carries NO
-    state.  Authority lives entirely in the issuing Supervisor, which
-    accepts ONLY the exact object its consume() returned while unspent;
-    any other object (fresh, copied, re-created) is refused."""
-
-    __slots__ = ()
 
 
 @dataclass(frozen=True)
@@ -716,7 +785,9 @@ class Supervisor:
         self._store = store
         self._machine = StateMachine(store.last_state or PREPARED)
         self._launcher_fd = None
-        self._issued_grant = None    # single issuance: consume() -> grant
+        self._custody = None       # Supervisor-owned sealed custody (S1-004)
+        self._auditor_fd = None    # held verified live auditor executable
+        self._invocation_fd = None  # sealed canonical frozen-argv spec
         self._spent = False          # irreversible launch-spent guard
         self._gates_executed = False   # exactly-once runtime gate pair
 
@@ -751,8 +822,13 @@ class Supervisor:
                  "output_identity_name": b.output_identity["name"],
                  "auditor_executable_identity":
                      b.auditor_identity["executable_identity"],
+                 "auditor_executable_version":
+                     b.auditor_identity["executable_version"],
                  "auditor_executable_sha256":
-                     b.auditor_identity["executable_sha256"]}
+                     b.auditor_identity["executable_sha256"],
+                 "auditor_invocation_argc": len(b.auditor_invocation),
+                 "auditor_invocation_sha256": hashlib.sha256(
+                     canonical_bytes(list(b.auditor_invocation))).hexdigest()}
         for prefix, ident in (("boundary_launcher", b.boundary_launcher),
                               ("tool_wrapper", b.tool_wrapper)):
             facts[f"{prefix}_identity"] = ident["identity"]
@@ -795,42 +871,68 @@ class Supervisor:
                              descriptor["result_schema"]})
         return evidence
 
-    def consume(self, launcher_path) -> LaunchGrant:
-        """THE single public preexec authority operation (CR-EBS-S1-003):
-        PREPARED -> (GATES_PASSED) -> CONSUMED_PRE_EXEC with NO return of
-        control to the caller between the steps.  In order, without ever
-        yielding to the caller: require an unspent/unissued PREPARED
-        attempt; verify and HOLD the exact boundary launcher fd (static
-        byte identity, BEFORE the dynamic gates); execute
-        NETWORK_READINESS exactly once, then RESOURCE_GATE exactly once
-        LAST (the final live environmental gate); strictly validate both
-        fresh results; durably append GATES_PASSED carrying BOTH fresh
-        evidence sets; transition in-process (internal transient);
-        IMMEDIATELY durably append CONSUMED_PRE_EXEC with the complete
-        binding facts; transition; mint exactly one LaunchGrant and only
-        then return it.  Any failure — launcher identity, either gate, or
-        either durable append — terminalizes fail-closed with no grant
-        and NO same-attempt retry; GATES_PASSED is never a
-        caller-visible state."""
+    def run_attempt(self, credential_source_fd: int, launcher_path,
+                    auditor_executable_path) -> ChildResult:
+        """THE single public authority operation (CR-EBS-S1-004/-005/
+        -006): the COMPLETE one-shot launch lifecycle in ONE
+        caller-uninterruptible call — custody established with the role
+        derived ONLY from the binding -> sealed frozen-argv spec ->
+        launcher + LIVE auditor executable verified and HELD ->
+        NETWORK_READINESS once -> RESOURCE_GATE once LAST -> held-fd
+        re-hash -> durable GATES_PASSED -> durable CONSUMED_PRE_EXEC ->
+        irreversible spend -> IMMEDIATE fork/exec -> EXEC_ATTEMPTED ->
+        wait/result -> return ChildResult.  No public operation ever
+        returns control in GATES_PASSED or CONSUMED_PRE_EXEC (S1-005);
+        no grant, no consume()/execute() split, and NO caller surface
+        for a custody object, a role, an argv tail, or an environment
+        override (S1-004/-006).  Accepts ONLY the credential SOURCE fd
+        plus the two NON-AUTHORITATIVE byte-identity locator paths (each
+        opened once, hashed against the binding's exact SHA-256, and
+        HELD — path substitution cannot change executed bytes).  Any
+        pre-consumption failure terminalizes fail-closed with authority
+        unconsumed and no same-attempt retry."""
+        if not isinstance(credential_source_fd, int) or \
+                isinstance(credential_source_fd, bool):
+            raise LaunchError(
+                "RUN_ATTEMPT_REQUIRES_CREDENTIAL_SOURCE_FD: the public "
+                "authority operation ingests a credential SOURCE fd, "
+                "never a CredentialCustody or any other object")
         if self._machine.state != PREPARED:
             raise LaunchError(
-                f"CONSUME_REFUSED_STATE_{self._machine.state}: the single "
-                "preexec-consumption operation requires PREPARED")
-        if self._launcher_fd is not None or self._issued_grant is not None \
+                f"RUN_ATTEMPT_REFUSED_STATE_{self._machine.state}: the "
+                "single authority operation requires PREPARED")
+        if self._launcher_fd is not None or self._custody is not None \
                 or self._spent or self._gates_executed:
-            raise LaunchError("CONSUME_REFUSED_ATTEMPT_ALREADY_ADVANCED: "
-                              "no second preexec consumption exists")
+            raise LaunchError("RUN_ATTEMPT_REFUSED_ALREADY_ADVANCED: "
+                              "no second authority operation exists")
         self._gates_executed = True
         try:
-            # Launcher identity FIRST (static byte check, not a dynamic
-            # environmental gate): held before the dynamic gates run, so
-            # launcher verification precedes gate freshness and launcher
-            # exec remains impossible before CONSUMED_PRE_EXEC.
+            # (S1-004) CUSTODY FIRST — non-dumpable ingest, source
+            # discipline, bounded read, four seals — BEFORE any gate and
+            # BEFORE CONSUMED_PRE_EXEC; the role label comes ONLY from
+            # the binding (defense-in-depth re-checked below it).
+            self._custody = CredentialCustody.ingest(
+                credential_source_fd, self._binding.auditor_role)
+            if self._custody.role != self._binding.auditor_role:
+                raise LaunchRefused(
+                    "CUSTODY_ROLE_MISMATCH: defense-in-depth check — the "
+                    "custody role does not equal binding.auditor_role")
+            # (S1-006) the exact frozen argv leaves the binding ONLY as
+            # canonical bytes on a sealed read-only spec fd.
+            self._invocation_fd = make_invocation_fd(
+                self._binding.auditor_invocation)
+            # Static byte identities BEFORE the dynamic gates (S1-003
+            # ordering preserved; S1-006 adds the live auditor
+            # executable under the same discipline).
             self._launcher_fd = open_verified_launcher(
                 launcher_path, self._binding.boundary_launcher["sha256"])
+            self._auditor_fd = open_verified_auditor_executable(
+                auditor_executable_path,
+                self._binding.auditor_identity["executable_sha256"])
             evidence = {}
             for gate in RUNTIME_GATES:   # NETWORK_READINESS, then the
                 evidence.update(self._execute_runtime_gate(gate))
+            self._rehash_held("BEFORE_GATES_PASSED")  # gate-interval drift
             self._store.append(GATES_PASSED,       # fsync'd inside append
                                extra=evidence)
             self._machine.transition(GATES_PASSED)   # internal transient
@@ -843,59 +945,53 @@ class Supervisor:
                 raise
             raise LaunchRefused(f"PREEXEC_CONSUME_RECORD_FAILED: {exc!r}") \
                 from exc
-        grant = LaunchGrant()
-        self._issued_grant = grant
-        return grant
-
-    def _terminalize_after_consumption(self, reason: str) -> None:
-        """Best-effort durable TERMINAL after a post-consumption failure;
-        the spent guard forbids a second launch even if this fails."""
-        try:
-            self._store.append(TERMINAL, extra={"terminal_reason":
-                                                reason[:256]})
-            self._machine.transition(TERMINAL)
-        except Exception:
-            pass    # medium unavailable: spent guard holds
-
-    def execute(self, grant: LaunchGrant, custody: CredentialCustody,
-                argv_tail=(), env: dict = None) -> ChildResult:
-        if not isinstance(grant, LaunchGrant) or \
-                grant is not self._issued_grant:
-            raise LaunchError("LAUNCH_REFUSED_GRANT_NOT_ISSUED_BY_THIS_"
-                              "SUPERVISOR: only the exact object returned "
-                              "by this supervisor's consume() authorizes "
-                              "a launch")
-        if self._spent:
-            raise LaunchError("LAUNCH_REFUSED_AUTHORITY_ALREADY_SPENT")
-        if not isinstance(custody, CredentialCustody) or custody._closed:
-            raise LaunchError("LAUNCH_REFUSED_NO_CUSTODY")
-        if self._machine.state != CONSUMED_PRE_EXEC:
-            raise LaunchError(
-                f"LAUNCH_REFUSED_STATE_{self._machine.state}")
-        if self._launcher_fd is None:
-            raise LaunchError("LAUNCH_REFUSED_NO_LAUNCHER_FD")
-        # IRREVERSIBLE SPEND: authority is dead in this process from here
-        # on even if the re-hash/fork/setup/EXEC-record fails; no second
-        # execute() can ever pass and no replacement grant exists.
+        # IRREVERSIBLE SPEND (S1-005): authority is dead in this process
+        # from here on; consumption is IMMEDIATELY followed by the fork
+        # attempt inside the SAME public call — control never returns to
+        # the caller between CONSUMED_PRE_EXEC and the exec attempt.
         self._spent = True
-        self._issued_grant = None
+        return self._fork_and_launch()
+
+    def _rehash_held(self, phase: str) -> None:
+        """Re-hash the HELD launcher + auditor-executable fds (S1-006):
+        before gate acceptance (gate-interval drift stays PREEXEC and
+        authority-unconsumed) and again post-consumption inside
+        _fork_and_launch (consumed fail-closed semantics)."""
+        got = _hash_fd(self._launcher_fd)
+        os.lseek(self._launcher_fd, 0, os.SEEK_SET)
+        if got != self._binding.boundary_launcher["sha256"]:
+            raise LaunchRefused(
+                f"LAUNCHER_DIGEST_MISMATCH_{phase}: expected "
+                f"{self._binding.boundary_launcher['sha256']} got {got}")
+        got = _hash_fd(self._auditor_fd)
+        os.lseek(self._auditor_fd, 0, os.SEEK_SET)
+        if got != self._binding.auditor_identity["executable_sha256"]:
+            raise LaunchRefused(
+                f"AUDITOR_EXECUTABLE_IDENTITY_FAIL_{phase}: expected "
+                f"{self._binding.auditor_identity['executable_sha256']} "
+                f"got {got}")
+
+    def _fork_and_launch(self) -> ChildResult:
+        """Post-consumption continuation (S1-005), called ONLY from
+        run_attempt after the irreversible spend: defense-in-depth
+        re-hash, IMMEDIATE fork/exec, EXEC_ATTEMPTED accounting, and
+        wait/result — all before any return to the caller.  The
+        launcher's own argv carries only EBS-bound non-secret context;
+        the auditor client's exact argv travels on the sealed
+        AUDITOR_INVOCATION_FD and the child environment is entirely
+        EBS-defined (S1-006)."""
         child_pid = None
         waited = False
         md_r = md_w = fail_r = fail_w = devnull = None
         fail_byte = b""
         metadata_raw = b""
         try:
-            got = _hash_fd(self._launcher_fd)
-            if got != self._binding.boundary_launcher["sha256"]:
-                raise LaunchRefused(
-                    "LAUNCHER_DIGEST_MISMATCH_AFTER_CONSUMPTION")
+            self._rehash_held("AFTER_CONSUMPTION")
             argv = [self._binding.boundary_launcher["identity"],
                     "--role", self._binding.auditor_role,
                     "--attempt", self._binding.attempt_id,
-                    "--event", self._binding.event_id] + list(argv_tail)
+                    "--event", self._binding.event_id]
             child_env = {"PATH": "/usr/bin:/bin", "LANG": "C"}
-            if env:
-                child_env.update(env)
             md_r, md_w = os.pipe()
             fail_r, fail_w = os.pipe()
             devnull = os.open(os.devnull, os.O_RDONLY)
@@ -905,7 +1001,8 @@ class Supervisor:
                 raise LaunchError(f"FORK_FAILED: {exc!r}") from exc
             if child_pid == 0:
                 _child_setup(self._launcher_fd, md_w, fail_w, devnull,
-                             custody.fd, argv, child_env)
+                             self._custody.fd, self._auditor_fd,
+                             self._invocation_fd, argv, child_env)
             os.close(md_w)
             os.close(fail_w)
             os.close(devnull)
@@ -958,17 +1055,52 @@ class Supervisor:
         return ChildResult(os.waitstatus_to_exitcode(status),
                            fail_byte == b"E", metadata)
 
+    def _close_custody(self) -> None:
+        """Close the Supervisor-held sealed custody (idempotent; S1-004
+        custody lifetime: closed on EVERY terminal path)."""
+        if self._custody is not None:
+            self._custody.close()
+
+    def _close_held_fds(self) -> None:
+        """Close the held launcher/auditor-executable/invocation fds."""
+        for fd in (self._launcher_fd, self._auditor_fd,
+                   self._invocation_fd):
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+        self._launcher_fd = self._auditor_fd = None
+        self._invocation_fd = None
+
+    def _terminalize_after_consumption(self, reason: str) -> None:
+        """Best-effort durable TERMINAL after a post-consumption failure;
+        the spent guard forbids a second launch even if this fails."""
+        try:
+            self._store.append(TERMINAL, extra={"terminal_reason":
+                                                reason[:256]})
+            self._machine.transition(TERMINAL)
+        except Exception:
+            pass    # medium unavailable: spent guard holds
+        finally:
+            self._close_custody()
+            self._close_held_fds()
+
     def adopt_report(self, staging_path, output_root,
-                     custody: CredentialCustody,
                      size_limit: int = DEFAULT_SIZE_LIMIT) -> dict:
-        """Report custody + leak screen; records the outcome and finishes
-        the attempt (one-shot process exits after TERMINAL)."""
+        """Report custody + leak screen (S1-004 §7): uses the SAME
+        Supervisor-held sealed custody that served the boundary child —
+        no caller-supplied CredentialCustody exists; records the outcome
+        and finishes the attempt (one-shot process exits after
+        TERMINAL)."""
         if self._machine.state != EXEC_ATTEMPTED:
             raise LaunchError(
                 f"REPORT_CUSTODY_REFUSED_STATE_{self._machine.state}")
+        if self._custody is None:
+            raise LaunchError("REPORT_CUSTODY_REFUSED_NO_HELD_CUSTODY")
         outcome = collect(staging_path, output_root,
                           self._binding.output_identity["name"],
-                          custody=custody, size_limit=size_limit)
+                          custody=self._custody, size_limit=size_limit)
         self._store.append(outcome["state"])
         self._machine.transition(outcome["state"])
         self.finish()
@@ -976,19 +1108,24 @@ class Supervisor:
 
     def finish(self) -> None:
         if self._machine.state in (TERMINAL, TERMINAL_PREEXEC_STOP):
+            self._close_custody()
             return
         self._store.append(TERMINAL)
         self._machine.transition(TERMINAL)
+        self._close_custody()
 
     def _preexec_stop(self) -> None:
         """Fail-closed terminalization of a refused pre-exec attempt: the
         in-process transition to the absorbing TERMINAL_PREEXEC_STOP
         ALWAYS happens (authority is dead even if the medium is
         unavailable); the durable append is best-effort alongside it —
-        never a relabeling of the attempt as resumable."""
+        never a relabeling of the attempt as resumable.  The held custody
+        and every held fd are closed (S1-004 custody lifetime)."""
         try:
             self._store.append(TERMINAL_PREEXEC_STOP)
         except Exception:
             pass    # medium unavailable: the spent/issued guards hold
         if self._machine.state in (PREPARED, GATES_PASSED):
             self._machine.transition(TERMINAL_PREEXEC_STOP)
+        self._close_custody()
+        self._close_held_fds()

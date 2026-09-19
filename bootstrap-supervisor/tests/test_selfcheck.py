@@ -208,17 +208,20 @@ def test_self_check_runs_before_gates_can_pass(cust_dir, tmp_path, launcher):
     # with the correct live pins the same construction path works and
     # gates can pass (positive control; DISTINCT attempt id, live tree
     # untouched):
-    from conftest import make_event_package, valid_binding_document
+    from conftest import make_auditor_executable, make_event_package, \
+        pipe_source, valid_binding_document
+    auditor_exe2 = make_auditor_executable(tmp_path)
     doc2 = valid_binding_document(event_id="evt-0011223344556688",
                                   role="AUDITOR_B",
-                                  launcher_sha256=launcher[1])
+                                  launcher_sha256=launcher[1],
+                                  executable_sha256=auditor_exe2[1])
     pkg2 = make_event_package(doc2, tmp_path, name="pkg-selfcheck-pos")
     binding2 = parse_binding(json.dumps(doc2).encode())
     store2 = AccountingStore.create(cust_dir, binding2.attempt_id,
                                     binding2.digest)
     sup = Supervisor(binding2, store2, pkg2)
-    sup.consume(str(launcher[0]))
-    assert sup.state == "CONSUMED_PRE_EXEC"
+    sup.run_attempt(pipe_source(), str(launcher[0]), str(auditor_exe2[0]))
+    assert sup.state == "EXEC_ATTEMPTED"
 
 
 def test_no_environment_or_flag_bypass_surface():

@@ -136,12 +136,22 @@ def test_no_plugin_or_extension_architecture():
 # envelope core, shared result-evidence builder).  The candidate ceiling
 # below is CANDIDATE_ONLY / NOT_CONTROL_ROOM_ACCEPTED; the prior
 # accepted baselines above are PRESERVED and NOT rewritten.
-PREEXEC_GATE_CANDIDATE_LOC_BOUND = 2140
+# CR-EBS-S1-004/-005/-006 final launch-seam remediation: Supervisor
+# custody ownership + live auditor-executable verify/hold/re-hash + the
+# sealed exact-invocation transfer + the V4 binding schema grow the
+# authority boundary beyond the accepted 2140 while REMOVING the
+# LaunchGrant/consume/execute split; disclosed as NEW_TCB_GROWTH /
+# AWAITING_CONTROL_ROOM_ACCEPTANCE with exact per-module/per-function
+# attribution in AUCDEV-023-EBS-FINAL-LAUNCH-SEAM-REMEDIATION-REPORT.md.
+# The candidate ceiling below is CANDIDATE_ONLY / NOT_CONTROL_ROOM_
+# ACCEPTED; the prior accepted baselines above are PRESERVED and NOT
+# rewritten (2140 remains the last Control-Room-accepted residual).
+FINAL_LAUNCH_SEAM_CANDIDATE_LOC_BOUND = 2349
 
 
 def test_production_loc_within_minimal_tcb_bound():
     total = sum(len(p.read_text().splitlines()) for p in PKG_FILES)
-    assert total <= PREEXEC_GATE_CANDIDATE_LOC_BOUND, \
+    assert total <= FINAL_LAUNCH_SEAM_CANDIDATE_LOC_BOUND, \
         f"production source grew to {total} lines"
 
 
@@ -224,8 +234,39 @@ def test_authority_continuation_surface_removed():
             "def mint" not in src, f"{path.name}: revival API present"
 
 
-def test_launch_grant_carries_no_authority_state():
-    """CR-EBS-002 D: the grant object has no liveness flag, token, or
-    issuer reference to copy or mutate; authority is supervisor-side."""
-    from ebs.launch import LaunchGrant
-    assert LaunchGrant.__slots__ == ()
+def test_launch_grant_entirely_removed():
+    """CR-EBS-002 D + CR-EBS-S1-005: the portable grant is not merely
+    stateless — it is GONE, together with the consume()/execute() split;
+    authority exists only as Supervisor process state inside the ONE
+    public run_attempt call."""
+    import ebs.launch as launch_mod
+    assert not hasattr(launch_mod, "LaunchGrant")
+    assert not hasattr(launch_mod.Supervisor, "consume")
+    assert not hasattr(launch_mod.Supervisor, "execute")
+
+
+def test_public_authority_api_has_no_caller_invocation_surface():
+    """CR-EBS-S1-004/-006 source shape: no Supervisor method exposes a
+    custody, grant, role, argv-tail, or environment parameter, and the
+    single public authority operation accepts exactly the credential
+    source fd plus the two byte-identity locator paths."""
+    import ast as ast_mod
+    import inspect as pyinspect
+    from ebs.launch import Supervisor
+    params = [name for name, param in
+              pyinspect.signature(Supervisor.run_attempt).parameters.items()
+              if param.kind != pyinspect.Parameter.POSITIONAL_OR_KEYWORD
+              or name != "self"]
+    assert params == ["credential_source_fd", "launcher_path",
+                      "auditor_executable_path"]
+    tree = ast_mod.parse((EBS_SRC / "launch.py").read_text())
+    supervisor = next(node for node in tree.body
+                      if isinstance(node, ast_mod.ClassDef)
+                      and node.name == "Supervisor")
+    for fn in [n for n in supervisor.body
+               if isinstance(n, ast_mod.FunctionDef)]:
+        for arg in fn.args.args + fn.args.kwonlyargs:
+            assert arg.arg not in ("custody", "grant", "argv_tail", "env",
+                                   "role", "auditor_role"), \
+                f"run-authority caller surface: Supervisor.{fn.name}" \
+                f"({arg.arg})"

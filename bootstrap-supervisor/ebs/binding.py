@@ -31,9 +31,19 @@ an exact executable-artifact DESCRIPTOR (identity, safe
 event-package-relative path, exact SHA-256, exact per-gate result
 schema), covered by `Binding.digest` and by the transport projection,
 and EXECUTED by the EBS exactly once each inside the ONE public
-preexec-consumption operation (`launch.Supervisor.consume`).  A
+preexec-consumption operation (`launch.Supervisor.run_attempt`).  A
 package-time PASS for either runtime gate cannot exist in a valid
 binding.
+
+Final launch-seam remediation (CR-EBS-S1-004/-005/-006): the transport
+binding advances to V4 — `auditor_identity` gains the mandatory
+`executable_version` (a bounded frozen version TOKEN: declared binding
+fact, never a live-extracted claim) and the NEW top-level dimension
+`auditor_invocation` freezes the EXACT ordered auditor-client argv
+(bounded control-free non-empty strings, bounded in count/per-item/
+total bytes; NUL and every control character refused; order preserved).
+Both are digest- and projection-covered; the event-package manifest
+schema advances V3 -> V4 with every older tag refused.
 """
 from __future__ import annotations
 
@@ -103,6 +113,14 @@ SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 EVENT_ID_RE = re.compile(r"^evt-[0-9a-f]{16}$")
 # Pinned identity strings (executable/sandbox/wrapper): safe tokens only.
 IDENTITY_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+# Frozen auditor-executable version TOKEN (S1-006): bounded printable
+# ASCII without whitespace (so NUL and every control char are refused);
+# a declared binding fact, NOT a live-extracted claim.
+EXECUTABLE_VERSION_RE = re.compile(r"^[!-~]{1,64}$")
+# Exact frozen auditor-client argv bounds (S1-006).
+AUDITOR_INVOCATION_MAX_ITEMS = 32
+AUDITOR_INVOCATION_ITEM_MAX_BYTES = 1024
+AUDITOR_INVOCATION_TOTAL_MAX_BYTES = 8192
 # Safe event-package-relative path segments (runtime-gate artifact path):
 # charset-bounded, no empty segment (rejects absolute "/"-prefixed and
 # "//"), no "." / ".." traversal, no drive/backslash forms.
@@ -113,11 +131,15 @@ GATE_FIELDS = ("status", "evidence_sha256", "evidence_size", "role",
 # A pinned package identity pair (see launch.py / README.md for the
 # non-circular construction of both digests).
 PACKAGE_FIELDS = ("manifest_sha256", "package_sha256")
+AUDITOR_IDENTITY_FIELDS = ("provider_role", "adapter_id",
+                           "executable_identity", "executable_version",
+                           "executable_sha256")
 TOP_LEVEL = ("policy_id", "event_id", "auditor_role", "attempt_id", "target",
              "common_evidence_manifest_digest", "prompt_contract_digest",
              "boundary_launcher", "auditor_identity", "sandbox_profile_id",
              "tool_wrapper", "ebs_package", "event_package",
-             "output_identity", "gate_evidence", "runtime_gates")
+             "output_identity", "gate_evidence", "runtime_gates",
+             "auditor_invocation")
 
 # --- versioned strict event-package manifest contract (CR-EBS-REM-001;
 # full semantics in README.md + second-remediation report): a frozen
@@ -129,10 +151,14 @@ TOP_LEVEL = ("policy_id", "event_id", "auditor_role", "attempt_id", "target",
 # mandatory dynamic runtime-gate set becomes EXACTLY TWO descriptors
 # (NETWORK_READINESS + RESOURCE_GATE) and the runtime-gate execution
 # ordering/consumption semantics change (single preexec-consumption
-# operation).  Each advance REFUSES the older tag, never silently
-# accepting it as equivalent; no real V1/V2 event package exists to
-# migrate. ---
-EVENT_MANIFEST_SCHEMA = "AUCDEV-023-EVENT-PACKAGE-MANIFEST-V3"
+# operation).  V4 (CR-EBS-S1-004/-005/-006 final launch-seam): they
+# change AGAIN — auditor_identity gains executable_version and the NEW
+# auditor_invocation dimension freezes the exact auditor-client argv,
+# with the whole authority path collapsed into the single
+# run_attempt(credential_source_fd, ...) operation.  Each advance
+# REFUSES the older tag, never silently accepting it as equivalent; no
+# real V1/V2/V3 event package exists to migrate. ---
+EVENT_MANIFEST_SCHEMA = "AUCDEV-023-EVENT-PACKAGE-MANIFEST-V4"
 EVENT_MANIFEST_KEYS = frozenset(
     ("schema", "transport_binding", "files", "package_sha256"))
 # Every binding security dimension EXCEPT event_package itself (the
@@ -210,6 +236,44 @@ def _identity_field(value, where):
     return value
 
 
+def _executable_version_field(value):
+    """Mandatory frozen auditor-executable version token (S1-006):
+    bounded, whitespace-free, control-free (NUL included) printable
+    ASCII.  Declared cross-bound metadata — the EBS never claims it was
+    extracted from live executable bytes."""
+    if not isinstance(value, str) or not EXECUTABLE_VERSION_RE.match(value):
+        raise BindingError("AUDITOR_EXECUTABLE_VERSION_INVALID")
+    return value
+
+
+def _invocation_field(value, where):
+    """The EXACT frozen auditor-client argv (S1-006): a non-empty ordered
+    list of bounded strings, bounded in item count, per-item UTF-8 bytes
+    and total bytes; every item is a non-empty string with NO control
+    character (NUL included); ordering is exactly the JSON list order."""
+    if not isinstance(value, list) or not value:
+        raise BindingError(f"{where}_NOT_A_NONEMPTY_LIST")
+    if len(value) > AUDITOR_INVOCATION_MAX_ITEMS:
+        raise BindingError(f"{where}_ITEM_COUNT_INVALID")
+    total = 0
+    for index, item in enumerate(value):
+        if not isinstance(item, str):
+            raise BindingError(f"{where}_ITEM_NOT_A_STRING_AT_{index}")
+        if any(ord(char) < 0x20 or ord(char) == 0x7f for char in item):
+            raise BindingError(f"{where}_ITEM_CONTROL_CHAR_AT_{index}")
+        try:
+            size = len(item.encode("utf-8"))
+        except UnicodeEncodeError:
+            raise BindingError(
+                f"{where}_ITEM_NOT_UTF8_AT_{index}") from None
+        if not 0 < size <= AUDITOR_INVOCATION_ITEM_MAX_BYTES:
+            raise BindingError(f"{where}_ITEM_SIZE_INVALID_AT_{index}")
+        total += size
+    if total > AUDITOR_INVOCATION_TOTAL_MAX_BYTES:
+        raise BindingError(f"{where}_TOTAL_SIZE_INVALID")
+    return list(value)
+
+
 def _safe_relpath(value, where):
     """A safe event-package-relative POSIX path: non-empty bounded str of
     charset-bounded segments; absolute paths, empty segments, "."/".."
@@ -248,6 +312,7 @@ class Binding:
     output_identity: dict
     gate_evidence: dict
     runtime_gates: dict
+    auditor_invocation: list
     digest: str
 
 
@@ -293,9 +358,8 @@ def parse_binding(data) -> Binding:
     _sha_field(doc["boundary_launcher"]["sha256"],
                "BOUNDARY_LAUNCHER_SHA256")
 
-    _exact_keys(doc["auditor_identity"],
-                ("provider_role", "adapter_id", "executable_identity",
-                 "executable_sha256"), "AUDITOR_IDENTITY")
+    _exact_keys(doc["auditor_identity"], AUDITOR_IDENTITY_FIELDS,
+                "AUDITOR_IDENTITY")
     if doc["auditor_identity"]["provider_role"] not in \
             ROLE_PROVIDER_ROLES[role]:
         raise BindingError(
@@ -306,6 +370,7 @@ def parse_binding(data) -> Binding:
             f"ADAPTER_ID_UNKNOWN: {doc['auditor_identity']['adapter_id']!r}")
     _identity_field(doc["auditor_identity"]["executable_identity"],
                     "AUDITOR_EXECUTABLE_IDENTITY")
+    _executable_version_field(doc["auditor_identity"]["executable_version"])
     _sha_field(doc["auditor_identity"]["executable_sha256"],
                "AUDITOR_EXECUTABLE_SHA256")
 
@@ -394,6 +459,8 @@ def parse_binding(data) -> Binding:
         output_identity=dict(doc["output_identity"]),
         gate_evidence={k: dict(v) for k, v in doc["gate_evidence"].items()},
         runtime_gates=descriptors,
+        auditor_invocation=_invocation_field(doc["auditor_invocation"],
+                                             "AUDITOR_INVOCATION"),
         digest=hashlib.sha256(canonical_bytes(doc)).hexdigest())
 
 

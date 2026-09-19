@@ -72,6 +72,7 @@ def valid_binding_document(event_id, role, launcher_sha256,
                            adapter_id="synthetic_inert_local_v1",
                            provider_role=None, ebs_manifest_sha256=None,
                            ebs_package_sha256=None,
+                           executable_sha256=None,
                            evidence_seed="synthetic-evidence") -> dict:
     """Build one well-formed SYNTHETIC binding document (test aid only).
 
@@ -125,8 +126,17 @@ def valid_binding_document(event_id, role, launcher_sha256,
             "provider_role": prov,
             "adapter_id": adapter_id,
             "executable_identity": f"SYNTHETIC-INERT-{role}-EXECUTABLE-V1",
-            "executable_sha256": seed_sha(evidence_seed,
-                                          "auditor-executable")},
+            "executable_version": "SYNTHETIC-INERT-1.0.0",
+            "executable_sha256": executable_sha256 or seed_sha(
+                evidence_seed, "auditor-executable")},
+        # S1-006 V4: the EXACT frozen auditor-client argv (distinct
+        # per-event/role content so exact-delivery is observable).
+        "auditor_invocation": [
+            "synthetic-inert-auditor-client",
+            "--event", event_id,
+            "--role", role,
+            "--mode", "inert-local-no-provider",
+        ],
         "sandbox_profile_id": "SYNTHETIC-INERT-LOCAL-SANDBOX-V1",
         "tool_wrapper": {"identity": "SYNTHETIC-INERT-TOOL-WRAPPER-V1",
                          "sha256": seed_sha(evidence_seed, "tool-wrapper")},
@@ -207,6 +217,21 @@ def make_event_package(doc, tmp_path, name=EVENT_PKG_NAME,
     doc["event_package"] = {"manifest_sha256": sha_hex(raw),
                             "package_sha256": manifest["package_sha256"]}
     return root
+
+
+def make_auditor_executable(tmp_path: Path) -> "tuple[Path, str]":
+    """Materialize the inert SYNTHETIC auditor executable (S1-006) with a
+    runnable shebang and the executable bit the verified-open discipline
+    requires; returns (path, sha256).  NEVER executed by the battery: it
+    stands in for the live provider-client bytes the EBS must hash, hold,
+    and hand to the boundary launcher as AUDITOR_EXEC_FD."""
+    src = FIXTURES / "inert_auditor_executable.py"
+    dst = tmp_path / "auditor_executable.py"
+    text = src.read_text()
+    text = text.replace("#!/usr/bin/python3\n", f"#!{sys.executable}\n", 1)
+    dst.write_text(text)
+    os.chmod(dst, 0o755)
+    return dst, sha_hex(dst.read_bytes())
 
 
 def pipe_source(data: bytes = SYNTH_CRED) -> int:
@@ -323,11 +348,12 @@ def clear_nr_tracks(attempt_id: str) -> None:
     _clear_tracks(nr_paths(attempt_id))
 
 
-def binding_for(launcher_sha: str, **overrides) -> dict:
+def binding_for(launcher_sha: str, auditor_sha256=None, **overrides) -> dict:
     doc = valid_binding_document(
         event_id="evt-0011223344556677",
         role="AUDITOR_A",
         launcher_sha256=launcher_sha,
+        executable_sha256=auditor_sha256,
     )
     for key, value in overrides.items():
         doc[key] = value
@@ -367,8 +393,13 @@ def launcher_b(tmp_path):
 
 
 @pytest.fixture
-def binding_doc(launcher, tmp_path):
-    doc = binding_for(launcher[1])
+def auditor_exe(tmp_path):
+    return make_auditor_executable(tmp_path)
+
+
+@pytest.fixture
+def binding_doc(launcher, auditor_exe, tmp_path):
+    doc = binding_for(launcher[1], auditor_sha256=auditor_exe[1])
     make_event_package(doc, tmp_path)   # binds + pins a synthetic package
     return doc
 

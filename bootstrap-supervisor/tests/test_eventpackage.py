@@ -52,7 +52,7 @@ from ebs.launch import LaunchError, LaunchRefused, Supervisor, \
     verify_event_package, verify_package_identity
 
 from conftest import EVENT_PKG_MARKER, binding_for, make_event_package, \
-    seed_sha, sha_hex
+    pipe_source, seed_sha, sha_hex
 
 ALT = seed_sha("crossbind-alternate", "dimension")   # a valid 64-hex digest
 
@@ -133,24 +133,25 @@ def test_event_package_fixture_is_unmistakably_synthetic(event_package):
 
 def test_exact_synthetic_package_reaches_consumption(cust_dir, binding_doc,
                                                      event_package,
-                                                     launcher):
+                                                     launcher, auditor_exe):
     result = verify_event_package(event_package,
                                   parse_binding(json.dumps(
                                       binding_doc).encode()))
     assert result["files"] == 5   # marker + 2 transport + 2 runtime gates
     binding, store = binding_and_store(cust_dir, binding_doc)
     sup = Supervisor(binding, store, event_package)
-    grant = sup.consume(str(launcher[0]))
-    assert grant is not None
-    assert sup.state == "CONSUMED_PRE_EXEC"
+    result = sup.run_attempt(pipe_source(), str(launcher[0]),
+                             str(auditor_exe[0]))
+    assert not result.exec_failed
+    assert sup.state == "EXEC_ATTEMPTED"
 
 
-def test_positive_path_through_consumption(launcher, cust_dir, binding_doc,
-                                           event_package):
+def test_positive_path_through_consumption(launcher, auditor_exe, cust_dir,
+                                           binding_doc, event_package):
     binding, store = binding_and_store(cust_dir, binding_doc)
     sup = Supervisor(binding, store, event_package)
-    sup.consume(str(launcher[0]))
-    assert sup.state == "CONSUMED_PRE_EXEC"
+    sup.run_attempt(pipe_source(), str(launcher[0]), str(auditor_exe[0]))
+    assert sup.state == "EXEC_ATTEMPTED"
 
 
 # ---------------- package identity (against the pins) ----------------
@@ -295,6 +296,35 @@ def test_event_manifest_v2_schema_refused(cust_dir, binding_doc,
         == "PREPARED"
 
 
+def test_event_manifest_v3_schema_refused(cust_dir, binding_doc,
+                                          event_package):
+    """S1-004/-005/-006: the manifest schema advanced V3 -> V4 (custody
+    ownership + single-call launch semantics + executable_version and the
+    exact auditor_invocation dimension); a self-consistent V3 package
+    with matching pins is REFUSED exactly like a V1/V2 one — no silent
+    acceptance, no compatibility machinery, no real V3 package exists
+    to migrate."""
+    rewrite_manifest(event_package, binding_doc,
+                     lambda m: m.update(
+                         schema="AUCDEV-023-EVENT-PACKAGE-MANIFEST-V3"))
+    binding, store = binding_and_store(cust_dir, binding_doc)
+    with pytest.raises(LaunchRefused, match="EVENT_MANIFEST_SCHEMA"):
+        Supervisor(binding, store, event_package)
+    assert inspect_accounting_record(
+        cust_dir, binding.attempt_id, binding.digest)["last_state"] \
+        == "PREPARED"
+
+
+def test_event_manifest_v4_is_the_live_schema(event_package):
+    """The required manifest schema is exactly V4, and a freshly built
+    synthetic package carries the V4 tag."""
+    from ebs.binding import EVENT_MANIFEST_SCHEMA
+    assert EVENT_MANIFEST_SCHEMA == \
+        "AUCDEV-023-EVENT-PACKAGE-MANIFEST-V4"
+    manifest = json.loads((event_package / "MANIFEST.json").read_bytes())
+    assert manifest["schema"] == EVENT_MANIFEST_SCHEMA
+
+
 def test_event_manifest_duplicate_key_refused(cust_dir, binding_doc,
                                               event_package):
     """A duplicate top-level manifest key is refused by the STRICT parse
@@ -371,6 +401,17 @@ BINDING_MUTATIONS = [
     ("altered-network-gate-path",
      lambda d: d["runtime_gates"]["NETWORK_READINESS"].update(
          path="runtime/network-readiness-alt.py")),
+    ("altered-executable-version",
+     lambda d: d["auditor_identity"].update(
+         executable_version="SYNTHETIC-INERT-2.0.0")),
+    ("altered-auditor-invocation",
+     lambda d: d.update(auditor_invocation=[
+         "synthetic-inert-auditor-client", "--event",
+         d["event_id"], "--role", d["auditor_role"],
+         "--mode", "attacker-extra-mode"])),
+    ("reordered-auditor-invocation",
+     lambda d: d.update(auditor_invocation=list(reversed(
+         d["auditor_invocation"])))),
 ]
 
 
@@ -458,6 +499,14 @@ PACKAGE_MUTATIONS = [
          result_schema="AUCDEV-023-NETWORK-READINESS-RESULT-V0")),
     ("network-gate-descriptor-dropped",
      lambda p: p["runtime_gates"].pop("NETWORK_READINESS")),
+    ("executable-version",
+     lambda p: p["auditor_identity"].update(
+         executable_version="SYNTHETIC-INERT-2.0.0")),
+    ("auditor-invocation",
+     lambda p: p.update(auditor_invocation=[
+         "synthetic-inert-auditor-client", "--mode", "regenerated"])),
+    ("auditor-invocation-dropped",
+     lambda p: p.pop("auditor_invocation")),
     ("missing-projection-field",
      lambda p: p.pop("sandbox_profile_id")),
     ("unknown-projection-field",
@@ -616,7 +665,7 @@ def test_rem2_001_row_type_refusal_is_at_row_validation(
 
 
 def test_rem2_001_manifest_row_bytes_valid_int_control_accepted(
-        cust_dir, binding_doc, event_package, launcher):
+        cust_dir, binding_doc, event_package, launcher, auditor_exe):
     """Positive control: exact INTEGER byte counts remain ACCEPTED —
     including bytes=0 for a REAL zero-byte regular payload and bytes=1
     for a one-byte payload; the strict rule refuses only non-int, bool,
@@ -633,5 +682,5 @@ def test_rem2_001_manifest_row_bytes_valid_int_control_accepted(
     rewrite_manifest(event_package, binding_doc, mutate)
     binding, store = binding_and_store(cust_dir, binding_doc)
     sup = Supervisor(binding, store, event_package)
-    sup.consume(str(launcher[0]))
-    assert sup.state == "CONSUMED_PRE_EXEC"
+    sup.run_attempt(pipe_source(), str(launcher[0]), str(auditor_exe[0]))
+    assert sup.state == "EXEC_ATTEMPTED"

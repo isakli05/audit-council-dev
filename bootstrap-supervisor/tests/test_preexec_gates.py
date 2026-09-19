@@ -1,5 +1,6 @@
 """Combined preexec-gate ordering/failure tests (CR-EBS-S1-002 +
-CR-EBS-S1-003).
+CR-EBS-S1-003; regressed under the CR-EBS-S1-004/-005/-006 single-call
+final launch-seam authority operation).
 
 Every gate executed here is a repository test fixture —
 tests/fixtures/inert_network_readiness.py (NO network access of any kind;
@@ -19,14 +20,16 @@ gate execution count at exactly 0; there is no same-attempt retry.
 
 S1-003 matrix (tasking §20): the externally separable preexec sequence
 validate_gates() -> verify_launcher() -> consume() NO LONGER EXISTS — the
-ONE public preexec authority operation consume(launcher_path) verifies the
-launcher, executes NETWORK_READINESS then RESOURCE_GATE exactly once each,
-durably records GATES_PASSED with BOTH fresh evidence sets, and
-IMMEDIATELY durably records CONSUMED_PRE_EXEC before returning its single
-LaunchGrant; GATES_PASSED is an INTERNAL TRANSIENT state in which no
-caller ever regains control; every failure (either gate, either durable
-append, launcher identity) terminalizes fail-closed with no grant and no
-same-attempt retry.
+ONE public authority operation run_attempt(credential_source_fd,
+launcher_path, auditor_executable_path) verifies the launcher and the
+live auditor executable, executes NETWORK_READINESS then RESOURCE_GATE
+exactly once each, durably records GATES_PASSED with BOTH fresh evidence
+sets, IMMEDIATELY durably records CONSUMED_PRE_EXEC, and proceeds
+straight through the fork/exec attempt inside the SAME call; GATES_PASSED
+is an INTERNAL TRANSIENT state in which no caller ever regains control;
+every failure (either gate, either durable append, launcher/auditor
+identity, custody admission) terminalizes fail-closed with no ChildResult
+and no same-attempt retry (S1-004/-005/-006 single-call shape).
 """
 import ast
 import copy
@@ -37,11 +40,11 @@ import pytest
 
 from ebs.accounting import AccountingStore, inspect_accounting_record
 from ebs.binding import parse_binding
-from ebs.launch import LaunchError, LaunchGrant, LaunchRefused, Supervisor
+from ebs.launch import LaunchError, LaunchRefused, Supervisor
 
-from conftest import binding_for, make_event_package, nr_paths, rg_paths, \
-    sha_hex, write_nr_state, write_rg_state, clear_nr_tracks, \
-    clear_rg_tracks
+from conftest import binding_for, make_event_package, nr_paths, \
+    pipe_source, rg_paths, sha_hex, write_nr_state, write_rg_state, \
+    clear_nr_tracks, clear_rg_tracks
 
 ATTEMPT = "evt-0011223344556677-A-01"
 
@@ -67,10 +70,11 @@ def build(cust_dir, binding_doc, event_package):
     return Supervisor(binding, store, event_package)
 
 
-def fresh_consume(cust_dir, binding_doc, event_package, launcher):
+def fresh_run(cust_dir, binding_doc, event_package, launcher, auditor_exe):
     sup = build(cust_dir, binding_doc, event_package)
-    grant = sup.consume(str(launcher[0]))
-    return sup, grant
+    result = sup.run_attempt(pipe_source(), str(launcher[0]),
+                             str(auditor_exe[0]))
+    return sup, result
 
 
 def gate_count(paths):
@@ -107,13 +111,14 @@ def test_s1_002_network_readiness_descriptor_is_mandatory(binding_doc):
 
 
 def test_s1_002_network_gate_executes_exactly_once_with_fresh_evidence(
-        cust_dir, binding_doc, event_package, launcher):
-    """Successful single consume executes NETWORK_READINESS exactly ONCE
+        cust_dir, binding_doc, event_package, launcher, auditor_exe):
+    """A successful single run executes NETWORK_READINESS exactly ONCE
     and the durable GATES_PASSED record carries its full fresh evidence
     set (identity, sha, schema, canonical validated result + digest +
     size) alongside the RESOURCE_GATE evidence."""
-    sup, _ = fresh_consume(cust_dir, binding_doc, event_package, launcher)
-    assert sup.state == "CONSUMED_PRE_EXEC"
+    sup, _ = fresh_run(cust_dir, binding_doc, event_package, launcher,
+                       auditor_exe)
+    assert sup.state == "EXEC_ATTEMPTED"
     assert gate_count(nr_paths) == 1
     binding = parse_binding(json.dumps(binding_doc).encode())
     view = inspect_accounting_record(cust_dir, binding.attempt_id,
@@ -175,16 +180,18 @@ S1_002_MODES = [
 @pytest.mark.parametrize("mode,refusal", S1_002_MODES,
                          ids=[case[0] for case in S1_002_MODES])
 def test_s1_002_mode_matrix_blocks_before_any_authority(
-        cust_dir, binding_doc, event_package, launcher, mode, refusal):
+        cust_dir, binding_doc, event_package, launcher, auditor_exe,
+        mode, refusal):
     """Every malformed / failed / wrong-context fresh NETWORK_READINESS
-    result blocks: no GATES_PASSED, no CONSUMED_PRE_EXEC, no grant,
+    result blocks: no GATES_PASSED, no CONSUMED_PRE_EXEC, no ChildResult,
     durable TERMINAL_PREEXEC_STOP, exactly one network-gate execution, and
     — the ordering proof — a RESOURCE_GATE execution count of EXACTLY 0
     (the resource gate never runs when route readiness fails)."""
     write_nr_state(ATTEMPT, mode)
     sup = build(cust_dir, binding_doc, event_package)
     with pytest.raises(LaunchRefused, match=refusal):
-        sup.consume(str(launcher[0]))
+        sup.run_attempt(pipe_source(), str(launcher[0]),
+                        str(auditor_exe[0]))
     assert sup.state == "TERMINAL_PREEXEC_STOP"
     binding = parse_binding(json.dumps(binding_doc).encode())
     view = inspect_accounting_record(cust_dir, binding.attempt_id,
@@ -198,7 +205,8 @@ def test_s1_002_mode_matrix_blocks_before_any_authority(
 
 
 def test_s1_002_hang_is_bounded_and_blocks(cust_dir, binding_doc,
-                                           event_package, launcher):
+                                           event_package, launcher,
+                                           auditor_exe):
     """A hung network-readiness gate is NOT an unbounded authority
     process: the deterministic bounded timeout kills it fail-closed, the
     resource gate never executes, and the attempt terminalizes."""
@@ -207,23 +215,26 @@ def test_s1_002_hang_is_bounded_and_blocks(cust_dir, binding_doc,
     sup = build(cust_dir, binding_doc, event_package)
     started = time.monotonic()
     with pytest.raises(LaunchRefused, match="NETWORK_READINESS_TIMEOUT"):
-        sup.consume(str(launcher[0]))
+        sup.run_attempt(pipe_source(), str(launcher[0]),
+                        str(auditor_exe[0]))
     assert time.monotonic() - started < 60
     assert sup.state == "TERMINAL_PREEXEC_STOP"
     assert gate_count(rg_paths) == 0
 
 
 def test_s1_002_no_same_attempt_retry_after_network_failure(
-        cust_dir, binding_doc, event_package, launcher):
+        cust_dir, binding_doc, event_package, launcher, auditor_exe):
     """After a NETWORK_READINESS failure there is NO same-attempt retry:
-    the second consume() is refused by state and both execution counts
+    the second run_attempt is refused by state and both execution counts
     stay fixed (network 1, resource 0)."""
     write_nr_state(ATTEMPT, "route-fail")
     sup = build(cust_dir, binding_doc, event_package)
     with pytest.raises(LaunchRefused):
-        sup.consume(str(launcher[0]))
-    with pytest.raises(LaunchError, match="CONSUME_REFUSED"):
-        sup.consume(str(launcher[0]))
+        sup.run_attempt(pipe_source(), str(launcher[0]),
+                        str(auditor_exe[0]))
+    with pytest.raises(LaunchError, match="RUN_ATTEMPT_REFUSED"):
+        sup.run_attempt(pipe_source(), str(launcher[0]),
+                        str(auditor_exe[0]))
     assert gate_count(nr_paths) == 1
     assert gate_count(rg_paths) == 0
 
@@ -273,7 +284,7 @@ def test_s1_002_network_gate_artifact_digest_mismatch_refused(
 
 
 def test_s1_002_resource_gate_runs_after_network_and_blocks_alone(
-        cust_dir, binding_doc, event_package, launcher):
+        cust_dir, binding_doc, event_package, launcher, auditor_exe):
     """RESOURCE_GATE remains the LAST dynamic environmental gate: when
     NETWORK_READINESS passes but the live resource state is failing, the
     network gate HAS executed (count 1), the resource gate observes the
@@ -281,7 +292,8 @@ def test_s1_002_resource_gate_runs_after_network_and_blocks_alone(
     write_rg_state(ATTEMPT, "fail-state")
     sup = build(cust_dir, binding_doc, event_package)
     with pytest.raises(LaunchRefused, match="RESOURCE_GATE_RESULT_NOT_PASS"):
-        sup.consume(str(launcher[0]))
+        sup.run_attempt(pipe_source(), str(launcher[0]),
+                        str(auditor_exe[0]))
     assert sup.state == "TERMINAL_PREEXEC_STOP"
     assert gate_count(nr_paths) == 1
     assert gate_count(rg_paths) == 1
@@ -297,6 +309,19 @@ def test_s1_002_resource_gate_runs_after_network_and_blocks_alone(
 def test_s1_003_old_public_preexec_sequence_is_gone():
     """The independent public authority-path operations no longer exist:
     no validate_gates and no verify_launcher on the Supervisor."""
+    assert not hasattr(Supervisor, "validate_gates")
+    assert not hasattr(Supervisor, "verify_launcher")
+
+
+def test_s1_005_no_portable_grant_or_execute_surface_exists():
+    """CR-EBS-S1-005/S1-004: the grant/consume/execute authority split is
+    STRUCTURALLY GONE — there is no LaunchGrant class, no Supervisor
+    consume/execute, and (with the AST shape test below) no public method
+    returns in GATES_PASSED or CONSUMED_PRE_EXEC."""
+    import ebs.launch as launch_mod
+    assert not hasattr(launch_mod, "LaunchGrant")
+    assert not hasattr(Supervisor, "consume")
+    assert not hasattr(Supervisor, "execute")
     assert not hasattr(Supervisor, "validate_gates")
     assert not hasattr(Supervisor, "verify_launcher")
 
@@ -330,40 +355,42 @@ def test_s1_003_no_method_enters_gates_passed_without_consuming():
             assert "CONSUMED_PRE_EXEC" in targets, \
                 f"{fn.name} enters GATES_PASSED without consuming"
             checked += 1
-    assert checked >= 1    # the consume operation itself must exist
+    assert checked >= 1    # the single authority operation must exist
 
 
-def test_s1_003_single_consume_records_full_preexec_sequence(
-        cust_dir, binding_doc, event_package, launcher):
-    """THE S1-003 positive: one public operation durably records
-    PREPARED -> GATES_PASSED -> CONSUMED_PRE_EXEC (in that order) and only
-    then returns its single LaunchGrant; both dynamic gates executed
-    exactly once each (network first, resource last); the state machine is
-    at CONSUMED_PRE_EXEC at return — never GATES_PASSED."""
-    sup, grant = fresh_consume(cust_dir, binding_doc, event_package,
-                               launcher)
-    assert isinstance(grant, LaunchGrant)
-    assert sup.state == "CONSUMED_PRE_EXEC"
+def test_s1_003_single_operation_records_full_launch_sequence(
+        cust_dir, binding_doc, event_package, launcher, auditor_exe):
+    """THE S1-003/S1-005 positive: one public operation durably records
+    PREPARED -> GATES_PASSED -> CONSUMED_PRE_EXEC -> EXEC_ATTEMPTED (in
+    that order) and only then returns its ChildResult; both dynamic gates
+    executed exactly once each (network first, resource last); the state
+    machine is at EXEC_ATTEMPTED at return — never GATES_PASSED, never
+    CONSUMED_PRE_EXEC."""
+    sup, result = fresh_run(cust_dir, binding_doc, event_package,
+                            launcher, auditor_exe)
+    assert not result.exec_failed
+    assert sup.state == "EXEC_ATTEMPTED"
     assert gate_count(nr_paths) == 1
     assert gate_count(rg_paths) == 1
     binding = parse_binding(json.dumps(binding_doc).encode())
     view = inspect_accounting_record(cust_dir, binding.attempt_id,
                                      binding.digest)
     assert view["states"] == ["PREPARED", "GATES_PASSED",
-                              "CONSUMED_PRE_EXEC"]
+                              "CONSUMED_PRE_EXEC", "EXEC_ATTEMPTED"]
 
 
 def test_s1_003_launcher_mismatch_terminalizes_before_either_gate(
-        cust_dir, tmp_path, launcher):
+        cust_dir, tmp_path, launcher, auditor_exe):
     """Launcher identity verification happens BEFORE the dynamic gates: a
     launcher whose bytes differ from the bound SHA-256 terminalizes the
     attempt with BOTH gate execution counts at exactly 0 and no
     GATES_PASSED / CONSUMED record."""
-    doc = binding_for("e" * 64)
+    doc = binding_for("e" * 64, auditor_sha256=auditor_exe[1])
     pkg = make_event_package(doc, tmp_path, name="pkg-mutated-launcher")
     sup = build(cust_dir, doc, pkg)
     with pytest.raises(LaunchRefused, match="DIGEST"):
-        sup.consume(str(launcher[0]))   # disk bytes != bound digest
+        sup.run_attempt(pipe_source(), str(launcher[0]),
+                        str(auditor_exe[0]))
     assert sup.state == "TERMINAL_PREEXEC_STOP"
     binding = parse_binding(json.dumps(doc).encode())
     view = inspect_accounting_record(cust_dir, binding.attempt_id,
@@ -371,15 +398,17 @@ def test_s1_003_launcher_mismatch_terminalizes_before_either_gate(
     assert view["states"] == ["PREPARED", "TERMINAL_PREEXEC_STOP"]
     assert gate_count(nr_paths) == 0
     assert gate_count(rg_paths) == 0
-    with pytest.raises(LaunchError, match="CONSUME_REFUSED"):
-        sup.consume(str(launcher[0]))   # no same-attempt retry
+    with pytest.raises(LaunchError, match="RUN_ATTEMPT_REFUSED"):
+        sup.run_attempt(pipe_source(), str(launcher[0]),
+                        str(auditor_exe[0]))   # no same-attempt retry
 
 
-def test_s1_003_gates_passed_append_failure_returns_no_grant(
-        cust_dir, binding_doc, event_package, launcher, monkeypatch):
+def test_s1_003_gates_passed_append_failure_returns_no_child_result(
+        cust_dir, binding_doc, event_package, launcher, auditor_exe,
+        monkeypatch):
     """A GATES_PASSED record-persistence failure AFTER both fresh gate
-    PASSes returns NO grant, terminalizes fail-closed, and permits no
-    same-attempt retry (both gates already executed exactly once)."""
+    PASSes returns NO ChildResult, terminalizes fail-closed, and permits
+    no same-attempt retry (both gates already executed exactly once)."""
     from ebs.accounting import AccountingError
     original = AccountingStore.append
 
@@ -392,7 +421,8 @@ def test_s1_003_gates_passed_append_failure_returns_no_grant(
     sup = build(cust_dir, binding_doc, event_package)
     with pytest.raises(LaunchRefused,
                        match="PREEXEC_CONSUME_RECORD_FAILED"):
-        sup.consume(str(launcher[0]))
+        sup.run_attempt(pipe_source(), str(launcher[0]),
+                        str(auditor_exe[0]))
     monkeypatch.undo()
     assert sup.state == "TERMINAL_PREEXEC_STOP"   # never GATES_PASSED
     binding = parse_binding(json.dumps(binding_doc).encode())
@@ -402,14 +432,16 @@ def test_s1_003_gates_passed_append_failure_returns_no_grant(
     assert "CONSUMED_PRE_EXEC" not in view["states"]
     assert gate_count(nr_paths) == 1
     assert gate_count(rg_paths) == 1
-    with pytest.raises(LaunchError, match="CONSUME_REFUSED"):
-        sup.consume(str(launcher[0]))
+    with pytest.raises(LaunchError, match="RUN_ATTEMPT_REFUSED"):
+        sup.run_attempt(pipe_source(), str(launcher[0]),
+                        str(auditor_exe[0]))
 
 
 def test_s1_003_consumed_append_failure_after_gates_passed(
-        cust_dir, binding_doc, event_package, launcher, monkeypatch):
+        cust_dir, binding_doc, event_package, launcher, auditor_exe,
+        monkeypatch):
     """THE caller-visible-GATES_PASSED negative: GATES_PASSED persists but
-    the CONSUMED_PRE_EXEC append fails — NO grant is returned, the
+    the CONSUMED_PRE_EXEC append fails — NO ChildResult is returned, the
     supervisor terminalizes fail-closed (GATES_PASSED is never left as a
     returned-to-caller state), the durable record honestly shows the
     fail-closed terminal path, and no same-attempt retry exists."""
@@ -425,7 +457,8 @@ def test_s1_003_consumed_append_failure_after_gates_passed(
     sup = build(cust_dir, binding_doc, event_package)
     with pytest.raises(LaunchRefused,
                        match="PREEXEC_CONSUME_RECORD_FAILED"):
-        sup.consume(str(launcher[0]))
+        sup.run_attempt(pipe_source(), str(launcher[0]),
+                        str(auditor_exe[0]))
     monkeypatch.undo()
     assert sup.state == "TERMINAL_PREEXEC_STOP"   # NOT GATES_PASSED
     binding = parse_binding(json.dumps(binding_doc).encode())
@@ -433,59 +466,39 @@ def test_s1_003_consumed_append_failure_after_gates_passed(
                                      binding.digest)
     assert view["states"] == ["PREPARED", "GATES_PASSED",
                               "TERMINAL_PREEXEC_STOP"]
-    with pytest.raises(LaunchError, match="CONSUME_REFUSED"):
-        sup.consume(str(launcher[0]))             # no retry, no resumption
+    with pytest.raises(LaunchError, match="RUN_ATTEMPT_REFUSED"):
+        sup.run_attempt(pipe_source(), str(launcher[0]),
+                        str(auditor_exe[0]))      # no retry, no resumption
     assert gate_count(nr_paths) == 1              # no re-execution either
     assert gate_count(rg_paths) == 1
 
 
-def test_s1_003_second_consume_refused(cust_dir, binding_doc,
-                                       event_package, launcher):
-    """consume() is single-issuance: after a successful consumption a
-    second consume is refused and neither gate re-executes."""
-    sup, _ = fresh_consume(cust_dir, binding_doc, event_package, launcher)
-    with pytest.raises(LaunchError, match="CONSUME_REFUSED"):
-        sup.consume(str(launcher[0]))
+def test_s1_003_second_run_attempt_refused(cust_dir, binding_doc,
+                                           event_package, launcher,
+                                           auditor_exe):
+    """run_attempt is single-issuance: after a successful run a second
+    run_attempt is refused and neither gate re-executes."""
+    sup, _ = fresh_run(cust_dir, binding_doc, event_package, launcher,
+                       auditor_exe)
+    with pytest.raises(LaunchError, match="RUN_ATTEMPT_REFUSED"):
+        sup.run_attempt(pipe_source(), str(launcher[0]),
+                        str(auditor_exe[0]))
     assert gate_count(nr_paths) == 1
     assert gate_count(rg_paths) == 1
 
 
-def test_s1_003_only_the_exact_minted_grant_executes(
-        cust_dir, binding_doc, event_package, launcher):
-    """execute() accepts ONLY the exact grant object minted by THIS
-    supervisor's consume(): a fresh/copied LaunchGrant and any other
-    object are refused, while the minted grant still executes (positive
-    control)."""
-    from ebs.custody import CredentialCustody
-    from conftest import pipe_source
-    sup, grant = fresh_consume(cust_dir, binding_doc, event_package,
-                               launcher)
-    with pytest.raises(LaunchError):
-        sup.execute(LaunchGrant(), custody=CredentialCustody.ingest(
-            pipe_source(), "AUDITOR_A"))
-    with pytest.raises(LaunchError):
-        sup.execute("not-a-grant", custody=None)
-    custody = CredentialCustody.ingest(pipe_source(), "AUDITOR_A")
-    try:
-        result = sup.execute(grant, custody=custody)
-    finally:
-        custody.close()
-    assert not result.exec_failed
-    assert sup.state == "EXEC_ATTEMPTED"   # launcher exec happened only
-    # after CONSUMED_PRE_EXEC, via the exact minted grant
-
-
 def test_s1_003_freshness_observed_within_single_operation(
-        cust_dir, binding_doc, event_package, launcher):
+        cust_dir, binding_doc, event_package, launcher, auditor_exe):
     """The S1-003 RED scenario under the corrected authority path: a live
-    resource state that has ALREADY deteriorated before consumption is
+    resource state that has ALREADY deteriorated before the run is
     observed FRESH inside the single operation and blocks it — there is no
     earlier returned fresh PASS that can outlive the caller's delay."""
     write_rg_state(ATTEMPT, "pass")
     sup = build(cust_dir, binding_doc, event_package)
-    write_rg_state(ATTEMPT, "fail-state")   # deteriorates BEFORE consume
+    write_rg_state(ATTEMPT, "fail-state")   # deteriorates BEFORE the run
     with pytest.raises(LaunchRefused, match="RESOURCE_GATE_RESULT_NOT_PASS"):
-        sup.consume(str(launcher[0]))
+        sup.run_attempt(pipe_source(), str(launcher[0]),
+                        str(auditor_exe[0]))
     assert sup.state == "TERMINAL_PREEXEC_STOP"
     assert gate_count(rg_paths) == 1        # observed fresh, once
     assert gate_count(nr_paths) == 1
