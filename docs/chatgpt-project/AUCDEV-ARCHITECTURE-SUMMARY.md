@@ -308,6 +308,27 @@ implementer strength, awaiting fresh readback); the +209 TCB growth
 preparation remains AUTHORIZED / PAUSED pending the fresh final
 launch-seam readback; the EBS is NOT installed Audit Council runtime
 and the product/runtime source baseline of this document is unchanged.
+The fresh Control Room readback of that candidate returned
+PARTIALLY_ACCEPTED (canonical record:
+[AUCDEV-023-EBS-FINAL-LAUNCH-SEAM-REMEDIATION-READBACK](AUCDEV-023-EBS-FINAL-LAUNCH-SEAM-REMEDIATION-READBACK.md)):
+AUCDEV023-CR-EBS-S1-004 CLOSED / ACCEPTED,
+AUCDEV023-CR-EBS-S1-005 CLOSED / ACCEPTED and
+AUCDEV023-CR-EBS-S1-006 CLOSED / ACCEPTED, and
+AUCDEV023-CR-EBS-001 CLOSED / FRESHLY_RECONFIRMED, with
+CR-EBS-002/-003/REM-001/REM2-001/S1-001/S1-002/S1-003 source-level
+reconfirmed, all bound to EXACT SHA `4bb9b936…` with no transfer to a
+future changed SHA; the +209 TCB growth (2140 → 2349) accepted as a
+NONBLOCKING residual at implementation-readback strength
+(NOT_STANDING_AUTHORITY) — while NEW blocking FINAL EXECUTION-LIFECYCLE
+findings AUCDEV023-CR-EBS-S1-007 (report-custody validation and
+terminalization not process-bound) and AUCDEV023-CR-EBS-S1-008 (auditor
+execution timeout not EBS-enforced) remain OPEN, a test-environment
+completeness limitation (host CPython 3.14.7 + pytest 9.1.1 battery;
+NOT production/event runtime compatibility) is recorded, and
+event-package preparation remains AUTHORIZED / PAUSED pending final
+execution-lifecycle remediation and fresh readback; the EBS is
+NOT installed Audit Council runtime and the product/runtime source
+baseline of this document is unchanged.
 
 The adopted design (Control Room readback-accepted revision, architecture R1)
 introduces, for at most one future AUCDEV-023 harness-audit event only:
