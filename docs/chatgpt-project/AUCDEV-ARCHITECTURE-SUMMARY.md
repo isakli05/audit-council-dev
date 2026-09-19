@@ -234,9 +234,22 @@ implementation-readback strength (canonical record:
 [AUCDEV-023-EBS-NARROW-MANIFEST-TYPE-REMEDIATION-READBACK](AUCDEV-023-EBS-NARROW-MANIFEST-TYPE-REMEDIATION-READBACK.md)):
 AUCDEV023-CR-EBS-REM2-001 CLOSED / ACCEPTED and
 AUCDEV023-CR-EBS-001/-002/-003/REM-001 CLOSED / RECONFIRMED, all bound to
-EXACT SHA `4448deea…` with no transfer to a future changed SHA — and
-the EBS is NOT installed Audit Council runtime; the product/runtime source
-baseline of this document is unchanged.
+EXACT SHA `4448deea…` with no transfer to a future changed SHA. A bounded
+GATE-TIMING remediation candidate for AUCDEV023-CR-EBS-S1-001
+(EXECUTION_TIME_RESOURCE_GATE_FROZEN_AT_S1_AND_NOT_REVALIDATED) was then
+implemented and published under the operator's narrow gate-timing
+remediation authority (the six STATIC preparation gates remain frozen
+PASS evidence; the DYNAMIC RESOURCE_GATE is bound as an exact frozen
+executable-artifact descriptor and EXECUTED by the EBS exactly once per
+attempt, after startup identity checks and BEFORE GATES_PASSED, with a
+strict result envelope and durable fresh evidence; event-package
+manifest schema V2 with V1 refused; synthetic/inert fixtures only;
+canonical report:
+[AUCDEV-023-EBS-GATE-TIMING-REMEDIATION-REPORT](AUCDEV-023-EBS-GATE-TIMING-REMEDIATION-REPORT.md))
+at implementer strength ONLY, AWAITING a fresh independent Control Room
+readback, with the prior closures on `4448deea…` NOT transferring to
+the new SHA — and the EBS is NOT installed Audit Council runtime; the
+product/runtime source baseline of this document is unchanged.
 
 The adopted design (Control Room readback-accepted revision, architecture R1)
 introduces, for at most one future AUCDEV-023 harness-audit event only:
@@ -268,19 +281,26 @@ ordinary predecessor chain is not claimed. Canonical record:
 The product/runtime source baseline of this document is unchanged by the
 adoption, the implementation candidate, its readback, the remediation
 candidate, the second remediation candidate, its readback, the narrow
-manifest row-type remediation candidate, or its readback: the EBS is separate bootstrap tooling under
+manifest row-type remediation candidate, its readback, the gate-timing
+remediation candidate, or any of their validations: the EBS is separate bootstrap tooling under
 `bootstrap-supervisor/**` (stdlib-only minimal TCB; one-shot process-bound
 authority; sealed-memfd custody; verified-open-fd launch; durable
 accounting; fail-closed frozen event-package verification with transport
-cross-binding and exact int-typed manifest row byte counts; report custody
+cross-binding and exact int-typed manifest row byte counts; runtime
+RESOURCE_GATE bound as a frozen executable-artifact descriptor and
+executed exactly once live before GATES_PASSED; report custody
 with leak screen; inert synthetic test fixtures
 only; zero provider/model executions; qualification NONE / installation
-NONE), whose narrow manifest row-type remediation readback is ACCEPTED at
-Control Room implementation-readback strength — CR-EBS-REM2-001 CLOSED /
-ACCEPTED and CR-EBS-001/-002/-003/REM-001 CLOSED / RECONFIRMED, all on
-EXACT SHA `4448deea…` with no closure of any finding transferring to a
-future SHA; the next step is the operator decision on authorizing bounded
-event-package preparation (S1), which is NOT authorized by the readback. It is NOT an
+NONE), whose last Control Room-accepted state is the narrow manifest
+row-type remediation readback — CR-EBS-REM2-001 CLOSED / ACCEPTED and
+CR-EBS-001/-002/-003/REM-001 CLOSED / RECONFIRMED, all on EXACT SHA
+`4448deea…` with no closure of any finding transferring to a future SHA —
+and whose gate-timing remediation candidate (CR-EBS-S1-001) is
+IMPLEMENTED_CANDIDATE / AWAITING_FRESH_CONTROL_ROOM_READBACK with fresh
+regression evidence held for every prior finding on the new SHA; the
+operator-granted authorization for bounded event-package preparation
+(S1), incl. zero-inference GATE-W′ validation, exists but remains PAUSED
+pending that fresh readback — the event package is NOT prepared. It is NOT an
 event package and is NOT
 execution-authorized: GATE-W′ (REQUIRED/UNPROVEN) and real-client
 credential/tool isolation (UNPROVEN / EVENT_PREPARATION_GATE) remain future

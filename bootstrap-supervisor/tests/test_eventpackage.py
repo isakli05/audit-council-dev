@@ -30,6 +30,10 @@ Matrix (second-remediation tasking §11):
   ROW TYPE (REM2-001)   files[].bytes must be an EXACT non-negative int
                         (bool explicitly refused) at manifest-row
                         validation, BEFORE GATES_PASSED.
+  GATE TIMING (S1-001)  manifest schema is V2 (V1 refused); the
+                        projection covers the runtime_gates descriptor;
+                        runtime-gate descriptor substitutions in EITHER
+                        direction are refused as projection mismatches.
 """
 import copy
 import json
@@ -112,7 +116,7 @@ def test_exact_synthetic_package_reaches_gates_passed(cust_dir, binding_doc,
     result = verify_event_package(event_package,
                                   parse_binding(json.dumps(
                                       binding_doc).encode()))
-    assert result["files"] == 3
+    assert result["files"] == 4   # marker + 2 transport + runtime gate
     binding, store = binding_and_store(cust_dir, binding_doc)
     sup = Supervisor(binding, store, event_package)
     sup.validate_gates()
@@ -235,6 +239,24 @@ def test_event_manifest_wrong_schema_refused(cust_dir, binding_doc,
         Supervisor(binding, store, event_package)
 
 
+def test_event_manifest_v1_schema_refused(cust_dir, binding_doc,
+                                          event_package):
+    """S1-001: the manifest schema advanced to V2 (the projection
+    semantics materially changed — RESOURCE_GATE left the frozen
+    evidence set and the runtime-gate descriptor became a bound
+    dimension); a self-consistent V1 package with matching pins is
+    refused, never silently accepted as equivalent."""
+    rewrite_manifest(event_package, binding_doc,
+                     lambda m: m.update(
+                         schema="AUCDEV-023-EVENT-PACKAGE-MANIFEST-V1"))
+    binding, store = binding_and_store(cust_dir, binding_doc)
+    with pytest.raises(LaunchRefused, match="EVENT_MANIFEST_SCHEMA"):
+        Supervisor(binding, store, event_package)
+    assert inspect_accounting_record(
+        cust_dir, binding.attempt_id, binding.digest)["last_state"] \
+        == "PREPARED"
+
+
 def test_event_manifest_duplicate_key_refused(cust_dir, binding_doc,
                                               event_package):
     """A duplicate top-level manifest key is refused by the STRICT parse
@@ -247,7 +269,7 @@ def test_event_manifest_duplicate_key_refused(cust_dir, binding_doc,
     collapsed["package_sha256"] = sha_hex(json.dumps(
         collapsed, sort_keys=True, separators=(",", ":")).encode())
     body = json.dumps(collapsed, sort_keys=True, separators=(",", ":"))
-    raw = ('{"schema":"AUCDEV-023-EVENT-PACKAGE-MANIFEST-V1",'
+    raw = ('{"schema":"AUCDEV-023-EVENT-PACKAGE-MANIFEST-V2",'
            + body[1:]).encode()                    # "schema" appears twice
     (event_package / "MANIFEST.json").write_bytes(raw)
     doc = copy.deepcopy(binding_doc)
@@ -291,8 +313,17 @@ BINDING_MUTATIONS = [
     ("alternate-tool-wrapper-hash",
      lambda d: d["tool_wrapper"].update(sha256=ALT)),
     ("altered-gate-evidence",
-     lambda d: d["gate_evidence"]["RESOURCE_GATE"].update(
+     lambda d: d["gate_evidence"]["GATE_W_PRIME"].update(
          evidence_sha256=seed_sha("crossbind-alternate", "gate"))),
+    ("altered-runtime-gate-identity",
+     lambda d: d["runtime_gates"]["RESOURCE_GATE"].update(
+         identity="SYNTHETIC-INERT-RESOURCE-GATE-V2")),
+    ("altered-runtime-gate-sha",
+     lambda d: d["runtime_gates"]["RESOURCE_GATE"].update(
+         sha256=seed_sha("crossbind-alternate", "runtime-gate"))),
+    ("altered-runtime-gate-path",
+     lambda d: d["runtime_gates"]["RESOURCE_GATE"].update(
+         path="runtime/resource-gate-alt.py")),
 ]
 
 
@@ -352,8 +383,20 @@ PACKAGE_MUTATIONS = [
     ("ebs-package-identity",
      lambda p: p["ebs_package"].update(package_sha256=ALT)),
     ("gate-evidence",
-     lambda p: p["gate_evidence"]["RESOURCE_GATE"].update(
+     lambda p: p["gate_evidence"]["GATE_W_PRIME"].update(
          evidence_sha256=seed_sha("crossbind-alternate", "gate"))),
+    ("runtime-gate-descriptor-identity",
+     lambda p: p["runtime_gates"]["RESOURCE_GATE"].update(
+         identity="SYNTHETIC-INERT-RESOURCE-GATE-V2")),
+    ("runtime-gate-descriptor-sha",
+     lambda p: p["runtime_gates"]["RESOURCE_GATE"].update(
+         sha256=seed_sha("crossbind-alternate", "runtime-gate"))),
+    ("runtime-gate-descriptor-path",
+     lambda p: p["runtime_gates"]["RESOURCE_GATE"].update(
+         path="runtime/resource-gate-alt.py")),
+    ("runtime-gate-descriptor-result-schema",
+     lambda p: p["runtime_gates"]["RESOURCE_GATE"].update(
+         result_schema="AUCDEV-023-RESOURCE-GATE-RESULT-V0")),
     ("missing-projection-field",
      lambda p: p.pop("sandbox_profile_id")),
     ("unknown-projection-field",

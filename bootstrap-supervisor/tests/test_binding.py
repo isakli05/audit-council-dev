@@ -109,16 +109,16 @@ CASES = [
     ("unknown gate status",
      lambda d: d["gate_evidence"]["GATE_W_PRIME"].update(status="UNKNOWN")),
     ("malformed gate evidence no digest",
-     lambda d: d["gate_evidence"]["RESOURCE_GATE"].pop("evidence_sha256")),
+     lambda d: d["gate_evidence"]["GATE_W_PRIME"].pop("evidence_sha256")),
     ("malformed gate evidence bad size type",
-     lambda d: d["gate_evidence"]["RESOURCE_GATE"].update(evidence_size="64")),
+     lambda d: d["gate_evidence"]["GATE_W_PRIME"].update(evidence_size="64")),
     ("gate evidence role mismatch",
      lambda d: d["gate_evidence"]["IDENTITY_LINTER"].update(role="AUDITOR_B")),
     ("gate evidence attempt mismatch",
      lambda d: d["gate_evidence"]["BLINDNESS_MAP"].update(
          attempt_id="evt-ffffffffffffffff-A-01")),
     ("gate evidence unknown field",
-     lambda d: d["gate_evidence"]["RESOURCE_GATE"].update(note="hi")),
+     lambda d: d["gate_evidence"]["GATE_W_PRIME"].update(note="hi")),
     # ---- new mandatory transport-binding dimensions (CR-EBS-001) ----
     ("missing sandbox profile id", lambda d: d.pop("sandbox_profile_id")),
     ("sandbox profile id unsafe",
@@ -164,6 +164,51 @@ CASES = [
      lambda d: d["event_package"].update(package_sha256="zzz")),
     ("event package unknown key",
      lambda d: d["event_package"].update(note="hi")),
+    # ---- S1-001 gate-timing split: frozen vs runtime gate contract ----
+    ("frozen RESOURCE_GATE PASS in gate evidence",
+     lambda d: d["gate_evidence"].update(RESOURCE_GATE={
+         "status": "PASS", "evidence_sha256": "0" * 64,
+         "evidence_size": 64, "role": d["auditor_role"],
+         "attempt_id": d["attempt_id"]})),
+    ("runtime gates missing",
+     lambda d: d.pop("runtime_gates")),
+    ("runtime gates wrong type",
+     lambda d: d.update(runtime_gates=["RESOURCE_GATE"])),
+    ("unknown runtime gate",
+     lambda d: d["runtime_gates"].update(NETWORK_READINESS=dict(
+         d["runtime_gates"]["RESOURCE_GATE"]))),
+    ("runtime gate descriptor missing field",
+     lambda d: d["runtime_gates"]["RESOURCE_GATE"].pop("sha256")),
+    ("runtime gate descriptor extra field",
+     lambda d: d["runtime_gates"]["RESOURCE_GATE"].update(result={})),
+    ("runtime gate identity unsafe",
+     lambda d: d["runtime_gates"]["RESOURCE_GATE"].update(
+         identity="a gate identity!")),
+    ("runtime gate identity wrong type",
+     lambda d: d["runtime_gates"]["RESOURCE_GATE"].update(identity=5)),
+    ("runtime gate path absolute",
+     lambda d: d["runtime_gates"]["RESOURCE_GATE"].update(
+         path="/etc/passwd")),
+    ("runtime gate path traversal",
+     lambda d: d["runtime_gates"]["RESOURCE_GATE"].update(
+         path="../../outside/gate.py")),
+    ("runtime gate path empty",
+     lambda d: d["runtime_gates"]["RESOURCE_GATE"].update(path="")),
+    ("runtime gate path dot segment",
+     lambda d: d["runtime_gates"]["RESOURCE_GATE"].update(
+         path="runtime/./resource-gate.py")),
+    ("runtime gate path double slash",
+     lambda d: d["runtime_gates"]["RESOURCE_GATE"].update(
+         path="runtime//resource-gate.py")),
+    ("runtime gate path wrong type",
+     lambda d: d["runtime_gates"]["RESOURCE_GATE"].update(path=None)),
+    ("runtime gate sha malformed",
+     lambda d: d["runtime_gates"]["RESOURCE_GATE"].update(sha256="zzz")),
+    ("runtime gate result schema wrong",
+     lambda d: d["runtime_gates"]["RESOURCE_GATE"].update(
+         result_schema="AUCDEV-023-RESOURCE-GATE-RESULT-V0")),
+    ("runtime gate result schema missing value",
+     lambda d: d["runtime_gates"]["RESOURCE_GATE"].update(result_schema="")),
 ]
 
 

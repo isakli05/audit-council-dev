@@ -29,7 +29,8 @@ if str(EBS_ROOT) not in sys.path:
     sys.path.insert(0, str(EBS_ROOT))
 
 from ebs.binding import (EVENT_MANIFEST_SCHEMA, FROZEN_TARGET,  # noqa: E402
-                         OUTPUT_KIND, POLICY_ID, REQUIRED_GATES,
+                         OUTPUT_KIND, POLICY_ID,
+                         RESOURCE_GATE_RESULT_SCHEMA, REQUIRED_GATES,
                          ROLE_PROVIDER_ROLES, attempt_id_for,
                          output_name_for)
 
@@ -91,6 +92,15 @@ def valid_binding_document(event_id, role, launcher_sha256,
         "role": role,
         "attempt_id": attempt,
     } for gate in REQUIRED_GATES}
+    # S1-001: RESOURCE_GATE is NOT a frozen evidence member — the binding
+    # freezes the RUNTIME gate descriptor instead (no result, no PASS);
+    # make_event_package pins the sha256 of the materialized artifact.
+    runtime_gate = {
+        "identity": "SYNTHETIC-INERT-RESOURCE-GATE-V1",
+        "path": "runtime/resource-gate.py",
+        "sha256": seed_sha(evidence_seed, "resource-gate"),
+        "result_schema": RESOURCE_GATE_RESULT_SCHEMA,
+    }
     return {
         "policy_id": POLICY_ID,
         "event_id": event_id,
@@ -119,6 +129,7 @@ def valid_binding_document(event_id, role, launcher_sha256,
         "output_identity": {"kind": OUTPUT_KIND,
                             "name": output_name_for(attempt)},
         "gate_evidence": gates,
+        "runtime_gates": {"RESOURCE_GATE": runtime_gate},
     }
 
 
@@ -139,8 +150,16 @@ def make_event_package(doc, tmp_path, name=EVENT_PKG_NAME,
     files, package_sha256), the transport projection = every binding
     dimension EXCEPT event_package, and the non-circular package identity
     (digest of the manifest document EXCLUDING its own package_sha256
-    key).  Optional projection_mutator alters ONLY the manifest
-    transport_binding projection (PACKAGE->BINDING negatives)."""
+    key).  S1-001: the package ALWAYS contains the inert RUNTIME RESOURCE
+    GATE artifact at the descriptor's bound path and the binding's
+    runtime_gates.RESOURCE_GATE.sha256 is pinned to the materialized
+    bytes BEFORE the projection is derived.  Optional projection_mutator
+    alters ONLY the manifest transport_binding projection
+    (PACKAGE->BINDING negatives)."""
+    root = tmp_path / name
+    gate_path, gate_sha = make_resource_gate(
+        root / "runtime" / "resource-gate.py")
+    doc["runtime_gates"]["RESOURCE_GATE"]["sha256"] = gate_sha
     payloads = {
         "SYNTHETIC-INERT-MARKER.txt": EVENT_PKG_MARKER,
         "transport/prompt-contract.json": json.dumps(
@@ -151,8 +170,8 @@ def make_event_package(doc, tmp_path, name=EVENT_PKG_NAME,
             {"synthetic_inert": True,
              "for_digest": doc["common_evidence_manifest_digest"]},
             sort_keys=True).encode(),
+        "runtime/resource-gate.py": gate_path.read_bytes(),
     }
-    root = tmp_path / name
     (root / "transport").mkdir(parents=True)
     for rel, data in payloads.items():
         (root / rel).write_bytes(data)
@@ -209,6 +228,46 @@ def make_launcher(tmp_path: Path, variant: str = "a") -> "tuple[Path, str]":
     dst.write_text(text)
     os.chmod(dst, 0o755)
     return dst, sha_hex(dst.read_bytes())
+
+
+def make_resource_gate(dst: Path) -> "tuple[Path, str]":
+    """Materialize the inert RUNTIME RESOURCE GATE fixture (S1-001) with a
+    runnable shebang; returns (path, sha256).  Same shebang-rewrite
+    discipline as make_launcher.  The gate's behavior is driven by an
+    EXTERNAL /tmp state file keyed by attempt id (absent = honest PASS),
+    so the SAME frozen artifact PASSes or FAILs on live state sampled at
+    execution time — the freshness property under test."""
+    src = FIXTURES / "inert_resource_gate.py"
+    text = src.read_text()
+    text = text.replace("#!/usr/bin/python3\n", f"#!{sys.executable}\n", 1)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_text(text)
+    os.chmod(dst, 0o755)
+    return dst, sha_hex(dst.read_bytes())
+
+
+# Attempt-keyed /tmp "live resource state" tracks read/written by the
+# inert gate fixture (deterministic, host-local, cleaned per test).
+RG_BASE = "/tmp/aucdev023-rg-"
+
+
+def rg_paths(attempt_id: str):
+    return (RG_BASE + "state-" + attempt_id + ".json",
+            RG_BASE + "sentinel-" + attempt_id,
+            RG_BASE + "count-" + attempt_id)
+
+
+def write_rg_state(attempt_id: str, mode: str) -> None:
+    """Flip the EXTERNAL live resource state the gate samples fresh at
+    execution time (absent file = honest PASS)."""
+    with open(rg_paths(attempt_id)[0], "w") as handle:
+        json.dump({"mode": mode}, handle)
+
+
+def clear_rg_tracks(attempt_id: str) -> None:
+    for path in rg_paths(attempt_id):
+        if os.path.exists(path):
+            os.unlink(path)
 
 
 def binding_for(launcher_sha: str, **overrides) -> dict:

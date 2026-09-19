@@ -21,6 +21,16 @@ VERSIONED STRICT EVENT-PACKAGE MANIFEST CONTRACT and the canonical
 transport projection `binding_projection`, established mechanically by
 `launch.verify_event_package` BEFORE GATES_PASSED (non-circular
 construction documented in README.md + the second-remediation report).
+
+Gate-timing remediation (CR-EBS-S1-001): the gate dimension is SPLIT.
+The six STATIC preparation gates above remain frozen PASS evidence
+members; RESOURCE_GATE is NOT frozen evidence — it is the ONE RUNTIME
+gate, frozen as an exact executable-artifact DESCRIPTOR (identity, safe
+event-package-relative path, exact SHA-256, result schema) inside the
+binding document, covered by `Binding.digest` and by the transport
+projection, and EXECUTED by the EBS during the live attempt
+(`launch.Supervisor.validate_gates`) before GATES_PASSED.  A
+package-time RESOURCE_GATE PASS can no longer exist in a valid binding.
 """
 from __future__ import annotations
 
@@ -58,20 +68,35 @@ ROLE_ADAPTERS = {
 LAUNCHER_IDS = ("NETWORKED-BOUNDARY-LAUNCHER-V1",
                 "INERT-LOCAL-FIXTURE-LAUNCHER-V1")
 
+# STATIC preparation gates: frozen PASS evidence members only (S1-001).
 REQUIRED_GATES = (
     "PACKAGE_BINDING_IDENTITY",
     "COMMON_EVIDENCE_PARITY",
     "IDENTITY_LINTER",
     "BLINDNESS_MAP",
-    "RESOURCE_GATE",
     "GATE_W_PRIME",
     "REAL_CLIENT_CREDENTIAL_TOOL_ISOLATION",
 )
+
+# The ONE DYNAMIC gate (S1-001): RESOURCE_GATE must NEVER appear as a
+# frozen PASS evidence member — a package-time PASS would go stale before
+# the separately authorized execution.  The binding instead freezes an
+# exact EXECUTABLE-ARTIFACT DESCRIPTOR (RUNTIME_GATE_FIELDS); the EBS
+# executes that artifact during the live attempt, after startup identity
+# checks and BEFORE GATES_PASSED, and only a freshly validated result
+# passes (launch.py).  The descriptor carries no result and no PASS.
+RUNTIME_GATES = ("RESOURCE_GATE",)
+RUNTIME_GATE_FIELDS = ("identity", "path", "sha256", "result_schema")
+RESOURCE_GATE_RESULT_SCHEMA = "AUCDEV-023-RESOURCE-GATE-RESULT-V1"
 
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 EVENT_ID_RE = re.compile(r"^evt-[0-9a-f]{16}$")
 # Pinned identity strings (executable/sandbox/wrapper): safe tokens only.
 IDENTITY_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+# Safe event-package-relative path segments (runtime-gate artifact path):
+# charset-bounded, no empty segment (rejects absolute "/"-prefixed and
+# "//"), no "." / ".." traversal, no drive/backslash forms.
+PATH_SEGMENT_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 OUTPUT_KIND = "FIRST_PASS_REPORT"
 GATE_FIELDS = ("status", "evidence_sha256", "evidence_size", "role",
                "attempt_id")
@@ -82,13 +107,18 @@ TOP_LEVEL = ("policy_id", "event_id", "auditor_role", "attempt_id", "target",
              "common_evidence_manifest_digest", "prompt_contract_digest",
              "boundary_launcher", "auditor_identity", "sandbox_profile_id",
              "tool_wrapper", "ebs_package", "event_package",
-             "output_identity", "gate_evidence")
+             "output_identity", "gate_evidence", "runtime_gates")
 
 # --- versioned strict event-package manifest contract (CR-EBS-REM-001;
 # full semantics in README.md + second-remediation report): a frozen
 # event package's manifest has an EXACT key set, an EXACT schema tag,
-# and the COMPLETE transport projection below. ---
-EVENT_MANIFEST_SCHEMA = "AUCDEV-023-EVENT-PACKAGE-MANIFEST-V1"
+# and the COMPLETE transport projection below.  V2 (CR-EBS-S1-001): the
+# projection semantics MATERIALLY CHANGE — RESOURCE_GATE is no longer a
+# frozen evidence member and the runtime-gate descriptor becomes a bound
+# security dimension — so the schema tag advances V1 -> V2 and a V1
+# manifest is REFUSED, never silently accepted as equivalent.  No real
+# V1 event package exists to migrate. ---
+EVENT_MANIFEST_SCHEMA = "AUCDEV-023-EVENT-PACKAGE-MANIFEST-V2"
 EVENT_MANIFEST_KEYS = frozenset(
     ("schema", "transport_binding", "files", "package_sha256"))
 # Every binding security dimension EXCEPT event_package itself (the
@@ -166,6 +196,18 @@ def _identity_field(value, where):
     return value
 
 
+def _safe_relpath(value, where):
+    """A safe event-package-relative POSIX path: non-empty bounded str of
+    charset-bounded segments; absolute paths, empty segments, "."/".."
+    traversal, and any non-str type are refused (fail closed)."""
+    if not isinstance(value, str) or not 0 < len(value) <= 512:
+        raise BindingError(f"{where}_NOT_A_SAFE_RELATIVE_PATH")
+    for segment in value.split("/"):
+        if segment in ("", ".", "..") or not PATH_SEGMENT_RE.match(segment):
+            raise BindingError(f"{where}_NOT_A_SAFE_RELATIVE_PATH")
+    return value
+
+
 def _package_fields(value, where):
     """Validate one pinned package-identity pair (exact keys, digests)."""
     _exact_keys(value, PACKAGE_FIELDS, where)
@@ -191,6 +233,7 @@ class Binding:
     event_package: dict
     output_identity: dict
     gate_evidence: dict
+    runtime_gates: dict
     digest: str
 
 
@@ -267,6 +310,14 @@ def parse_binding(data) -> Binding:
     if doc["output_identity"]["name"] != output_name_for(attempt):
         raise BindingError("OUTPUT_NAME_NOT_ATTEMPT_DERIVED")
 
+    if "RESOURCE_GATE" in doc["gate_evidence"]:
+        # S1-001: a frozen package-time RESOURCE_GATE PASS is exactly the
+        # stale-evidence defect — refused BEFORE any other gate check.
+        raise BindingError(
+            "GATE_EVIDENCE_RESOURCE_GATE_FORBIDDEN: RESOURCE_GATE is a "
+            "RUNTIME gate (frozen executable-artifact descriptor in "
+            "runtime_gates), never a frozen PASS evidence member; a "
+            "package-time PASS cannot exist in a valid binding")
     _exact_keys(doc["gate_evidence"], REQUIRED_GATES, "GATE_EVIDENCE")
     for gate, evidence in doc["gate_evidence"].items():
         _exact_keys(evidence, GATE_FIELDS, f"GATE_{gate}")
@@ -291,6 +342,22 @@ def parse_binding(data) -> Binding:
             "COMMON_EVIDENCE_PARITY_DIGEST_INCONSISTENT: gate evidence is "
             "not the declared common-evidence manifest digest")
 
+    # S1-001 runtime-gate descriptor: EXACTLY the one runtime gate
+    # RESOURCE_GATE, with the EXACT descriptor field set — a frozen
+    # identity/path/digest/result-schema contract, no result, no PASS.
+    runtime = doc["runtime_gates"]
+    _exact_keys(runtime, RUNTIME_GATES, "RUNTIME_GATES")
+    descriptor = runtime["RESOURCE_GATE"]
+    _exact_keys(descriptor, RUNTIME_GATE_FIELDS,
+                "RUNTIME_GATE_RESOURCE_GATE")
+    _identity_field(descriptor["identity"], "RUNTIME_GATE_IDENTITY")
+    _safe_relpath(descriptor["path"], "RUNTIME_GATE_PATH")
+    _sha_field(descriptor["sha256"], "RUNTIME_GATE_SHA256")
+    if descriptor["result_schema"] != RESOURCE_GATE_RESULT_SCHEMA:
+        raise BindingError(
+            "RUNTIME_GATE_RESULT_SCHEMA_UNEXPECTED: "
+            f"{descriptor['result_schema']!r}")
+
     return Binding(
         policy_id=doc["policy_id"], event_id=event_id, auditor_role=role,
         attempt_id=attempt, target=dict(doc["target"]),
@@ -304,6 +371,7 @@ def parse_binding(data) -> Binding:
         event_package=event_package,
         output_identity=dict(doc["output_identity"]),
         gate_evidence={k: dict(v) for k, v in doc["gate_evidence"].items()},
+        runtime_gates={"RESOURCE_GATE": dict(descriptor)},
         digest=hashlib.sha256(canonical_bytes(doc)).hexdigest())
 
 

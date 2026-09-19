@@ -1,4 +1,4 @@
-# AUCDEV-023 External Bootstrap Supervisor (EBS) — narrow manifest row-type remediation candidate
+# AUCDEV-023 External Bootstrap Supervisor (EBS) — gate-timing remediation candidate
 
 Bounded implementation of the operator-ADOPTED AUCDEV-023 auditor-bootstrap
 governance architecture **R1 = CONTROLLERLESS / PROCESS-BOUND /
@@ -12,7 +12,10 @@ AUCDEV023-CR-EBS-REM-001; canonical record:
 `docs/chatgpt-project/AUCDEV-023-EBS-SECOND-REMEDIATION-REPORT.md`), and
 the 2026-09-19 bounded **narrow EBS manifest row-type remediation**
 authority (finding AUCDEV023-CR-EBS-REM2-001; canonical record:
-`docs/chatgpt-project/AUCDEV-023-EBS-NARROW-MANIFEST-TYPE-REMEDIATION-REPORT.md`).
+`docs/chatgpt-project/AUCDEV-023-EBS-NARROW-MANIFEST-TYPE-REMEDIATION-REPORT.md`),
+and the 2026-09-19 bounded **EBS gate-timing remediation** authority
+(finding AUCDEV023-CR-EBS-S1-001; canonical record:
+`docs/chatgpt-project/AUCDEV-023-EBS-GATE-TIMING-REMEDIATION-REPORT.md`).
 
 ## What this is
 
@@ -24,9 +27,8 @@ authority (finding AUCDEV023-CR-EBS-REM2-001; canonical record:
   event-package verification with transport cross-binding (second
   remediation)**, generic report custody with a
   credential leak screen, and an inspection-only CLI.
-- **A narrow manifest row-type remediation candidate awaiting a FRESH
-  independent Control Room readback.** Not accepted, not trusted for any
-  event.
+- **A gate-timing remediation candidate awaiting a FRESH independent
+  Control Room readback.** Not accepted, not trusted for any event.
 
 ## What this is NOT
 
@@ -53,7 +55,10 @@ refused) MUST carry EVERY adopted dimension (design §17):
 executable_sha256**}, **`sandbox_profile_id`**, **`tool_wrapper`**
 {identity, sha256}**, **`ebs_package`** {manifest_sha256, package_sha256},
 **`event_package`** {manifest_sha256, package_sha256}, `output_identity`
-{kind, name}, `gate_evidence` (7 mandatory PASS gates incl. GATE-W′).
+{kind, name}, `gate_evidence` (the 6 mandatory STATIC preparation PASS
+gates incl. GATE-W′), and **`runtime_gates`** — the frozen RUNTIME
+RESOURCE_GATE executable-artifact descriptor (see the gate-timing
+section below).
 
 Every dimension is mandatory, covered by `binding.digest`, mechanically
 bound to the accounting store (attempt id AND digest equality), and
@@ -76,7 +81,12 @@ remains inspection-only).
 
 **Versioned strict event-package manifest contract**
 (`ebs/binding.py: EVENT_MANIFEST_SCHEMA` =
-`AUCDEV-023-EVENT-PACKAGE-MANIFEST-V1`): the package's `MANIFEST.json`
+`AUCDEV-023-EVENT-PACKAGE-MANIFEST-V2`, advanced from V1 by the
+S1-001 gate-timing remediation because the projection semantics
+materially changed — `RESOURCE_GATE` left the frozen evidence set and
+the runtime-gate descriptor became a bound security dimension; a V1
+manifest is REFUSED, never silently accepted as equivalent): the
+package's `MANIFEST.json`
 parsed document has EXACTLY the key set `{schema, transport_binding,
 files, package_sha256}` — unknown or missing keys, a wrong schema tag,
 or duplicate/non-finite JSON are refused (the shared strict parser).
@@ -101,8 +111,9 @@ attempt id; the exact frozen five-field target; prompt-contract digest;
 common-evidence manifest digest; boundary launcher identity+SHA-256;
 auditor identity incl. provider role, adapter id, executable
 identity+SHA-256; sandbox profile id; tool wrapper identity+SHA-256;
-EBS package identity pair; output identity; the COMPLETE gate-evidence
-record set) — EXCEPT `event_package` itself. The two sides are compared
+EBS package identity pair; output identity; the COMPLETE six-gate
+preparation evidence set; the runtime-gate descriptor) — EXCEPT
+`event_package` itself. The two sides are compared
 as canonical JSON bytes (type-strict: JSON `true` ≠ `1`, `1.0` ≠ `1`).
 The exclusion is what makes the construction non-circular: the
 projection is covered by the event-package manifest/package identity,
@@ -130,6 +141,73 @@ Synthetic event packages for the zero-provider tests are built in
 `tests/conftest.py: make_event_package` (unmistakably inert temporary
 trees). The REAL AUCDEV-023 event package is NOT authorized, NOT built,
 NOT committed anywhere in this repository.
+
+## Frozen-vs-runtime gate split (CR-EBS-S1-001, gate-timing remediation)
+
+The six **STATIC preparation gates** (`PACKAGE_BINDING_IDENTITY`,
+`COMMON_EVIDENCE_PARITY`, `IDENTITY_LINTER`, `BLINDNESS_MAP`,
+`GATE_W_PRIME`, `REAL_CLIENT_CREDENTIAL_TOOL_ISOLATION`) remain frozen
+PASS evidence members, transport-bound exactly as before.
+
+The **DYNAMIC `RESOURCE_GATE` is NOT frozen evidence** — a package-time
+PASS would go stale before the separately authorized execution. The
+binding instead freezes an exact **runtime-gate descriptor**:
+
+```
+runtime_gates = {"RESOURCE_GATE": {
+    "identity": <safe frozen identity token>,
+    "path": <safe event-package-relative path>,
+    "sha256": <exact SHA-256 of the frozen artifact bytes>,
+    "result_schema": "AUCDEV-023-RESOURCE-GATE-RESULT-V1"}}
+```
+
+The descriptor carries NO result and NO PASS. Its exact key set, safe
+relative path (absolute/traversal/empty/dot segments refused), exact
+SHA-256, and result-schema identity are type-strict fail-closed
+validated at parse; a `RESOURCE_GATE` member inside `gate_evidence` is
+refused outright (`GATE_EVIDENCE_RESOURCE_GATE_FORBIDDEN`). The
+descriptor is covered by `binding.digest` and by the event-package
+transport projection, so ANY substitution fails cross-binding.
+
+**Runtime ordering** (every step fail-closed; there is no path from
+PREPARED to GATES_PASSED without the live execution, and no second
+execution in the same attempt):
+
+1. live EBS package self-identity verification;
+2. Supervisor⇄store attempt + binding-digest equality;
+3. frozen event-package identity verification;
+4. event-package transport-projection equality (schema V2);
+5. runtime RESOURCE_GATE artifact identity verified from the ALREADY
+   verified package tree (manifest-row membership, regular executable
+   file, `O_NOFOLLOW` open, exact SHA-256) and the verified open fd
+   HELD;
+6. `validate_gates()` re-hashes the held fd immediately before
+   execution (held-fd drift refused), then EXECUTES exactly that open
+   fd — the SAME verified-fd `execveat(AT_EMPTY_PATH)` primitive the
+   launcher path uses — exactly ONCE, bound to this attempt's
+   event/role/attempt, with a clean minimal environment, NO credential
+   fd inherited, no launch authority/custody plaintext exposed, and a
+   bounded deterministic timeout (a hung gate is SIGKILLed and fails
+   closed);
+7. the fresh result is strictly validated (schema
+   `AUCDEV-023-RESOURCE-GATE-RESULT-V1`: strict JSON, exact key set,
+   exact event/role/attempt match with the binding, top-level PASS,
+   EXACTLY three samples each explicitly PASS — a top-level PASS never
+   overrides a failed sample, and PASS is never inferred from the exit
+   code; size-bounded before acceptance; non-zero exit refused);
+8. only then is `GATES_PASSED` durably appended — carrying the fresh
+   evidence (`resource_gate_identity`, `resource_gate_sha256`,
+   `resource_gate_result_schema`, the canonical validated result JSON
+   plus its exact SHA-256 and byte size) — and the state machine
+   transitions. Any failure at any point leaves authority unconsumed
+   and terminalizes the attempt (`TERMINAL_PREEXEC_STOP`), with no
+   same-attempt retry.
+
+The gate itself is an EVENT-PACKAGE-SIDE trusted component: the EBS
+implements NO resource thresholds or policy — it binds, verifies,
+executes, validates, records, and fails closed. `RESOURCE_GATE`
+execution is NOT a provider/model engagement. Launcher verification
+exists only AFTER the GATES_PASSED transition.
 
 ## Runtime self-identity verification (CR-EBS-003)
 
@@ -225,10 +303,12 @@ ebs/                production source (Python 3 stdlib only, Linux-only)
   custody.py        non-dumpable sealed-memfd credential custody
   launch.py         package verification (EBS self + event package with
                     transport cross-binding) + Supervisor + verified-fd exec
+                    + runtime RESOURCE_GATE open/hold/execute/validate
   reportcustody.py  report freeze + credential leak screen
   cli.py            inspection-only CLI (no authority operations)
 tests/              deterministic zero-provider test battery
-tests/fixtures/     inert synthetic local launch fixtures (NOT providers)
+tests/fixtures/     inert synthetic local launch + runtime-gate fixtures
+                    (NOT providers)
 MANIFEST.json       per-file SHA-256 manifest + non-circular package identity
 ```
 

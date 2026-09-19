@@ -24,6 +24,20 @@ via execveat(AT_EMPTY_PATH) (fexecve fallback).  A pathname re-open is
 never used after verification; unavailability of the identity-preserving
 exec method fails closed.  The held fd is re-hashed immediately before
 fork so same-inode drift after consumption also fails closed.
+
+Gate-timing remediation (CR-EBS-S1-001): the DYNAMIC RESOURCE_GATE is
+NOT frozen evidence.  Every Supervisor construction holds the VERIFIED
+OPEN fd of the runtime-gate artifact bound by the frozen descriptor
+(identity/path/SHA-256/result schema, digest- and projection-covered);
+`validate_gates()` RE-HASHES the held fd and EXECUTES exactly THAT open
+fd — same verified-fd exec primitive as the launcher — once per attempt,
+after startup identity checks and BEFORE GATES_PASSED, with a bounded
+fail-closed timeout, no credential fd inherited, a clean minimal
+environment, strict result-envelope validation against the binding's
+event/role/attempt, and the fresh result durably recorded in the
+GATES_PASSED accounting record.  No path from PREPARED to GATES_PASSED
+exists without this live execution, and no second execution in the same
+attempt exists.
 """
 from __future__ import annotations
 
@@ -34,12 +48,13 @@ import json
 import os
 import platform
 import stat
+import time
 from dataclasses import dataclass
 
 from .accounting import AccountingStore
 from .binding import (EVENT_MANIFEST_KEYS, EVENT_MANIFEST_SCHEMA,
-                      BindingError, binding_projection, canonical_bytes,
-                      strict_loads)
+                      RESOURCE_GATE_RESULT_SCHEMA, BindingError,
+                      binding_projection, canonical_bytes, strict_loads)
 from .custody import CredentialCustody, establish_non_dumpable
 from .reportcustody import DEFAULT_SIZE_LIMIT, collect
 from .statemachine import (CONSUMED_PRE_EXEC, EXEC_ATTEMPTED, GATES_PASSED,
@@ -52,6 +67,17 @@ CRED_FD = 3                    # fixed inherited-fd contract for the sealed
 FAIL_FD = 4                    # exec-failure signal pipe (CLOEXEC: EOF = ok)
 CHILD_EXIT_EXEC_FAIL = 98
 METADATA_MAX = 65536
+
+# Runtime RESOURCE_GATE execution bounds (CR-EBS-S1-001): a hung gate
+# must never create an unbounded authority process, and the accepted
+# result is size-bounded before parsing.
+RESOURCE_GATE_TIMEOUT = 10.0            # seconds; deterministic fail-closed
+RESOURCE_GATE_RESULT_MAX = 65536        # accepted result bytes (bound first)
+RESOURCE_GATE_SAMPLES = 3
+RESOURCE_GATE_RESULT_FIELDS = ("schema", "status", "event_id",
+                               "auditor_role", "attempt_id", "samples")
+RESOURCE_GATE_SAMPLE_FIELDS = ("status", "detail")
+SIGKILL = 9                              # POSIX constant (no signal import)
 
 AT_EMPTY_PATH = 0x1000
 SYS_EXECVEAT = {"x86_64": 322, "aarch64": 281, "armv7l": 387, "i686": 358}
@@ -301,6 +327,227 @@ def verify_event_package(root, binding) -> dict:
     return result
 
 
+# --- runtime RESOURCE_GATE (CR-EBS-S1-001) ----------------------------
+# The gate is an EVENT-PACKAGE-SIDE trusted component: the EBS implements
+# NO resource thresholds or policy — it binds the exact frozen artifact,
+# verifies/opens it safely, executes the verified fd at the correct
+# lifecycle point, binds the invocation to event/role/attempt, validates
+# the result envelope, records it, and fails closed.  No subprocess, no
+# networking, no daemon: the SAME low-level fork + verified-fd exec
+# primitives the launcher path already uses.
+
+
+def open_runtime_gate(event_package_root, binding, event_manifest) -> int:
+    """Open (no symlink following) + verify the frozen runtime RESOURCE_GATE
+    artifact from the ALREADY-VERIFIED event-package tree and return the
+    verified open fd (held for exactly-once live execution).  The path is
+    binding-validated as a safe package-relative path; the artifact must
+    additionally be a manifest row of the verified package, a regular
+    executable file, and byte-identical to the descriptor's exact SHA-256."""
+    descriptor = binding.runtime_gates["RESOURCE_GATE"]
+    rows = {row["path"] for row in event_manifest["files"]}
+    if descriptor["path"] not in rows:
+        raise LaunchRefused(
+            f"RESOURCE_GATE_NOT_PACKAGE_MANIFEST_ROW: "
+            f"{descriptor['path']!r}")
+    path = os.path.join(os.fspath(event_package_root), descriptor["path"])
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError as exc:
+        raise LaunchRefused(f"RESOURCE_GATE_OPEN_REFUSED: {exc!r}") from exc
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode):
+            raise LaunchRefused("RESOURCE_GATE_NOT_REGULAR_FILE")
+        if not info.st_mode & 0o111:
+            raise LaunchRefused("RESOURCE_GATE_NOT_EXECUTABLE")
+        if _hash_fd(fd) != descriptor["sha256"]:
+            raise LaunchRefused("RESOURCE_GATE_ARTIFACT_DIGEST_MISMATCH: "
+                                "live artifact differs from the bound "
+                                "descriptor SHA-256")
+    except Exception:
+        os.close(fd)
+        raise
+    os.lseek(fd, 0, os.SEEK_SET)
+    return fd
+
+
+def _kill_and_reap(child_pid: int) -> None:
+    """Bounded-failure cleanup: SIGKILL the gate child and reap it so no
+    unbounded authority process survives a refusal."""
+    try:
+        os.kill(child_pid, SIGKILL)
+    except OSError:
+        pass
+    try:
+        os.waitpid(child_pid, 0)
+    except OSError:
+        pass
+
+
+def _gate_child(gate_fd: int, result_w: int, devnull: int,
+                argv, env: dict) -> None:
+    """Child-side preparation for the runtime resource gate: stdout is the
+    bounded result pipe, stdin/stderr are devnull, NO credential fd is
+    inherited (custody never enters this path and the gate receives no
+    launch authority), every other fd is closed, and the ALREADY-VERIFIED
+    open gate fd is exec'd (identity-preserving; no pathname re-open).
+    Never returns."""
+    import fcntl
+    try:
+        os.dup2(devnull, 0)
+        os.dup2(result_w, 1)
+        os.dup2(devnull, 2)
+        keep = {0, 1, 2, gate_fd}
+        for entry in os.listdir("/proc/self/fd"):
+            fd = int(entry)
+            if fd not in keep:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+        fcntl.fcntl(gate_fd, fcntl.F_SETFD, 0)  # survives exec (script fd)
+        establish_non_dumpable()
+        fd_exec(gate_fd, argv, env)
+    except BaseException:
+        os._exit(CHILD_EXIT_EXEC_FAIL)
+
+
+def _run_runtime_gate(gate_fd: int, argv, env: dict) -> bytes:
+    """Execute the verified runtime-gate fd EXACTLY ONCE with a bounded
+    fail-closed timeout; return the raw result bytes (size-bounded).  Any
+    fork/exec failure, hang past the deadline, oversized output, or
+    non-zero child exit refuses."""
+    result_r, result_w = os.pipe()
+    devnull = os.open(os.devnull, os.O_RDONLY)
+    child_pid = None
+    try:
+        try:
+            child_pid = os.fork()
+        except OSError as exc:
+            raise LaunchError(f"RESOURCE_GATE_FORK_FAILED: {exc!r}") from exc
+        if child_pid == 0:
+            _gate_child(gate_fd, result_w, devnull, argv, env)
+        os.close(result_w)
+        result_w = None
+        os.close(devnull)
+        devnull = None
+        os.set_blocking(result_r, False)
+        deadline = time.monotonic() + RESOURCE_GATE_TIMEOUT
+        output = b""
+        eof = False
+        exitcode = None
+        while True:
+            if time.monotonic() >= deadline:
+                _kill_and_reap(child_pid)
+                raise LaunchRefused(
+                    f"RESOURCE_GATE_TIMEOUT: gate did not finish within "
+                    f"{RESOURCE_GATE_TIMEOUT}s; failing closed")
+            progressed = False
+            if not eof:
+                try:
+                    chunk = os.read(result_r, 65536)
+                except BlockingIOError:
+                    chunk = None
+                if chunk is not None:
+                    progressed = True
+                    if not chunk:
+                        eof = True
+                    else:
+                        output += chunk
+                        if len(output) > RESOURCE_GATE_RESULT_MAX:
+                            _kill_and_reap(child_pid)
+                            raise LaunchRefused(
+                                "RESOURCE_GATE_OUTPUT_TOO_LARGE: gate "
+                                f"emitted more than "
+                                f"{RESOURCE_GATE_RESULT_MAX} result bytes")
+            if exitcode is None:
+                waited_pid, status = os.waitpid(child_pid, os.WNOHANG)
+                if waited_pid == child_pid:
+                    exitcode = os.waitstatus_to_exitcode(status)
+                    progressed = True
+            if eof and exitcode is not None:
+                break
+            if not progressed:
+                time.sleep(0.01)               # bounded poll, no busy spin
+        if exitcode != 0:
+            reason = ("EXEC_FAILED" if exitcode == CHILD_EXIT_EXEC_FAIL
+                      else "NONZERO_EXIT")
+            raise LaunchRefused(f"RESOURCE_GATE_{reason}: gate exited "
+                                f"{exitcode}")
+        if not output:
+            raise LaunchRefused("RESOURCE_GATE_OUTPUT_MISSING: gate "
+                                "produced no result bytes")
+        return output
+    finally:
+        for fd in (result_r, result_w, devnull):
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+
+
+def _validate_resource_gate_result(output: bytes, binding) -> dict:
+    """Strict fail-closed validation of the FRESH gate result envelope
+    (AUCDEV-023-RESOURCE-GATE-RESULT-V1): strict JSON (duplicate keys and
+    non-finite refused), exact top-level key set, exact schema tag, exact
+    event/role/attempt match with the binding, top-level status PASS, and
+    EXACTLY three samples each explicitly PASS with an object detail.
+    A top-level PASS never overrides a failed sample; PASS is never
+    inferred from the exit code.  Returns the durable fresh-evidence
+    fields (canonical result JSON + its SHA-256 + byte size)."""
+    try:
+        result = strict_loads(output)
+    except BindingError as exc:
+        raise LaunchRefused(f"RESOURCE_GATE_RESULT_MALFORMED: {exc}") \
+            from exc
+    if not isinstance(result, dict):
+        raise LaunchRefused("RESOURCE_GATE_RESULT_NOT_AN_OBJECT")
+    keys = set(result)
+    expected = set(RESOURCE_GATE_RESULT_FIELDS)
+    if keys != expected:
+        raise LaunchRefused(
+            f"RESOURCE_GATE_RESULT_KEYS_INVALID: "
+            f"unknown={sorted(keys - expected)} "
+            f"missing={sorted(expected - keys)}")
+    if result["schema"] != RESOURCE_GATE_RESULT_SCHEMA:
+        raise LaunchRefused("RESOURCE_GATE_RESULT_SCHEMA_UNEXPECTED: "
+                            f"{result['schema']!r}")
+    if result["event_id"] != binding.event_id or \
+            result["auditor_role"] != binding.auditor_role or \
+            result["attempt_id"] != binding.attempt_id:
+        raise LaunchRefused("RESOURCE_GATE_RESULT_CONTEXT_MISMATCH: "
+                            "result event/role/attempt differ from the "
+                            "binding")
+    if result["status"] != "PASS":
+        raise LaunchRefused(
+            f"RESOURCE_GATE_RESULT_NOT_PASS: {result['status']!r}")
+    samples = result["samples"]
+    if not isinstance(samples, list) or len(samples) != RESOURCE_GATE_SAMPLES:
+        raise LaunchRefused(
+            f"RESOURCE_GATE_SAMPLE_COUNT_INVALID: expected exactly "
+            f"{RESOURCE_GATE_SAMPLES} samples, got "
+            f"{len(samples) if isinstance(samples, list) else samples!r}")
+    for index, sample in enumerate(samples):
+        if not isinstance(sample, dict) or \
+                set(sample) != set(RESOURCE_GATE_SAMPLE_FIELDS):
+            raise LaunchRefused(
+                f"RESOURCE_GATE_SAMPLE_INVALID_AT_{index}")
+        if sample["status"] != "PASS":
+            raise LaunchRefused(
+                f"RESOURCE_GATE_SAMPLE_NOT_PASS_AT_{index}: "
+                f"{sample['status']!r}")
+        if not isinstance(sample["detail"], dict):
+            raise LaunchRefused(
+                f"RESOURCE_GATE_SAMPLE_DETAIL_INVALID_AT_{index}")
+    canonical = canonical_bytes(result).decode()
+    return {"resource_gate_result": canonical,
+            "resource_gate_result_sha256": hashlib.sha256(
+                canonical.encode()).hexdigest(),
+            "resource_gate_result_size": len(canonical.encode())}
+
+
 def _child_setup(launcher_fd: int, metadata_w: int, fail_w: int,
                  devnull: int, custody_fd: int, argv, env: dict) -> None:
     """Child-side preparation: fixed fd contract, hygiene, then exec of
@@ -358,12 +605,14 @@ class Supervisor:
     verification; (2) mechanical binding to THIS store (attempt id AND
     binding digest); (3) frozen event-package identity verification
     against the binding's event_package pins; (4) event-package
-    transport-projection equality; only then does a supervisor capable
-    of validate_gates() exist.  The event-package root is a MANDATORY
-    constructor input — no default, no flag, no environment bypass.  No
-    attach/revival constructor exists; an existing same-attempt record
-    fails closed at store creation (replacement = new operator authority
-    + new attempt id + new EBS process + new accounting)."""
+    transport-projection equality; (5) runtime RESOURCE_GATE artifact
+    identity verified and the verified open fd HELD (CR-EBS-S1-001);
+    only then does a supervisor capable of validate_gates() exist.  The
+    event-package root is a MANDATORY constructor input — no default, no
+    flag, no environment bypass.  No attach/revival constructor exists;
+    an existing same-attempt record fails closed at store creation
+    (replacement = new operator authority + new attempt id + new EBS
+    process + new accounting)."""
 
     def __init__(self, binding, store: AccountingStore,
                  event_package_root) -> None:
@@ -382,13 +631,16 @@ class Supervisor:
             raise LaunchError("STORE_BINDING_DIGEST_MISMATCH: the store "
                               "was not created from this exact binding "
                               "document")
-        verify_event_package(event_package_root, binding)   # (3) + (4)
+        event_result = verify_event_package(event_package_root, binding)
+        self._gate_fd = open_runtime_gate(          # (5) hold verified fd
+            event_package_root, binding, event_result["document"])
         self._binding = binding
         self._store = store
         self._machine = StateMachine(store.last_state or PREPARED)
         self._launcher_fd = None
         self._issued_grant = None    # single issuance: consume() -> grant
         self._spent = False          # irreversible launch-spent guard
+        self._resource_gate_executed = False   # exactly-once runtime gate
 
     @property
     def state(self) -> str:
@@ -433,22 +685,68 @@ class Supervisor:
             facts[f"{prefix}_sha256"] = pkg["package_sha256"]
         return facts
 
+    def _execute_resource_gate(self) -> dict:
+        """CR-EBS-S1-001: execute the frozen runtime RESOURCE_GATE artifact
+        ONCE, NOW, during the live attempt (all startup identity checks
+        already passed); strictly validate the fresh result; return the
+        durable fresh-evidence fields for the GATES_PASSED record.  The
+        invocation is bound to this attempt's event/role/attempt and runs
+        with a clean minimal environment; NO credential fd and NO launch
+        authority/custody plaintext is ever exposed to the gate."""
+        descriptor = self._binding.runtime_gates["RESOURCE_GATE"]
+        got = _hash_fd(self._gate_fd)     # held-fd drift check immediately
+        os.lseek(self._gate_fd, 0, os.SEEK_SET)
+        if got != descriptor["sha256"]:
+            raise LaunchRefused("RESOURCE_GATE_FD_DRIFT: the held gate fd "
+                                "no longer matches the bound artifact")
+        output = _run_runtime_gate(
+            self._gate_fd,
+            [descriptor["identity"], self._binding.event_id,
+             self._binding.auditor_role, self._binding.attempt_id],
+            {"PATH": "/usr/bin:/bin", "LANG": "C"})
+        evidence = _validate_resource_gate_result(output, self._binding)
+        evidence.update({"resource_gate_identity": descriptor["identity"],
+                         "resource_gate_sha256": descriptor["sha256"],
+                         "resource_gate_result_schema":
+                             descriptor["result_schema"]})
+        return evidence
+
     def validate_gates(self) -> None:
-        """PREPARED -> GATES_PASSED (binding + all gate evidence were
-        fully validated at parse; this records the durable passage)."""
+        """PREPARED -> GATES_PASSED.  The six STATIC preparation gates were
+        fully validated at parse; the DYNAMIC RESOURCE_GATE is NOT frozen
+        evidence (CR-EBS-S1-001): the EBS executes the bound artifact
+        exactly once HERE — after startup identity checks and BEFORE
+        GATES_PASSED — and only a freshly validated PASS, durably recorded
+        with its fresh evidence, passes.  There is no path from PREPARED
+        to GATES_PASSED without this execution and no second execution in
+        the same attempt; any failure terminalizes the attempt with
+        authority unconsumed."""
         if self._machine.state != PREPARED:
             raise LaunchError(
                 f"GATES_ALREADY_EVALUATED: {self._machine.state}")
+        if self._resource_gate_executed:
+            raise LaunchError("RESOURCE_GATE_ALREADY_EXECUTED: no "
+                              "same-attempt gate re-execution exists")
+        self._resource_gate_executed = True
         try:
-            self._store.append(GATES_PASSED)
+            evidence = self._execute_resource_gate()
+            self._store.append(GATES_PASSED, extra=evidence)
         except Exception as exc:
-            self._preexec_stop()
-            raise LaunchRefused(f"GATES_RECORD_FAILED: {exc!r}") from exc
+            self._preexec_stop()   # PREPARED -> TERMINAL_PREEXEC_STOP
+            if isinstance(exc, LaunchRefused):
+                raise
+            raise LaunchRefused(f"RESOURCE_GATE_RECORD_FAILED: {exc!r}") \
+                from exc
         self._machine.transition(GATES_PASSED)
 
     def verify_launcher(self, path) -> int:
-        if self._machine.state not in (PREPARED, GATES_PASSED):
-            raise LaunchError("LAUNCHER_VERIFICATION_LATE")
+        if self._machine.state != GATES_PASSED:
+            # S1-001 runtime ordering: launcher verification exists only
+            # AFTER the fresh resource-gate execution and the GATES_PASSED
+            # transition (never before the dynamic gate has run).
+            raise LaunchError(
+                f"LAUNCHER_VERIFICATION_REQUIRES_GATES_PASSED: "
+                f"{self._machine.state}")
         if self._launcher_fd is not None:
             os.close(self._launcher_fd)
         self._launcher_fd = open_verified_launcher(

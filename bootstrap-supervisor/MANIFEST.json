@@ -1,14 +1,14 @@
 {
   "files": [
     {
-      "bytes": 13606,
+      "bytes": 17851,
       "path": "README.md",
-      "sha256": "ac51088d295efc85dbb9f82e6fa93590168dd20246cc337bd0613a2c10ad8366"
+      "sha256": "d4036b3eb896766fa9d9adbb5528f80536ec1a19da09c6a948c46ee7260dccc7"
     },
     {
-      "bytes": 994,
+      "bytes": 1286,
       "path": "ebs/__init__.py",
-      "sha256": "dc77dda12f51b49e690e7cfbaf496d5dafb4fc71afc3921a1c516562dea72d08"
+      "sha256": "2174f7b757a5615f4bf727cfa6c1c441322f394575f2fb27178b91bb0aa7b030"
     },
     {
       "bytes": 9077,
@@ -16,9 +16,9 @@
       "sha256": "d970e399ecdd772f998d7d5271db64b019213e7620033743a641bfa915aca47c"
     },
     {
-      "bytes": 13310,
+      "bytes": 17255,
       "path": "ebs/binding.py",
-      "sha256": "185bb228ff1e187e1d0f82a4f9e6e58bed88e89e8859b9dc0498b90bdd04ce51"
+      "sha256": "9dc5bd2938649f7d92898f2ce0bffbe2656e4576294428a6d73d005aa0588ef2"
     },
     {
       "bytes": 2712,
@@ -31,9 +31,9 @@
       "sha256": "f1c1d0f7cba21225e977c49fc86c5d32824766a0eddebe6b1761b0111c11f5ca"
     },
     {
-      "bytes": 27425,
+      "bytes": 41673,
       "path": "ebs/launch.py",
-      "sha256": "b6997c9739ccd06c32317748da151dbadcfd5deb3343aa0b3d16d0d80d3ecc97"
+      "sha256": "0e200f65073677a01170f0c8fa2ddb9ef5dfdaa0182ffaaab6c73392f4f4bb26"
     },
     {
       "bytes": 4017,
@@ -46,9 +46,9 @@
       "sha256": "b3b864332736aeeb6c97a1908bb7dca31d0277cc2545a166268678f36d6846b9"
     },
     {
-      "bytes": 11159,
+      "bytes": 13741,
       "path": "tests/conftest.py",
-      "sha256": "686df2991799ed488671d7f4e340db8e3a0c5d71bd720ec10695ff580ac39187"
+      "sha256": "00bc7c5d44113010f23e2b6d4cd4481ca33af7eb79d1937a4b6e0363a979484f"
     },
     {
       "bytes": 1926,
@@ -61,14 +61,19 @@
       "sha256": "1d60c78cca17c59f599fe7713498e80197887778e5c78a0e20cd8d1bf2fdd4af"
     },
     {
+      "bytes": 4529,
+      "path": "tests/fixtures/inert_resource_gate.py",
+      "sha256": "be47891aba4521304e506e0675b4bc41df183ed848e6da85d56df04c9fc99804"
+    },
+    {
       "bytes": 9903,
       "path": "tests/test_accounting.py",
       "sha256": "e20c956f5beeb21770a39e0986e252f8a818b0b012ecb183fc31a213ca5edb54"
     },
     {
-      "bytes": 8753,
+      "bytes": 11025,
       "path": "tests/test_binding.py",
-      "sha256": "495aab024fa8aa9bc7ab57e98c525844af46aac3f3faca5d735c0fced985191d"
+      "sha256": "32ed0202597e3986ec01a95c6bf529cbae7a862f73ea47b743dd32a3b84883c0"
     },
     {
       "bytes": 5504,
@@ -76,9 +81,9 @@
       "sha256": "f650aaaa318dac29b7e8751a0ebbfeb80959e640aae8744eccf5686efa7f9b31"
     },
     {
-      "bytes": 25092,
+      "bytes": 27412,
       "path": "tests/test_eventpackage.py",
-      "sha256": "bbd077a90f7a06205071422c2bc7d058050ea0aad506e4068c74b6052f95e817"
+      "sha256": "cdec3464f3f5dcb8be297ab98aa7f5673a33b2768e5df45a3da33ebffbb7ffea"
     },
     {
       "bytes": 18725,
@@ -91,6 +96,11 @@
       "sha256": "75d5f63f19a80a79977d4f6100ae7d6242fa0d31fff6d8f349ed6171edfcf2ca"
     },
     {
+      "bytes": 20019,
+      "path": "tests/test_resourcegate.py",
+      "sha256": "5bea4a671add0f814d4b9c8745f00d026655d612898e77a31389642a2191fb13"
+    },
+    {
       "bytes": 11718,
       "path": "tests/test_selfcheck.py",
       "sha256": "80d30fd27371325ee46679439cea5de09cbf1363fd05ebd4691fa95d90a6246e"
@@ -101,18 +111,18 @@
       "sha256": "1a8135b2fb13bb59e69ddbea69e28ee80866fca40a1d8e1ad341e0023bafaac5"
     },
     {
-      "bytes": 8678,
+      "bytes": 9399,
       "path": "tests/test_static.py",
-      "sha256": "94686bfcdc741983619f1654e0a1e4a758c08e2baa2a75fba205563895b0d972"
+      "sha256": "86e128eaf652a3a4ec38b2934e6473fc9491ad7f7a1f91a4eadb66a17fb3789a"
     }
   ],
-  "implementation_base_commit": "dbe0dc5d955cc39573c907153f02f86aec2c119f",
+  "implementation_base_commit": "63db66a3433f2d02a2fdc0745450ee017323ffc2",
   "package": "bootstrap-supervisor",
-  "package_sha256": "d478a5013ede94ebd63870948594c0675914792ad1b8268708473366123ef9fd",
+  "package_sha256": "4f330647eb677547a882ec61fee8abe283a6d99a044b00b9297444364656cf47",
   "policy_id": "AUCDEV-023-R1-CONTROLLERLESS-PROCESS-BOUND-TARGET-INDEPENDENT-ONE-SHOT",
   "qualification_claim": "NONE",
   "runtime_dependencies": "Python 3 standard library ONLY + Linux kernel primitives (memfd/seals, prctl, fsync, execveat, /proc); no third-party runtime package",
-  "status": "NARROW_MANIFEST_TYPE_REMEDIATION_CANDIDATE / AWAITING_FRESH_CONTROL_ROOM_READBACK",
+  "status": "GATE_TIMING_REMEDIATION_CANDIDATE / AWAITING_FRESH_CONTROL_ROOM_READBACK",
   "target": {
     "commit": "d4d584ffa47ad2848268ba947247f81a845b2322",
     "qh_tree": "5b8d5e5465923740470ff63ed9b8683f257a3787",
@@ -120,5 +130,5 @@
     "root_tree": "1d4b8b8eb0619cf0b854984b778e6ea081ad9aa7",
     "skill_tree": "c792933a862d9a5434681a88d183470dd8b15d2f"
   },
-  "task": "AUCDEV-023 bounded External Bootstrap Supervisor (EBS) narrow manifest row-type remediation of AUCDEV023-CR-EBS-REM2-001"
+  "task": "AUCDEV-023 bounded External Bootstrap Supervisor (EBS) gate-timing remediation of AUCDEV023-CR-EBS-S1-001"
 }
