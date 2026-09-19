@@ -258,7 +258,26 @@ findings AUCDEV023-CR-EBS-S1-002 (mandatory route-readiness gate
 absent) and AUCDEV023-CR-EBS-S1-003 (RESOURCE_GATE PASS freshness not
 coupled to consumption) remain OPEN — and the EBS is NOT installed
 Audit Council runtime; the product/runtime source baseline of this
-document is unchanged.
+document is unchanged. Under the operator's 2026-09-19 narrow
+preexec-gate remediation authority, a bounded candidate for BOTH
+findings was then implemented and published at implementer strength
+ONLY (canonical report:
+[AUCDEV-023-EBS-PREEXEC-GATE-REMEDIATION-REPORT](AUCDEV-023-EBS-PREEXEC-GATE-REMEDIATION-REPORT.md)):
+the binding freezes EXACTLY TWO dynamic runtime-gate descriptors in the
+required order (NETWORK_READINESS first, RESOURCE_GATE last;
+event-package manifest schema V3 with V1/V2 refused), and the formerly
+separate public preexec operations validate_gates()/verify_launcher()
+are REMOVED in favor of the ONE public consume(launcher_path) operation
+that verifies the launcher, executes both gates exactly once, durably
+records GATES_PASSED with both evidence sets and immediately
+CONSUMED_PRE_EXEC — GATES_PASSED is an internal transient never returned
+to the caller; AUCDEV023-CR-EBS-S1-002/-003 = REMEDIATION_IMPLEMENTATED
+/ AWAITING_CONTROL_ROOM_READBACK, prior closures =
+PRIOR_CONTROL_ROOM_CLOSURE_ON_8E952D81 / REGRESSION_EVIDENCE_HELD /
+NEW_SHA_AWAITING_FRESH_CONTROL_ROOM_READBACK; production LOC 2035 →
+2140 disclosed NEW_TCB_GROWTH / AWAITING_CONTROL_ROOM_ACCEPTANCE;
+zero provider/model/auditor executions; real event package NOT
+PREPARED; existing S1 authorization PRESERVED / PAUSED / NOT CONSUMED.
 
 The adopted design (Control Room readback-accepted revision, architecture R1)
 introduces, for at most one future AUCDEV-023 harness-audit event only:

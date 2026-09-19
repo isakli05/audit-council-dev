@@ -170,12 +170,20 @@ CASES = [
          "status": "PASS", "evidence_sha256": "0" * 64,
          "evidence_size": 64, "role": d["auditor_role"],
          "attempt_id": d["attempt_id"]})),
+    # ---- S1-002: the SECOND mandatory dynamic runtime gate -------------
+    ("frozen NETWORK_READINESS PASS in gate evidence",
+     lambda d: d["gate_evidence"].update(NETWORK_READINESS={
+         "status": "PASS", "evidence_sha256": "0" * 64,
+         "evidence_size": 64, "role": d["auditor_role"],
+         "attempt_id": d["attempt_id"]})),
     ("runtime gates missing",
      lambda d: d.pop("runtime_gates")),
     ("runtime gates wrong type",
      lambda d: d.update(runtime_gates=["RESOURCE_GATE"])),
+    ("missing NETWORK_READINESS runtime gate",
+     lambda d: d["runtime_gates"].pop("NETWORK_READINESS")),
     ("unknown runtime gate",
-     lambda d: d["runtime_gates"].update(NETWORK_READINESS=dict(
+     lambda d: d["runtime_gates"].update(DNS_READINESS=dict(
          d["runtime_gates"]["RESOURCE_GATE"]))),
     ("runtime gate descriptor missing field",
      lambda d: d["runtime_gates"]["RESOURCE_GATE"].pop("sha256")),
@@ -209,7 +217,42 @@ CASES = [
          result_schema="AUCDEV-023-RESOURCE-GATE-RESULT-V0")),
     ("runtime gate result schema missing value",
      lambda d: d["runtime_gates"]["RESOURCE_GATE"].update(result_schema="")),
+    ("network gate descriptor missing field",
+     lambda d: d["runtime_gates"]["NETWORK_READINESS"].pop("sha256")),
+    ("network gate descriptor extra field",
+     lambda d: d["runtime_gates"]["NETWORK_READINESS"].update(result={})),
+    ("network gate identity unsafe",
+     lambda d: d["runtime_gates"]["NETWORK_READINESS"].update(
+         identity="a gate identity!")),
+    ("network gate path absolute",
+     lambda d: d["runtime_gates"]["NETWORK_READINESS"].update(
+         path="/etc/passwd")),
+    ("network gate path traversal",
+     lambda d: d["runtime_gates"]["NETWORK_READINESS"].update(
+         path="../../outside/gate.py")),
+    ("network gate path backslash form",
+     lambda d: d["runtime_gates"]["NETWORK_READINESS"].update(
+         path="runtime\\network-readiness.py")),
+    ("network gate sha malformed",
+     lambda d: d["runtime_gates"]["NETWORK_READINESS"].update(
+         sha256="0" * 63)),
+    ("network gate result schema wrong",
+     lambda d: d["runtime_gates"]["NETWORK_READINESS"].update(
+         result_schema="AUCDEV-023-NETWORK-READINESS-RESULT-V0")),
+    ("network gate result schema is resource schema",
+     lambda d: d["runtime_gates"]["NETWORK_READINESS"].update(
+         result_schema="AUCDEV-023-RESOURCE-GATE-RESULT-V1")),
 ]
+
+
+def test_runtime_gate_set_is_exactly_two_dynamic_gates(parsed_binding):
+    """S1-002: the binding requires EXACTLY the two dynamic runtime gates
+    in the required execution order (network readiness FIRST, resource
+    gate LAST); neither is a frozen evidence member."""
+    from ebs.binding import REQUIRED_GATES, RUNTIME_GATES
+    assert RUNTIME_GATES == ("NETWORK_READINESS", "RESOURCE_GATE")
+    assert set(parsed_binding.runtime_gates) == set(RUNTIME_GATES)
+    assert not set(RUNTIME_GATES) & set(REQUIRED_GATES)
 
 
 @pytest.mark.parametrize("name,mutate", CASES, ids=[c[0] for c in CASES])

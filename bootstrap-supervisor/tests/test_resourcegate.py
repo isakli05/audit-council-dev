@@ -1,21 +1,25 @@
-"""Runtime RESOURCE_GATE gate-timing tests (CR-EBS-S1-001).
+"""Runtime RESOURCE_GATE gate-timing tests (CR-EBS-S1-001, regressed
+under the CR-EBS-S1-003 single preexec-consumption operation).
 
-Every gate executed here is the repository test fixture
-tests/fixtures/inert_resource_gate.py — an unmistakably synthetic local
-double whose behavior is driven by an EXTERNAL /tmp live-state file
+Every gate executed here is a repository test fixture —
+tests/fixtures/inert_resource_gate.py (and the inert local
+network-readiness fixture alongside it) — unmistakably synthetic local
+doubles whose behavior is driven by an EXTERNAL /tmp live-state file
 keyed by attempt id (absent = honest PASS with three fresh PASS
 samples).  No provider, no network, no real credential, no real event
 package: the REAL AUCDEV-023 event package is NOT authorized, NOT
 built, NOT committed.
 
-Freshness matrix (gate-timing tasking §13):
+Freshness matrix (gate-timing tasking §13, as integrated with the S1-003
+single-operation authority path):
   * a package-time RESOURCE_GATE PASS cannot exist in a valid binding;
   * the bound runtime-gate artifact is EXECUTED by the EBS exactly once
-    during the live attempt, AFTER startup identity checks and BEFORE
-    GATES_PASSED — there is no path from PREPARED to GATES_PASSED
-    without the fresh execution;
-  * live state that turns FAILING AFTER the freeze is observed FRESH
-    and blocks GATES_PASSED;
+    during the live attempt, AFTER startup identity checks and INSIDE
+    the single consume() operation — after NETWORK_READINESS and before
+    durable GATES_PASSED/CONSUMED_PRE_EXEC — there is no path from
+    PREPARED to consumption without the fresh execution;
+  * live state that turns FAILING is observed FRESH and blocks
+    consumption;
   * every malformed/failed/oversized/wrong-context result blocks, with
     authority unconsumed and a durable TERMINAL_PREEXEC_STOP;
   * the GATES_PASSED record durably carries the fresh result evidence.
@@ -31,17 +35,19 @@ from ebs.binding import parse_binding
 from ebs.launch import LaunchError, LaunchRefused, Supervisor, \
     verify_package_identity
 
-from conftest import binding_for, make_event_package, rg_paths, seed_sha, \
-    sha_hex, write_rg_state, clear_rg_tracks
+from conftest import binding_for, make_event_package, nr_paths, rg_paths, \
+    seed_sha, sha_hex, write_rg_state, clear_rg_tracks, clear_nr_tracks
 
 ATTEMPT = "evt-0011223344556677-A-01"
 
 
 @pytest.fixture(autouse=True)
-def clean_rg_tracks():
+def clean_gate_tracks():
     clear_rg_tracks(ATTEMPT)
+    clear_nr_tracks(ATTEMPT)
     yield
     clear_rg_tracks(ATTEMPT)
+    clear_nr_tracks(ATTEMPT)
 
 
 def binding_and_store(cust_dir, doc):
@@ -66,73 +72,76 @@ def rewrite_manifest(pkg_root, doc, mutate):
                             "package_sha256": manifest["package_sha256"]}
 
 
-def fresh_pass(cust_dir, binding_doc, event_package):
+def fresh_pass(cust_dir, binding_doc, event_package, launcher):
     binding, store = binding_and_store(cust_dir, binding_doc)
     sup = Supervisor(binding, store, event_package)
-    sup.validate_gates()
-    return sup, binding
+    grant = sup.consume(str(launcher[0]))
+    return sup, binding, grant
 
 
 # ---------------- frozen-vs-runtime gate separation (positive base) ----
 
-def test_s1_001_fresh_pass_gate_reaches_gates_passed(cust_dir, binding_doc,
-                                                     event_package):
-    """GREEN base: a freshly EXECUTED gate with exactly three PASS
-    samples — sampled live at execution time — reaches GATES_PASSED, and
-    the execution actually happened (sentinel + count)."""
-    sup, binding = fresh_pass(cust_dir, binding_doc, event_package)
-    assert sup.state == "GATES_PASSED"
+def test_s1_001_fresh_pass_gate_reaches_consumption(cust_dir, binding_doc,
+                                                    event_package,
+                                                    launcher):
+    """GREEN base: a freshly EXECUTED resource gate with exactly three
+    PASS samples — sampled live at execution time — lets the single
+    consume() operation reach CONSUMED_PRE_EXEC, and the execution
+    actually happened (sentinel + count)."""
+    sup, binding, grant = fresh_pass(cust_dir, binding_doc, event_package,
+                                     launcher)
+    assert sup.state == "CONSUMED_PRE_EXEC"
+    assert grant is not None
     _, sentinel, count = rg_paths(ATTEMPT)
     assert os.path.exists(sentinel)      # the gate REALLY executed
     with open(count) as handle:
         assert handle.read().strip() == "1"
     view = inspect_accounting_record(cust_dir, binding.attempt_id,
                                      binding.digest)
-    assert view["last_state"] == "GATES_PASSED"
+    assert view["last_state"] == "CONSUMED_PRE_EXEC"
+
+
+def test_s1_001_gates_not_executed_at_startup(cust_dir, binding_doc,
+                                              event_package):
+    """Startup identity verification and gate-fd hold do NOT execute the
+    gate: no sentinel/count exists after construction; the exactly-once
+    execution happens only inside the consume() operation."""
+    binding, store = binding_and_store(cust_dir, binding_doc)
+    Supervisor(binding, store, event_package)
+    assert not os.path.exists(rg_paths(ATTEMPT)[1])
+    assert not os.path.exists(rg_paths(ATTEMPT)[2])
 
 
 def test_s1_001_gate_executes_exactly_once(cust_dir, binding_doc,
-                                           event_package):
-    """Exactly-once: the bound artifact executes ONE time per attempt;
-    a second validate_gates() call is refused outright and the execution
-    count stays 1 (no same-attempt re-execution path exists)."""
-    sup, binding = fresh_pass(cust_dir, binding_doc, event_package)
-    with pytest.raises(LaunchError, match="GATES_ALREADY_EVALUATED"):
-        sup.validate_gates()
+                                           event_package, launcher):
+    """Exactly-once: the bound artifact executes ONE time per attempt; a
+    second consume() is refused outright and the execution count stays 1
+    (no same-attempt re-execution path exists)."""
+    sup, binding, _ = fresh_pass(cust_dir, binding_doc, event_package,
+                                 launcher)
+    with pytest.raises(LaunchError, match="CONSUME_REFUSED"):
+        sup.consume("unused-launcher-path")
     with open(rg_paths(ATTEMPT)[2]) as handle:
         assert handle.read().strip() == "1"
 
 
-def test_s1_001_launcher_verification_requires_gates_passed(
-        cust_dir, binding_doc, event_package, launcher):
-    """Runtime ordering: launcher verification exists ONLY after the
-    fresh resource-gate execution and the GATES_PASSED transition."""
-    binding, store = binding_and_store(cust_dir, binding_doc)
-    sup = Supervisor(binding, store, event_package)
-    assert sup.state == "PREPARED"
-    with pytest.raises(LaunchError,
-                       match="LAUNCHER_VERIFICATION_REQUIRES_GATES_PASSED"):
-        sup.verify_launcher(str(launcher[0]))
-    sup.validate_gates()
-    assert sup.verify_launcher(str(launcher[0])) > 0
-
-
 # ---------------- freshness: the core S1-001 criterion ----------------
 
-def test_s1_001_live_state_fail_after_freeze_blocks_gates_passed(
-        cust_dir, binding_doc, event_package):
-    """THE S1-001 criterion: the package/binding freeze happens with a
-    PASSING live resource state; the state then turns FAILING; the
-    freshly executed gate OBSERVES the failure and blocks GATES_PASSED —
-    no frozen PASS can satisfy the current resource state.  Authority
-    stays unconsumed; the attempt terminalizes."""
+def test_s1_001_live_state_fail_after_freeze_blocks_consumption(
+        cust_dir, binding_doc, event_package, launcher):
+    """THE S1-001 criterion, under the S1-003 single operation: the
+    package/binding freeze happens with a PASSING live resource state;
+    the state then turns FAILING; the freshly executed gate OBSERVES the
+    failure inside consume() and blocks — no frozen PASS can satisfy the
+    current resource state.  Authority stays unconsumed; the attempt
+    terminalizes."""
     write_rg_state(ATTEMPT, "pass")           # healthy at freeze time
     binding, store = binding_and_store(cust_dir, binding_doc)
     sup = Supervisor(binding, store, event_package)   # verified + held
     write_rg_state(ATTEMPT, "fail-state")     # live state degrades AFTER
     with pytest.raises(LaunchRefused,
                        match="RESOURCE_GATE_RESULT_NOT_PASS"):
-        sup.validate_gates()
+        sup.consume(str(launcher[0]))
     assert sup.state == "TERMINAL_PREEXEC_STOP"
     view = inspect_accounting_record(cust_dir, binding.attempt_id,
                                      binding.digest)
@@ -184,19 +193,20 @@ S1_001_MODES = [
 
 @pytest.mark.parametrize("mode,refusal", S1_001_MODES,
                          ids=[case[0] for case in S1_001_MODES])
-def test_s1_001_mode_matrix_blocks_before_gates_passed(
-        cust_dir, binding_doc, event_package, mode, refusal):
-    """Every malformed / failed / wrong-context fresh result blocks
-    GATES_PASSED (fail closed): authority unconsumed, durable
-    TERMINAL_PREEXEC_STOP, exactly one execution, no CONSUMED/EXEC
-    record.  A top-level PASS never overrides a failed sample; PASS is
-    never inferred from the exit code alone (exit-nonzero prints a
-    perfectly VALID envelope and is still refused)."""
+def test_s1_001_mode_matrix_blocks_before_any_authority(
+        cust_dir, binding_doc, event_package, launcher, mode, refusal):
+    """Every malformed / failed / wrong-context fresh resource-gate
+    result blocks consumption (fail closed): authority unconsumed,
+    durable TERMINAL_PREEXEC_STOP, exactly one execution, no
+    GATES_PASSED/CONSUMED/EXEC record.  A top-level PASS never overrides
+    a failed sample; PASS is never inferred from the exit code alone
+    (exit-nonzero prints a perfectly VALID envelope and is still
+    refused)."""
     write_rg_state(ATTEMPT, mode)
     binding, store = binding_and_store(cust_dir, binding_doc)
     sup = Supervisor(binding, store, event_package)
     with pytest.raises(LaunchRefused, match=refusal):
-        sup.validate_gates()
+        sup.consume(str(launcher[0]))
     assert sup.state == "TERMINAL_PREEXEC_STOP"
     view = inspect_accounting_record(cust_dir, binding.attempt_id,
                                      binding.digest)
@@ -207,7 +217,7 @@ def test_s1_001_mode_matrix_blocks_before_gates_passed(
 
 
 def test_s1_001_hang_is_bounded_and_blocks(cust_dir, binding_doc,
-                                           event_package):
+                                           event_package, launcher):
     """A hung gate process is NOT an unbounded authority process: the
     deterministic bounded timeout kills it and fails closed."""
     import time
@@ -216,7 +226,7 @@ def test_s1_001_hang_is_bounded_and_blocks(cust_dir, binding_doc,
     sup = Supervisor(binding, store, event_package)
     started = time.monotonic()
     with pytest.raises(LaunchRefused, match="RESOURCE_GATE_TIMEOUT"):
-        sup.validate_gates()
+        sup.consume(str(launcher[0]))
     assert time.monotonic() - started < 60     # bounded, not hung forever
     assert sup.state == "TERMINAL_PREEXEC_STOP"
 
@@ -229,7 +239,7 @@ def test_s1_001_gate_artifact_digest_mismatch_refused(
     gate artifact bytes differ from the binding's runtime-gate
     descriptor SHA-256 — while the manifest projection still declares
     the ORIGINAL descriptor — is refused at gate-artifact identity
-    verification, BEFORE GATES_PASSED, record PREPARED."""
+    verification, BEFORE any gate executes, record PREPARED."""
     doc = copy.deepcopy(binding_doc)
     gate = event_package / "runtime" / "resource-gate.py"
     gate.write_text(gate.read_text() + "\n# one-byte-class change\n")
@@ -266,17 +276,19 @@ def test_s1_001_gate_path_not_a_manifest_row_refused(
 
 
 def test_s1_001_held_fd_drift_refused(cust_dir, binding_doc,
-                                      event_package):
+                                      event_package, launcher):
     """The held verified fd is RE-HASHED immediately before execution:
     in-place artifact mutation after startup (same inode, so the held
     fd now reads DIFFERENT bytes) fails closed as fd drift — the bytes
-    that execute are exactly the bytes the binding freezes."""
+    that execute are exactly the bytes the binding freezes.  The drift
+    is observed at the resource gate's turn (after NETWORK_READINESS
+    executed once); no gate execution occurred."""
     binding, store = binding_and_store(cust_dir, binding_doc)
     sup = Supervisor(binding, store, event_package)   # verified + held
     gate = event_package / "runtime" / "resource-gate.py"
     gate.write_text(gate.read_text() + "\n# post-verification drift\n")
     with pytest.raises(LaunchRefused, match="RESOURCE_GATE_FD_DRIFT"):
-        sup.validate_gates()
+        sup.consume(str(launcher[0]))
     assert sup.state == "TERMINAL_PREEXEC_STOP"
     assert not os.path.exists(rg_paths(ATTEMPT)[1])   # never executed
 
@@ -316,50 +328,20 @@ def test_s1_001_gate_not_executable_refused(cust_dir, binding_doc,
         Supervisor(binding, store, event_package)
 
 
-# ---------------- no-retry / accounting failure ------------------------
+# ---------------- no-retry ----------------------------------------------
 
 def test_s1_001_failed_gate_cannot_retry_same_attempt(
-        cust_dir, binding_doc, event_package):
+        cust_dir, binding_doc, event_package, launcher):
     """After a gate failure there is NO same-attempt retry: the second
-    validate_gates() is refused by state (TERMINAL_PREEXEC_STOP is
-    absorbing) and the execution count stays 1."""
+    consume() is refused by state (TERMINAL_PREEXEC_STOP is absorbing)
+    and the execution count stays 1."""
     write_rg_state(ATTEMPT, "fail-status")
     binding, store = binding_and_store(cust_dir, binding_doc)
     sup = Supervisor(binding, store, event_package)
     with pytest.raises(LaunchRefused):
-        sup.validate_gates()
-    with pytest.raises(LaunchError, match="GATES_ALREADY_EVALUATED"):
-        sup.validate_gates()
-    with open(rg_paths(ATTEMPT)[2]) as handle:
-        assert handle.read().strip() == "1"
-
-
-def test_s1_001_result_persistence_failure_blocks(cust_dir, binding_doc,
-                                                  event_package,
-                                                  monkeypatch):
-    """A GATES_PASSED record-persistence failure AFTER a fresh gate PASS
-    still blocks GATES_PASSED (no in-memory transition), terminalizes,
-    and permits no same-attempt retry (the exactly-once guard)."""
-    from ebs.accounting import AccountingError
-    original = AccountingStore.append
-
-    def refusing_append(self, state, extra=None):
-        if state == "GATES_PASSED":
-            raise AccountingError("injected durability failure")
-        return original(self, state, extra=extra)
-
-    monkeypatch.setattr(AccountingStore, "append", refusing_append)
-    binding, store = binding_and_store(cust_dir, binding_doc)
-    sup = Supervisor(binding, store, event_package)
-    with pytest.raises(LaunchRefused, match="RESOURCE_GATE_RECORD_FAILED"):
-        sup.validate_gates()
-    monkeypatch.undo()
-    assert sup.state == "TERMINAL_PREEXEC_STOP"
-    view = inspect_accounting_record(cust_dir, binding.attempt_id,
-                                     binding.digest)
-    assert "GATES_PASSED" not in view["states"]
-    with pytest.raises(LaunchError, match="GATES_ALREADY_EVALUATED"):
-        sup.validate_gates()
+        sup.consume(str(launcher[0]))
+    with pytest.raises(LaunchError, match="CONSUME_REFUSED"):
+        sup.consume(str(launcher[0]))
     with open(rg_paths(ATTEMPT)[2]) as handle:
         assert handle.read().strip() == "1"
 
@@ -367,16 +349,17 @@ def test_s1_001_result_persistence_failure_blocks(cust_dir, binding_doc,
 # ---------------- durable fresh-evidence record ------------------------
 
 def test_s1_001_gates_passed_record_carries_fresh_result_evidence(
-        cust_dir, binding_doc, event_package):
+        cust_dir, binding_doc, event_package, launcher):
     """The durable GATES_PASSED record carries the bound gate identity,
     gate SHA-256, result schema, and the canonical validated result
     JSON + its exact SHA-256 and byte size — mechanically bound to the
     recorded digest."""
-    sup, binding = fresh_pass(cust_dir, binding_doc, event_package)
+    sup, binding, _ = fresh_pass(cust_dir, binding_doc, event_package,
+                                 launcher)
     descriptor = binding.runtime_gates["RESOURCE_GATE"]
     view = inspect_accounting_record(cust_dir, binding.attempt_id,
                                      binding.digest)
-    record = view["records"][-1]
+    record = view["records"][1]      # PREPARED, GATES_PASSED, CONSUMED...
     assert record["state"] == "GATES_PASSED"
     assert record["resource_gate_identity"] == descriptor["identity"]
     assert record["resource_gate_sha256"] == descriptor["sha256"]
@@ -393,20 +376,6 @@ def test_s1_001_gates_passed_record_carries_fresh_result_evidence(
                            separators=(",", ":")).encode()
     assert record["resource_gate_result_size"] == len(canonical)
     assert record["resource_gate_result_sha256"] == sha_hex(canonical)
-
-
-def test_s1_001_no_consumption_during_gate_tests(cust_dir, binding_doc,
-                                                 event_package):
-    """Gate-only operation: no CONSUMED_PRE_EXEC / EXEC_ATTEMPTED record
-    and no launch authority exists anywhere in the gate lifecycle (the
-    gate itself is NOT a provider/model engagement)."""
-    fresh_pass(cust_dir, binding_doc, event_package)
-    binding = parse_binding(json.dumps(binding_doc).encode())
-    view = inspect_accounting_record(cust_dir, binding.attempt_id,
-                                     binding.digest)
-    assert view["states"] == ["PREPARED", "GATES_PASSED"]
-    assert "CONSUMED_PRE_EXEC" not in view["states"]
-    assert "EXEC_ATTEMPTED" not in view["states"]
 
 
 def test_s1_001_verified_gate_layer_uses_shared_verifier(binding_doc,

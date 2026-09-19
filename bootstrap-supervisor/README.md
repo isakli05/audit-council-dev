@@ -1,4 +1,4 @@
-# AUCDEV-023 External Bootstrap Supervisor (EBS) — gate-timing remediation candidate
+# AUCDEV-023 External Bootstrap Supervisor (EBS) — preexec-gate remediation candidate
 
 Bounded implementation of the operator-ADOPTED AUCDEV-023 auditor-bootstrap
 governance architecture **R1 = CONTROLLERLESS / PROCESS-BOUND /
@@ -15,7 +15,11 @@ authority (finding AUCDEV023-CR-EBS-REM2-001; canonical record:
 `docs/chatgpt-project/AUCDEV-023-EBS-NARROW-MANIFEST-TYPE-REMEDIATION-REPORT.md`),
 and the 2026-09-19 bounded **EBS gate-timing remediation** authority
 (finding AUCDEV023-CR-EBS-S1-001; canonical record:
-`docs/chatgpt-project/AUCDEV-023-EBS-GATE-TIMING-REMEDIATION-REPORT.md`).
+`docs/chatgpt-project/AUCDEV-023-EBS-GATE-TIMING-REMEDIATION-REPORT.md`),
+and the 2026-09-19 bounded **EBS preexec-gate remediation** authority
+(findings AUCDEV023-CR-EBS-S1-002 and AUCDEV023-CR-EBS-S1-003;
+canonical record:
+`docs/chatgpt-project/AUCDEV-023-EBS-PREEXEC-GATE-REMEDIATION-REPORT.md`).
 
 ## What this is
 
@@ -27,7 +31,7 @@ and the 2026-09-19 bounded **EBS gate-timing remediation** authority
   event-package verification with transport cross-binding (second
   remediation)**, generic report custody with a
   credential leak screen, and an inspection-only CLI.
-- **A gate-timing remediation candidate awaiting a FRESH independent
+- **A preexec-gate remediation candidate awaiting a FRESH independent
   Control Room readback.** Not accepted, not trusted for any event.
 
 ## What this is NOT
@@ -57,8 +61,8 @@ executable_sha256**}, **`sandbox_profile_id`**, **`tool_wrapper`**
 **`event_package`** {manifest_sha256, package_sha256}, `output_identity`
 {kind, name}, `gate_evidence` (the 6 mandatory STATIC preparation PASS
 gates incl. GATE-W′), and **`runtime_gates`** — the frozen RUNTIME
-RESOURCE_GATE executable-artifact descriptor (see the gate-timing
-section below).
+gate descriptors for BOTH dynamic gates (see the preexec-gate section
+below).
 
 Every dimension is mandatory, covered by `binding.digest`, mechanically
 bound to the accounting store (attempt id AND digest equality), and
@@ -81,12 +85,14 @@ remains inspection-only).
 
 **Versioned strict event-package manifest contract**
 (`ebs/binding.py: EVENT_MANIFEST_SCHEMA` =
-`AUCDEV-023-EVENT-PACKAGE-MANIFEST-V2`, advanced from V1 by the
-S1-001 gate-timing remediation because the projection semantics
-materially changed — `RESOURCE_GATE` left the frozen evidence set and
-the runtime-gate descriptor became a bound security dimension; a V1
-manifest is REFUSED, never silently accepted as equivalent): the
-package's `MANIFEST.json`
+`AUCDEV-023-EVENT-PACKAGE-MANIFEST-V3`, advanced from V2 by the
+S1-002/S1-003 preexec-gate remediation because the projection semantics
+materially changed again — the mandatory dynamic runtime-gate set became
+EXACTLY TWO descriptors (NETWORK_READINESS + RESOURCE_GATE) and the
+runtime-gate execution/consumption semantics changed to the single
+preexec-consumption operation; a V1 or V2 manifest is REFUSED, never
+silently accepted as equivalent, and no real V1/V2 package exists to
+migrate): the package's `MANIFEST.json`
 parsed document has EXACTLY the key set `{schema, transport_binding,
 files, package_sha256}` — unknown or missing keys, a wrong schema tag,
 or duplicate/non-finite JSON are refused (the shared strict parser).
@@ -112,7 +118,7 @@ common-evidence manifest digest; boundary launcher identity+SHA-256;
 auditor identity incl. provider role, adapter id, executable
 identity+SHA-256; sandbox profile id; tool wrapper identity+SHA-256;
 EBS package identity pair; output identity; the COMPLETE six-gate
-preparation evidence set; the runtime-gate descriptor) — EXCEPT
+preparation evidence set; BOTH runtime-gate descriptors) — EXCEPT
 `event_package` itself. The two sides are compared
 as canonical JSON bytes (type-strict: JSON `true` ≠ `1`, `1.0` ≠ `1`).
 The exclusion is what makes the construction non-circular: the
@@ -142,72 +148,125 @@ Synthetic event packages for the zero-provider tests are built in
 trees). The REAL AUCDEV-023 event package is NOT authorized, NOT built,
 NOT committed anywhere in this repository.
 
-## Frozen-vs-runtime gate split (CR-EBS-S1-001, gate-timing remediation)
+## Frozen-vs-runtime gate split + single preexec consumption (CR-EBS-S1-002/-003)
 
 The six **STATIC preparation gates** (`PACKAGE_BINDING_IDENTITY`,
 `COMMON_EVIDENCE_PARITY`, `IDENTITY_LINTER`, `BLINDNESS_MAP`,
 `GATE_W_PRIME`, `REAL_CLIENT_CREDENTIAL_TOOL_ISOLATION`) remain frozen
 PASS evidence members, transport-bound exactly as before.
 
-The **DYNAMIC `RESOURCE_GATE` is NOT frozen evidence** — a package-time
-PASS would go stale before the separately authorized execution. The
-binding instead freezes an exact **runtime-gate descriptor**:
+The **TWO DYNAMIC runtime gates are NOT frozen evidence** — a
+package-time PASS would go stale before the separately authorized
+execution. The binding instead freezes one exact **runtime-gate
+descriptor** per gate, in the required dynamic execution order:
 
 ```
-runtime_gates = {"RESOURCE_GATE": {
+runtime_gates = {
+  "NETWORK_READINESS": {
     "identity": <safe frozen identity token>,
     "path": <safe event-package-relative path>,
     "sha256": <exact SHA-256 of the frozen artifact bytes>,
+    "result_schema": "AUCDEV-023-NETWORK-READINESS-RESULT-V1"},
+  "RESOURCE_GATE": {
+    "identity": ..., "path": ...,
+    "sha256": ...,
     "result_schema": "AUCDEV-023-RESOURCE-GATE-RESULT-V1"}}
 ```
 
-The descriptor carries NO result and NO PASS. Its exact key set, safe
+Each descriptor carries NO result and NO PASS. Its exact key set, safe
 relative path (absolute/traversal/empty/dot segments refused), exact
-SHA-256, and result-schema identity are type-strict fail-closed
-validated at parse; a `RESOURCE_GATE` member inside `gate_evidence` is
-refused outright (`GATE_EVIDENCE_RESOURCE_GATE_FORBIDDEN`). The
-descriptor is covered by `binding.digest` and by the event-package
-transport projection, so ANY substitution fails cross-binding.
+SHA-256, and its gate's exact result-schema identity are type-strict
+fail-closed validated at parse; a `NETWORK_READINESS` or `RESOURCE_GATE`
+member inside `gate_evidence` is refused outright
+(`GATE_EVIDENCE_<GATE>_FORBIDDEN`). Both descriptors are covered by
+`binding.digest` and by the event-package transport projection (schema
+V3), so ANY substitution of EITHER gate fails cross-binding.
 
-**Runtime ordering** (every step fail-closed; there is no path from
-PREPARED to GATES_PASSED without the live execution, and no second
-execution in the same attempt):
+**The single preexec-consumption operation (CR-EBS-S1-003).** The
+formerly separate public operations `validate_gates()` /
+`verify_launcher()` / `consume()` NO LONGER EXIST. The ONE public
+preexec authority operation is `Supervisor.consume(launcher_path) ->
+LaunchGrant`, which performs — WITHOUT returning control to the caller
+between the steps:
+
+1. require an unspent, unissued attempt in state `PREPARED`;
+2. verify and HOLD the exact boundary launcher fd against the binding's
+   launcher SHA-256 (static byte identity, BEFORE the dynamic gates —
+   the launcher check is not a dynamic environmental gate);
+3. execute **NETWORK_READINESS exactly once**;
+4. execute **RESOURCE_GATE exactly once, LAST** — the final live
+   environmental gate before durable consumption;
+5. strictly validate both fresh results;
+6. durably append `GATES_PASSED` carrying BOTH fresh evidence sets;
+7. transition in-process to `GATES_PASSED` — a real but INTERNAL
+   TRANSIENT state: no public operation ever returns while the
+   supervisor holds it;
+8. IMMEDIATELY durably append `CONSUMED_PRE_EXEC` with the complete
+   binding facts;
+9. transition to `CONSUMED_PRE_EXEC`, mint exactly one `LaunchGrant`,
+   and only then return.
+
+`GATES_PASSED` is therefore mechanically unreachable as a
+caller-visible state: there is no supported call sequence in which the
+EBS returns to caller code after the fresh `RESOURCE_GATE` PASS but
+before durable `CONSUMED_PRE_EXEC` — the exact
+freshness-not-coupled-to-consumption gap of CR-EBS-S1-003 is closed
+STRUCTURALLY, with no wall-clock TTL, no second resource-gate
+execution, and no caller promises. Any failure — launcher identity,
+either gate, or either durable append (including a `CONSUMED_PRE_EXEC`
+append failure after `GATES_PASSED` persisted) — returns NO grant,
+terminalizes fail-closed (`TERMINAL_PREEXEC_STOP`), and permits no
+same-attempt retry; a persisted `GATES_PASSED` whose consumption append
+failed is never relabeled resumable.
+
+**Runtime ordering** (every step fail-closed):
 
 1. live EBS package self-identity verification;
 2. Supervisor⇄store attempt + binding-digest equality;
 3. frozen event-package identity verification;
-4. event-package transport-projection equality (schema V2);
-5. runtime RESOURCE_GATE artifact identity verified from the ALREADY
+4. event-package transport-projection equality (schema V3);
+5. BOTH runtime-gate artifacts identity-verified from the ALREADY
    verified package tree (manifest-row membership, regular executable
-   file, `O_NOFOLLOW` open, exact SHA-256) and the verified open fd
+   file, `O_NOFOLLOW` open, exact SHA-256) and the verified open fds
    HELD;
-6. `validate_gates()` re-hashes the held fd immediately before
-   execution (held-fd drift refused), then EXECUTES exactly that open
-   fd — the SAME verified-fd `execveat(AT_EMPTY_PATH)` primitive the
-   launcher path uses — exactly ONCE, bound to this attempt's
-   event/role/attempt, with a clean minimal environment, NO credential
-   fd inherited, no launch authority/custody plaintext exposed, and a
-   bounded deterministic timeout (a hung gate is SIGKILLed and fails
-   closed);
-7. the fresh result is strictly validated (schema
-   `AUCDEV-023-RESOURCE-GATE-RESULT-V1`: strict JSON, exact key set,
-   exact event/role/attempt match with the binding, top-level PASS,
-   EXACTLY three samples each explicitly PASS — a top-level PASS never
-   overrides a failed sample, and PASS is never inferred from the exit
-   code; size-bounded before acceptance; non-zero exit refused);
-8. only then is `GATES_PASSED` durably appended — carrying the fresh
-   evidence (`resource_gate_identity`, `resource_gate_sha256`,
-   `resource_gate_result_schema`, the canonical validated result JSON
-   plus its exact SHA-256 and byte size) — and the state machine
-   transitions. Any failure at any point leaves authority unconsumed
-   and terminalizes the attempt (`TERMINAL_PREEXEC_STOP`), with no
-   same-attempt retry.
+6. caller invokes the single `consume(launcher_path)` operation:
+   launcher fd verified/held, then each held gate fd re-hashed
+   immediately before its execution (held-fd drift refused) and EXECUTED
+   exactly once — the SAME verified-fd `execveat(AT_EMPTY_PATH)`
+   primitive the launcher path uses — bound to this attempt's
+   event/role/attempt (NETWORK_READINESS additionally receives the
+   binding's non-secret provider/launcher/profile transport context),
+   with a clean minimal environment, NO credential fd inherited, no
+   launch authority/custody plaintext exposed, and a bounded
+   deterministic timeout (a hung gate is SIGKILLed and fails closed);
+7. each fresh result is strictly validated against its gate's contract:
+   `AUCDEV-023-RESOURCE-GATE-RESULT-V1` (exact key set, exact
+   event/role/attempt match, top-level PASS, EXACTLY three samples each
+   explicitly PASS — a top-level PASS never overrides a failed sample,
+   and PASS is never inferred from the exit code; size-bounded before
+   acceptance; non-zero exit refused) and
+   `AUCDEV-023-NETWORK-READINESS-RESULT-V1` (the same envelope core
+   plus exact provider-role / boundary-launcher-SHA-256 /
+   sandbox-profile match with the binding and the EXACT checks key set
+   `route` + `resolver`, each check explicitly PASS with a bounded
+   JSON-object detail — a top-level PASS never overrides a failed
+   route/resolver check);
+8. only then is `GATES_PASSED` durably appended — carrying BOTH fresh
+   evidence sets (`{network_readiness,resource_gate}_{identity,sha256,
+   result_schema,result,result_sha256,result_size}`) — and
+   `CONSUMED_PRE_EXEC` immediately after, inside the same operation.
 
-The gate itself is an EVENT-PACKAGE-SIDE trusted component: the EBS
-implements NO resource thresholds or policy — it binds, verifies,
-executes, validates, records, and fails closed. `RESOURCE_GATE`
-execution is NOT a provider/model engagement. Launcher verification
-exists only AFTER the GATES_PASSED transition.
+Both gates are EVENT-PACKAGE-SIDE trusted components: the EBS
+implements NO resource thresholds and NO route/DNS/provider-endpoint
+policy or networking — it binds, verifies, executes, validates,
+records, and fails closed. The REAL network-readiness artifact is
+built later, only under the separately authorized S1 event-package
+preparation, as a NON-INFERENCE route/resolver preflight; the
+deterministic remediation tests use an unmistakably inert LOCAL
+fixture with NO network access. Neither gate execution is a
+provider/model engagement. Launcher exec remains impossible before
+`CONSUMED_PRE_EXEC` (the held launcher fd is re-hashed immediately
+before fork in `execute()`).
 
 ## Runtime self-identity verification (CR-EBS-003)
 
@@ -303,12 +362,13 @@ ebs/                production source (Python 3 stdlib only, Linux-only)
   custody.py        non-dumpable sealed-memfd credential custody
   launch.py         package verification (EBS self + event package with
                     transport cross-binding) + Supervisor + verified-fd exec
-                    + runtime RESOURCE_GATE open/hold/execute/validate
+                    + BOTH runtime gates open/hold/execute/validate inside
+                    the single preexec-consumption operation
   reportcustody.py  report freeze + credential leak screen
   cli.py            inspection-only CLI (no authority operations)
 tests/              deterministic zero-provider test battery
 tests/fixtures/     inert synthetic local launch + runtime-gate fixtures
-                    (NOT providers)
+                    (NOT providers; NO network access anywhere)
 MANIFEST.json       per-file SHA-256 manifest + non-circular package identity
 ```
 

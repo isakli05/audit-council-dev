@@ -7,6 +7,10 @@ This file also carries the CR-EBS-002 one-shot structural-closure
 regression matrix: no authority revival from durable records, exact-
 object single-issuance grants, irreversible spend, terminalization of
 every post-consumption failure, and supervisor/store mechanical binding.
+Under the CR-EBS-S1-003 preexec-gate remediation the preexec path is the
+SINGLE public operation consume(launcher_path) — launcher verification
+and both dynamic runtime gates run inside it, GATES_PASSED is an
+internal transient, and the returned grant is the only launch authority.
 """
 import copy
 import json
@@ -20,13 +24,23 @@ from ebs.binding import parse_binding
 from ebs.custody import CredentialCustody
 from ebs.launch import (CRED_FD, LaunchError, LaunchGrant, LaunchRefused,
                         Supervisor, open_verified_launcher)
-from ebs.statemachine import CONSUMED_PRE_EXEC, EXEC_ATTEMPTED, GATES_PASSED, \
-    TERMINAL
+from ebs.statemachine import CONSUMED_PRE_EXEC, EXEC_ATTEMPTED, TERMINAL
 
 from conftest import (SYNTH_CRED, binding_for, make_event_package,
-                      pipe_source, sha_hex)
+                      pipe_source, sha_hex, write_rg_state,
+                      clear_rg_tracks, clear_nr_tracks)
 
 MARKER = "EBS-INERT-SYNTHETIC-BOUNDARY-FIXTURE-NOT-A-PROVIDER"
+ATTEMPT = "evt-0011223344556677-A-01"
+
+
+@pytest.fixture(autouse=True)
+def clean_gate_tracks():
+    clear_rg_tracks(ATTEMPT)
+    clear_nr_tracks(ATTEMPT)
+    yield
+    clear_rg_tracks(ATTEMPT)
+    clear_nr_tracks(ATTEMPT)
 
 
 def build_supervisor(cust_dir, binding_doc, pkg_root):
@@ -37,9 +51,8 @@ def build_supervisor(cust_dir, binding_doc, pkg_root):
 
 def full_prepare(cust_dir, binding_doc, launcher_path, pkg_root):
     sup = build_supervisor(cust_dir, binding_doc, pkg_root)
-    sup.validate_gates()
-    sup.verify_launcher(str(launcher_path))
-    return sup, sup.consume()
+    grant = sup.consume(str(launcher_path))
+    return sup, grant
 
 
 def run_once(sup, grant):
@@ -105,9 +118,10 @@ def test_consume_record_durable_before_child_begins(launcher, cust_dir,
                                                     binding_doc,
                                                     event_package,
                                                     monkeypatch):
-    sup = build_supervisor(cust_dir, binding_doc, event_package)
-    sup.validate_gates()
-    sup.verify_launcher(str(launcher[0]))
+    """CR-EBS-002: the CONSUMED_PRE_EXEC record is durable BEFORE any
+    child can begin — and under S1-003 the append failure inside the
+    single operation returns NO grant and terminalizes fail-closed (a
+    forged grant still cannot launch)."""
     original = AccountingStore.append
 
     def refusing_append(self, state, **extra):
@@ -115,12 +129,14 @@ def test_consume_record_durable_before_child_begins(launcher, cust_dir,
             raise AccountingError("injected durability failure")
         return original(self, state, **extra)
 
+    sup = build_supervisor(cust_dir, binding_doc, event_package)
     monkeypatch.setattr(AccountingStore, "append", refusing_append)
-    with pytest.raises(AccountingError):
-        sup.consume()
-    assert sup.state == GATES_PASSED  # consumption did not complete
-    grant = LaunchGrant()             # even a forged grant cannot launch
+    with pytest.raises(LaunchRefused,
+                       match="PREEXEC_CONSUME_RECORD_FAILED"):
+        sup.consume(str(launcher[0]))
     monkeypatch.undo()
+    assert sup.state == "TERMINAL_PREEXEC_STOP"   # never left consumable
+    grant = LaunchGrant()             # even a forged grant cannot launch
     with pytest.raises(LaunchError):
         sup.execute(grant, custody=CredentialCustody.ingest(
             pipe_source(), "AUDITOR_A"))
@@ -132,9 +148,7 @@ def test_consume_record_persists_full_binding_facts(launcher, cust_dir,
     """CR-EBS-001 E: CONSUMED_PRE_EXEC durably records the complete
     non-secret binding identity set, not merely an opaque digest."""
     sup = build_supervisor(cust_dir, binding_doc, event_package)
-    sup.validate_gates()
-    sup.verify_launcher(str(launcher[0]))
-    sup.consume()
+    sup.consume(str(launcher[0]))
     view = inspect_accounting_record(cust_dir, sup._binding.attempt_id,
                                      sup._binding.digest)
     rec = view["records"][-1]
@@ -175,15 +189,18 @@ def test_consume_record_persists_full_binding_facts(launcher, cust_dir,
 
 def test_wrong_digest_refused_before_fork(launcher, cust_dir, binding_doc,
                                           tmp_path):
+    """Launcher identity verification happens INSIDE the single consume()
+    operation, BEFORE the dynamic gates: disk bytes differing from the
+    bound digest refuse with no fork, no gate execution, and a durable
+    fail-closed terminalization."""
     doc = copy.deepcopy(binding_doc)
     doc["boundary_launcher"] = {"identity": "INERT-LOCAL-FIXTURE-LAUNCHER-V1",
                                 "sha256": "e" * 64}
     pkg = make_event_package(doc, tmp_path, name="pkg-mutated-launcher")
     sup = build_supervisor(cust_dir, doc, pkg)
-    sup.validate_gates()
     with pytest.raises(LaunchRefused, match="DIGEST"):
-        sup.verify_launcher(str(launcher[0]))  # disk bytes != bound digest
-    assert sup.state == GATES_PASSED   # no fork, authority not consumed
+        sup.consume(str(launcher[0]))  # disk bytes != bound digest
+    assert sup.state == "TERMINAL_PREEXEC_STOP"   # no fork, unconsumed
     assert sup.launcher_fd is None
     with pytest.raises(LaunchRefused, match="DIGEST"):
         open_verified_launcher(str(launcher[0]), "0" * 64)
@@ -195,10 +212,7 @@ def test_post_consumption_rehash_failure_spends_authority_permanently(
     consumption permanently spends the one-shot authority (terminalized;
     the same grant, a fresh grant, and a re-execute are all refused)."""
     path, _ = launcher
-    sup = build_supervisor(cust_dir, binding_doc, event_package)
-    sup.validate_gates()
-    sup.verify_launcher(str(path))
-    grant = sup.consume()
+    sup, grant = full_prepare(cust_dir, binding_doc, path, event_package)
     with open(path, "ab") as handle:   # same inode, content drift
         handle.write(b"\n# drift\n")
     with pytest.raises(LaunchRefused, match="DIGEST"):
@@ -222,10 +236,7 @@ def test_injected_fork_failure_spends_authority_permanently(
         raise OSError(11, "injected fork failure")
 
     path, _ = launcher
-    sup = build_supervisor(cust_dir, binding_doc, event_package)
-    sup.validate_gates()
-    sup.verify_launcher(str(path))
-    grant = sup.consume()
+    sup, grant = full_prepare(cust_dir, binding_doc, path, event_package)
     monkeypatch.setattr(os, "fork", broken_fork)
     with pytest.raises(LaunchError, match="FORK"):
         run_once(sup, grant)
@@ -248,10 +259,7 @@ def test_exec_record_failure_after_fork_spends_authority(launcher, cust_dir,
     reached, the authority is spent (in-process guard)."""
     from ebs.accounting import AccountingStore as Store
     path, _ = launcher
-    sup = build_supervisor(cust_dir, binding_doc, event_package)
-    sup.validate_gates()
-    sup.verify_launcher(str(path))
-    grant = sup.consume()
+    sup, grant = full_prepare(cust_dir, binding_doc, path, event_package)
     original = Store.append
 
     def refusing_exec_record(self, state, **extra):
@@ -277,15 +285,13 @@ def test_substitution_race_cannot_change_executed_program(launcher,
                                                           tmp_path):
     path, _ = launcher
     sup = build_supervisor(cust_dir, binding_doc, event_package)
-    sup.validate_gates()
-    sup.verify_launcher(str(path))      # open fd verified against fixture A
-    # PATH SUBSTITUTION after verification: swap the DIRECTORY ENTRY to a
-    # different inode holding fixture B
+    # The launcher fd is verified and HELD inside consume(); a PATH
+    # SUBSTITUTION after consumption cannot change the executed program.
+    grant = sup.consume(str(path))    # open fd verified against fixture A
     attacker = tmp_path / "attacker_payload.py"
     attacker.write_text(launcher_b[0].read_text())
     os.chmod(attacker, 0o755)
     os.replace(attacker, path)
-    grant = sup.consume()
     result = run_once(sup, grant)
     assert result.metadata["variant"] == "INERT-FIXTURE-A"  # verified fd won
 
@@ -309,7 +315,7 @@ def test_second_consume_cannot_issue_second_live_grant(launcher, cust_dir,
                               event_package)
     run_once(sup, grant)
     with pytest.raises(LaunchError):
-        sup.consume()
+        sup.consume(str(launcher[0]))
 
 
 def test_freshly_constructed_grant_cannot_execute(launcher, cust_dir,
@@ -339,11 +345,18 @@ def test_execute_without_real_grant_refused(launcher, cust_dir,
         sup.execute(grant, custody=None)  # custody is mandatory
 
 
-def test_consume_requires_gates_passed(cust_dir, binding_doc,
-                                        event_package):
+def test_consume_refused_after_terminal_preexec_stop(cust_dir, binding_doc,
+                                                     event_package,
+                                                     launcher):
+    """From a non-PREPARED state the single preexec-consumption
+    operation is refused (here: after a dynamic-gate failure left the
+    absorbing TERMINAL_PREEXEC_STOP)."""
+    write_rg_state(ATTEMPT, "fail-status")
     sup = build_supervisor(cust_dir, binding_doc, event_package)
-    with pytest.raises(LaunchError):
-        sup.consume()  # still PREPARED
+    with pytest.raises(LaunchRefused):
+        sup.consume(str(launcher[0]))
+    with pytest.raises(LaunchError, match="CONSUME_REFUSED"):
+        sup.consume(str(launcher[0]))
 
 
 def test_supervisor_requires_matching_store_attempt(cust_dir, binding_doc,
@@ -373,17 +386,17 @@ def test_supervisor_requires_matching_store_binding_digest(cust_dir,
 def test_existing_record_blocks_new_authority_process(launcher, cust_dir,
                                                       binding_doc,
                                                       event_package):
-    """CR-EBS-002 regressions 1-3: an existing same-attempt record (at
-    PREPARED or GATES_PASSED) can never revive authority in a new
-    process; the history stays read-only inspectable."""
+    """CR-EBS-002 regressions 1-3: an existing same-attempt record can
+    never revive authority in a new process; the history stays read-only
+    inspectable."""
     sup = build_supervisor(cust_dir, binding_doc, event_package)
-    sup.validate_gates()                      # record now GATES_PASSED
+    sup.consume(str(launcher[0]))          # record now CONSUMED_PRE_EXEC
     binding = sup._binding
     with pytest.raises(AccountingError):
         AccountingStore.create(cust_dir, binding.attempt_id, binding.digest)
     view = inspect_accounting_record(cust_dir, binding.attempt_id,
                                      binding.digest)
-    assert view["last_state"] == GATES_PASSED   # inspectable, not revivable
+    assert view["last_state"] == CONSUMED_PRE_EXEC  # inspectable, not revivable
 
 
 def test_exec_failure_after_consumption_is_honest(launcher, cust_dir,
@@ -393,9 +406,7 @@ def test_exec_failure_after_consumption_is_honest(launcher, cust_dir,
     doc = binding_for(sha_hex(bogus.read_bytes()))
     pkg = make_event_package(doc, tmp_path, name="pkg-bogus-launcher")
     sup = build_supervisor(cust_dir, doc, pkg)
-    sup.validate_gates()
-    sup.verify_launcher(str(bogus))
-    grant = sup.consume()
+    grant = sup.consume(str(bogus))
     result = run_once(sup, grant)
     assert result.exec_failed
     assert result.returncode != 0
@@ -405,11 +416,11 @@ def test_exec_failure_after_consumption_is_honest(launcher, cust_dir,
 def test_launcher_symlink_refused(launcher, cust_dir, binding_doc,
                                     event_package, tmp_path):
     sup = build_supervisor(cust_dir, binding_doc, event_package)
-    sup.validate_gates()
     link = tmp_path / "link.py"
     link.symlink_to(launcher[0])
     with pytest.raises(LaunchRefused):
-        sup.verify_launcher(str(link))
+        sup.consume(str(link))
+    assert sup.state == "TERMINAL_PREEXEC_STOP"
 
 
 def test_open_verified_launcher_checks(launcher):

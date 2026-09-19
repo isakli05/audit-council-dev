@@ -217,8 +217,8 @@ def test_self_check_runs_before_gates_can_pass(cust_dir, tmp_path, launcher):
     store2 = AccountingStore.create(cust_dir, binding2.attempt_id,
                                     binding2.digest)
     sup = Supervisor(binding2, store2, pkg2)
-    sup.validate_gates()
-    assert sup.state == "GATES_PASSED"
+    sup.consume(str(launcher[0]))
+    assert sup.state == "CONSUMED_PRE_EXEC"
 
 
 def test_no_environment_or_flag_bypass_surface():

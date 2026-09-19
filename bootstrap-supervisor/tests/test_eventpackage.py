@@ -30,10 +30,15 @@ Matrix (second-remediation tasking §11):
   ROW TYPE (REM2-001)   files[].bytes must be an EXACT non-negative int
                         (bool explicitly refused) at manifest-row
                         validation, BEFORE GATES_PASSED.
-  GATE TIMING (S1-001)  manifest schema is V2 (V1 refused); the
-                        projection covers the runtime_gates descriptor;
-                        runtime-gate descriptor substitutions in EITHER
-                        direction are refused as projection mismatches.
+  GATE TIMING (S1-001)  the manifest schema advances with the projection
+                        semantics; runtime-gate descriptor substitutions
+                        in EITHER direction are refused as projection
+                        mismatches.
+  PREEXEC GATES         schema is V3 (V1 AND V2 both refused); the
+  (S1-002/-003)         projection covers BOTH runtime-gate descriptors
+                        (NETWORK_READINESS + RESOURCE_GATE); descriptor
+                        substitutions for EITHER gate in EITHER
+                        direction are refused.
 """
 import copy
 import json
@@ -102,6 +107,21 @@ def test_projection_covers_every_dimension_except_event_package(
     assert "event_package" not in projection
 
 
+def test_projection_covers_both_runtime_gate_descriptors(parsed_binding):
+    """S1-002: the transport projection covers BOTH dynamic runtime-gate
+    descriptors — NETWORK_READINESS and RESOURCE_GATE — each with its
+    exact identity/path/SHA-256/result-schema contract, so ANY
+    substitution of EITHER gate fails cross-binding."""
+    from ebs.binding import RUNTIME_GATES
+    projection = binding_projection(parsed_binding)
+    assert set(projection["runtime_gates"]) == set(RUNTIME_GATES)
+    for gate in RUNTIME_GATES:
+        assert projection["runtime_gates"][gate] == \
+            parsed_binding.runtime_gates[gate]
+        assert set(projection["runtime_gates"][gate]) == \
+            {"identity", "path", "sha256", "result_schema"}
+
+
 def test_event_package_fixture_is_unmistakably_synthetic(event_package):
     assert EVENT_PKG_MARKER.startswith(b"EBS-SYNTHETIC-INERT")
     assert b"NOT-A-REAL-EVENT-PACKAGE" in EVENT_PKG_MARKER
@@ -111,25 +131,25 @@ def test_event_package_fixture_is_unmistakably_synthetic(event_package):
 
 # ---------------- positive ----------------
 
-def test_exact_synthetic_package_reaches_gates_passed(cust_dir, binding_doc,
-                                                      event_package):
+def test_exact_synthetic_package_reaches_consumption(cust_dir, binding_doc,
+                                                     event_package,
+                                                     launcher):
     result = verify_event_package(event_package,
                                   parse_binding(json.dumps(
                                       binding_doc).encode()))
-    assert result["files"] == 4   # marker + 2 transport + runtime gate
+    assert result["files"] == 5   # marker + 2 transport + 2 runtime gates
     binding, store = binding_and_store(cust_dir, binding_doc)
     sup = Supervisor(binding, store, event_package)
-    sup.validate_gates()
-    assert sup.state == "GATES_PASSED"
+    grant = sup.consume(str(launcher[0]))
+    assert grant is not None
+    assert sup.state == "CONSUMED_PRE_EXEC"
 
 
 def test_positive_path_through_consumption(launcher, cust_dir, binding_doc,
                                            event_package):
     binding, store = binding_and_store(cust_dir, binding_doc)
     sup = Supervisor(binding, store, event_package)
-    sup.validate_gates()
-    sup.verify_launcher(str(launcher[0]))
-    sup.consume()
+    sup.consume(str(launcher[0]))
     assert sup.state == "CONSUMED_PRE_EXEC"
 
 
@@ -241,14 +261,32 @@ def test_event_manifest_wrong_schema_refused(cust_dir, binding_doc,
 
 def test_event_manifest_v1_schema_refused(cust_dir, binding_doc,
                                           event_package):
-    """S1-001: the manifest schema advanced to V2 (the projection
-    semantics materially changed — RESOURCE_GATE left the frozen
-    evidence set and the runtime-gate descriptor became a bound
-    dimension); a self-consistent V1 package with matching pins is
-    refused, never silently accepted as equivalent."""
+    """S1-001/S1-002: the manifest schema advanced to V3; a
+    self-consistent V1 package with matching pins is refused, never
+    silently accepted as equivalent."""
     rewrite_manifest(event_package, binding_doc,
                      lambda m: m.update(
                          schema="AUCDEV-023-EVENT-PACKAGE-MANIFEST-V1"))
+    binding, store = binding_and_store(cust_dir, binding_doc)
+    with pytest.raises(LaunchRefused, match="EVENT_MANIFEST_SCHEMA"):
+        Supervisor(binding, store, event_package)
+    assert inspect_accounting_record(
+        cust_dir, binding.attempt_id, binding.digest)["last_state"] \
+        == "PREPARED"
+
+
+def test_event_manifest_v2_schema_refused(cust_dir, binding_doc,
+                                          event_package):
+    """S1-002/S1-003: the manifest schema advanced V2 -> V3 (the
+    mandatory dynamic runtime-gate set became EXACTLY TWO descriptors
+    and the runtime-gate execution/consumption semantics changed to the
+    single preexec-consumption operation); a self-consistent V2 package
+    with matching pins is REFUSED exactly like a V1 one — no silent
+    acceptance, no compatibility machinery, no real V2 package exists
+    to migrate."""
+    rewrite_manifest(event_package, binding_doc,
+                     lambda m: m.update(
+                         schema="AUCDEV-023-EVENT-PACKAGE-MANIFEST-V2"))
     binding, store = binding_and_store(cust_dir, binding_doc)
     with pytest.raises(LaunchRefused, match="EVENT_MANIFEST_SCHEMA"):
         Supervisor(binding, store, event_package)
@@ -269,7 +307,7 @@ def test_event_manifest_duplicate_key_refused(cust_dir, binding_doc,
     collapsed["package_sha256"] = sha_hex(json.dumps(
         collapsed, sort_keys=True, separators=(",", ":")).encode())
     body = json.dumps(collapsed, sort_keys=True, separators=(",", ":"))
-    raw = ('{"schema":"AUCDEV-023-EVENT-PACKAGE-MANIFEST-V2",'
+    raw = ('{"schema":"AUCDEV-023-EVENT-PACKAGE-MANIFEST-V3",'
            + body[1:]).encode()                    # "schema" appears twice
     (event_package / "MANIFEST.json").write_bytes(raw)
     doc = copy.deepcopy(binding_doc)
@@ -324,6 +362,15 @@ BINDING_MUTATIONS = [
     ("altered-runtime-gate-path",
      lambda d: d["runtime_gates"]["RESOURCE_GATE"].update(
          path="runtime/resource-gate-alt.py")),
+    ("altered-network-gate-identity",
+     lambda d: d["runtime_gates"]["NETWORK_READINESS"].update(
+         identity="SYNTHETIC-INERT-NETWORK-READINESS-GATE-V2")),
+    ("altered-network-gate-sha",
+     lambda d: d["runtime_gates"]["NETWORK_READINESS"].update(
+         sha256=seed_sha("crossbind-alternate", "network-readiness"))),
+    ("altered-network-gate-path",
+     lambda d: d["runtime_gates"]["NETWORK_READINESS"].update(
+         path="runtime/network-readiness-alt.py")),
 ]
 
 
@@ -397,6 +444,20 @@ PACKAGE_MUTATIONS = [
     ("runtime-gate-descriptor-result-schema",
      lambda p: p["runtime_gates"]["RESOURCE_GATE"].update(
          result_schema="AUCDEV-023-RESOURCE-GATE-RESULT-V0")),
+    ("network-gate-descriptor-identity",
+     lambda p: p["runtime_gates"]["NETWORK_READINESS"].update(
+         identity="SYNTHETIC-INERT-NETWORK-READINESS-GATE-V2")),
+    ("network-gate-descriptor-sha",
+     lambda p: p["runtime_gates"]["NETWORK_READINESS"].update(
+         sha256=seed_sha("crossbind-alternate", "network-readiness"))),
+    ("network-gate-descriptor-path",
+     lambda p: p["runtime_gates"]["NETWORK_READINESS"].update(
+         path="runtime/network-readiness-alt.py")),
+    ("network-gate-descriptor-result-schema",
+     lambda p: p["runtime_gates"]["NETWORK_READINESS"].update(
+         result_schema="AUCDEV-023-NETWORK-READINESS-RESULT-V0")),
+    ("network-gate-descriptor-dropped",
+     lambda p: p["runtime_gates"].pop("NETWORK_READINESS")),
     ("missing-projection-field",
      lambda p: p.pop("sandbox_profile_id")),
     ("unknown-projection-field",
@@ -555,7 +616,7 @@ def test_rem2_001_row_type_refusal_is_at_row_validation(
 
 
 def test_rem2_001_manifest_row_bytes_valid_int_control_accepted(
-        cust_dir, binding_doc, event_package):
+        cust_dir, binding_doc, event_package, launcher):
     """Positive control: exact INTEGER byte counts remain ACCEPTED —
     including bytes=0 for a REAL zero-byte regular payload and bytes=1
     for a one-byte payload; the strict rule refuses only non-int, bool,
@@ -572,5 +633,5 @@ def test_rem2_001_manifest_row_bytes_valid_int_control_accepted(
     rewrite_manifest(event_package, binding_doc, mutate)
     binding, store = binding_and_store(cust_dir, binding_doc)
     sup = Supervisor(binding, store, event_package)
-    sup.validate_gates()
-    assert sup.state == "GATES_PASSED"
+    sup.consume(str(launcher[0]))
+    assert sup.state == "CONSUMED_PRE_EXEC"

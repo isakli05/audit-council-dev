@@ -29,9 +29,9 @@ if str(EBS_ROOT) not in sys.path:
     sys.path.insert(0, str(EBS_ROOT))
 
 from ebs.binding import (EVENT_MANIFEST_SCHEMA, FROZEN_TARGET,  # noqa: E402
-                         OUTPUT_KIND, POLICY_ID,
-                         RESOURCE_GATE_RESULT_SCHEMA, REQUIRED_GATES,
-                         ROLE_PROVIDER_ROLES, attempt_id_for,
+                         NETWORK_READINESS_RESULT_SCHEMA, OUTPUT_KIND,
+                         POLICY_ID, RESOURCE_GATE_RESULT_SCHEMA,
+                         REQUIRED_GATES, ROLE_PROVIDER_ROLES, attempt_id_for,
                          output_name_for)
 
 # The one synthetic inert credential literal used by the whole battery.
@@ -92,14 +92,24 @@ def valid_binding_document(event_id, role, launcher_sha256,
         "role": role,
         "attempt_id": attempt,
     } for gate in REQUIRED_GATES}
-    # S1-001: RESOURCE_GATE is NOT a frozen evidence member — the binding
-    # freezes the RUNTIME gate descriptor instead (no result, no PASS);
-    # make_event_package pins the sha256 of the materialized artifact.
+    # S1-001/S1-002: neither dynamic gate is a frozen evidence member —
+    # the binding freezes the TWO RUNTIME gate descriptors instead (no
+    # result, no PASS); make_event_package pins the sha256 of each
+    # materialized artifact (deterministic order NETWORK_READINESS first,
+    # RESOURCE_GATE last — the required dynamic execution order).
     runtime_gate = {
-        "identity": "SYNTHETIC-INERT-RESOURCE-GATE-V1",
-        "path": "runtime/resource-gate.py",
-        "sha256": seed_sha(evidence_seed, "resource-gate"),
-        "result_schema": RESOURCE_GATE_RESULT_SCHEMA,
+        "NETWORK_READINESS": {
+            "identity": "SYNTHETIC-INERT-NETWORK-READINESS-GATE-V1",
+            "path": "runtime/network-readiness.py",
+            "sha256": seed_sha(evidence_seed, "network-readiness"),
+            "result_schema": NETWORK_READINESS_RESULT_SCHEMA,
+        },
+        "RESOURCE_GATE": {
+            "identity": "SYNTHETIC-INERT-RESOURCE-GATE-V1",
+            "path": "runtime/resource-gate.py",
+            "sha256": seed_sha(evidence_seed, "resource-gate"),
+            "result_schema": RESOURCE_GATE_RESULT_SCHEMA,
+        },
     }
     return {
         "policy_id": POLICY_ID,
@@ -129,7 +139,7 @@ def valid_binding_document(event_id, role, launcher_sha256,
         "output_identity": {"kind": OUTPUT_KIND,
                             "name": output_name_for(attempt)},
         "gate_evidence": gates,
-        "runtime_gates": {"RESOURCE_GATE": runtime_gate},
+        "runtime_gates": runtime_gate,
     }
 
 
@@ -150,15 +160,18 @@ def make_event_package(doc, tmp_path, name=EVENT_PKG_NAME,
     files, package_sha256), the transport projection = every binding
     dimension EXCEPT event_package, and the non-circular package identity
     (digest of the manifest document EXCLUDING its own package_sha256
-    key).  S1-001: the package ALWAYS contains the inert RUNTIME RESOURCE
-    GATE artifact at the descriptor's bound path and the binding's
-    runtime_gates.RESOURCE_GATE.sha256 is pinned to the materialized
-    bytes BEFORE the projection is derived.  Optional projection_mutator
+    key).  S1-001/S1-002: the package ALWAYS contains BOTH inert RUNTIME
+    gate artifacts at their descriptors' bound paths and the binding's
+    runtime_gates.*.sha256 values are pinned to the materialized bytes
+    BEFORE the projection is derived.  Optional projection_mutator
     alters ONLY the manifest transport_binding projection
     (PACKAGE->BINDING negatives)."""
     root = tmp_path / name
+    nr_path, nr_sha = make_network_readiness_gate(
+        root / "runtime" / "network-readiness.py")
     gate_path, gate_sha = make_resource_gate(
         root / "runtime" / "resource-gate.py")
+    doc["runtime_gates"]["NETWORK_READINESS"]["sha256"] = nr_sha
     doc["runtime_gates"]["RESOURCE_GATE"]["sha256"] = gate_sha
     payloads = {
         "SYNTHETIC-INERT-MARKER.txt": EVENT_PKG_MARKER,
@@ -170,6 +183,7 @@ def make_event_package(doc, tmp_path, name=EVENT_PKG_NAME,
             {"synthetic_inert": True,
              "for_digest": doc["common_evidence_manifest_digest"]},
             sort_keys=True).encode(),
+        "runtime/network-readiness.py": nr_path.read_bytes(),
         "runtime/resource-gate.py": gate_path.read_bytes(),
     }
     (root / "transport").mkdir(parents=True)
@@ -246,15 +260,39 @@ def make_resource_gate(dst: Path) -> "tuple[Path, str]":
     return dst, sha_hex(dst.read_bytes())
 
 
+def make_network_readiness_gate(dst: Path) -> "tuple[Path, str]":
+    """Materialize the inert LOCAL RUNTIME NETWORK READINESS GATE fixture
+    (S1-002) — same shebang-rewrite discipline.  The fixture performs NO
+    network access of any kind; its behavior is driven by an EXTERNAL
+    /tmp state file keyed by attempt id (absent = honest PASS), and it
+    writes its own attempt-keyed sentinel + counter so tests can prove
+    execution occurrence, exactly-once, and gate ORDER against the
+    resource gate's tracks."""
+    src = FIXTURES / "inert_network_readiness_gate.py"
+    text = src.read_text()
+    text = text.replace("#!/usr/bin/python3\n", f"#!{sys.executable}\n", 1)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_text(text)
+    os.chmod(dst, 0o755)
+    return dst, sha_hex(dst.read_bytes())
+
+
 # Attempt-keyed /tmp "live resource state" tracks read/written by the
-# inert gate fixture (deterministic, host-local, cleaned per test).
+# inert gate fixtures (deterministic, host-local, cleaned per test).
 RG_BASE = "/tmp/aucdev023-rg-"
+NR_BASE = "/tmp/aucdev023-nr-"
 
 
 def rg_paths(attempt_id: str):
     return (RG_BASE + "state-" + attempt_id + ".json",
             RG_BASE + "sentinel-" + attempt_id,
             RG_BASE + "count-" + attempt_id)
+
+
+def nr_paths(attempt_id: str):
+    return (NR_BASE + "state-" + attempt_id + ".json",
+            NR_BASE + "sentinel-" + attempt_id,
+            NR_BASE + "count-" + attempt_id)
 
 
 def write_rg_state(attempt_id: str, mode: str) -> None:
@@ -264,10 +302,25 @@ def write_rg_state(attempt_id: str, mode: str) -> None:
         json.dump({"mode": mode}, handle)
 
 
-def clear_rg_tracks(attempt_id: str) -> None:
-    for path in rg_paths(attempt_id):
+def write_nr_state(attempt_id: str, mode: str) -> None:
+    """Flip the EXTERNAL live route/resolver state the network-readiness
+    fixture samples fresh at execution time (absent = honest PASS)."""
+    with open(nr_paths(attempt_id)[0], "w") as handle:
+        json.dump({"mode": mode}, handle)
+
+
+def _clear_tracks(paths) -> None:
+    for path in paths:
         if os.path.exists(path):
             os.unlink(path)
+
+
+def clear_rg_tracks(attempt_id: str) -> None:
+    _clear_tracks(rg_paths(attempt_id))
+
+
+def clear_nr_tracks(attempt_id: str) -> None:
+    _clear_tracks(nr_paths(attempt_id))
 
 
 def binding_for(launcher_sha: str, **overrides) -> dict:

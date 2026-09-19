@@ -119,15 +119,29 @@ def test_no_plugin_or_extension_architecture():
 # authority boundary; honest growth beyond the 1664 freeze is disclosed
 # as NEW_TCB_GROWTH / AWAITING_CONTROL_ROOM_ACCEPTANCE with exact
 # per-function attribution in
-# AUCDEV-023-EBS-GATE-TIMING-REMEDIATION-REPORT.md.  The candidate
-# ceiling below is CANDIDATE_ONLY / NOT_CONTROL_ROOM_ACCEPTED; the prior
-# accepted 1664 baseline is PRESERVED above and is NOT rewritten.
-GATE_TIMING_CANDIDATE_LOC_BOUND = 2035
+# AUCDEV-023-EBS-GATE-TIMING-REMEDIATION-REPORT.md, and the Control Room
+# ACCEPTED 2035 as residual at implementation-readback strength on
+# EXACT SHA 8e952d81 (2035 NOT standing authority for further growth).
+#
+# CR-EBS-S1-002/-003 preexec-gate remediation: the SECOND mandatory
+# dynamic runtime gate (NETWORK_READINESS descriptor + strict result
+# contract + transport-context argv) and the structural single
+# preexec-consumption operation (launcher verify + both gates + durable
+# GATES_PASSED/CONSUMED_PRE_EXEC in one caller-uninterruptible
+# operation) grow the authority boundary beyond the accepted 2035;
+# disclosed as NEW_TCB_GROWTH / AWAITING_CONTROL_ROOM_ACCEPTANCE with
+# exact per-module/per-function attribution in
+# AUCDEV-023-EBS-PREEXEC-GATE-REMEDIATION-REPORT.md (LOC 2035 -> 2140; machinery REUSED:
+# shared verified-fd open/hold, shared bounded runner, shared strict
+# envelope core, shared result-evidence builder).  The candidate ceiling
+# below is CANDIDATE_ONLY / NOT_CONTROL_ROOM_ACCEPTED; the prior
+# accepted baselines above are PRESERVED and NOT rewritten.
+PREEXEC_GATE_CANDIDATE_LOC_BOUND = 2140
 
 
 def test_production_loc_within_minimal_tcb_bound():
     total = sum(len(p.read_text().splitlines()) for p in PKG_FILES)
-    assert total <= GATE_TIMING_CANDIDATE_LOC_BOUND, \
+    assert total <= PREEXEC_GATE_CANDIDATE_LOC_BOUND, \
         f"production source grew to {total} lines"
 
 
