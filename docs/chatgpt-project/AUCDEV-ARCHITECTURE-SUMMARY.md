@@ -278,6 +278,26 @@ NEW_SHA_AWAITING_FRESH_CONTROL_ROOM_READBACK; production LOC 2035 →
 2140 disclosed NEW_TCB_GROWTH / AWAITING_CONTROL_ROOM_ACCEPTANCE;
 zero provider/model/auditor executions; real event package NOT
 PREPARED; existing S1 authorization PRESERVED / PAUSED / NOT CONSUMED.
+The fresh Control Room readback of that candidate returned
+PARTIALLY_ACCEPTED (canonical record:
+[AUCDEV-023-EBS-PREEXEC-GATE-REMEDIATION-READBACK](AUCDEV-023-EBS-PREEXEC-GATE-REMEDIATION-READBACK.md)):
+AUCDEV023-CR-EBS-S1-002 CLOSED / ACCEPTED and
+AUCDEV023-CR-EBS-S1-003 CLOSED / ACCEPTED, and
+AUCDEV023-CR-EBS-S1-001/-002/-003/REM-001/REM2-001 CLOSED /
+RECONFIRMED, all bound to EXACT SHA `6cf30f90…` with no transfer to
+a future changed SHA; CR-EBS-001 fresh reconfirmation WITHHELD
+(PRIOR_CLOSURE_ON_8E952D81 stands as historical fact; NEW
+S1-006 binding-completeness conflict); the +105 TCB growth
+(2035 → 2140) accepted as a NONBLOCKING residual at
+implementation-readback strength — while NEW blocking FINAL
+LAUNCH-SEAM findings AUCDEV023-CR-EBS-S1-004 (credential custody and
+role not bound before consumption), AUCDEV023-CR-EBS-S1-005
+(consumption-to-execution immediacy not enforced), and
+AUCDEV023-CR-EBS-S1-006 (frozen exec invocation binding incomplete)
+remain OPEN; event-package preparation remains AUTHORIZED / PAUSED
+pending final launch-seam remediation and fresh readback; the EBS is
+NOT installed Audit Council runtime and the product/runtime source
+baseline of this document is unchanged.
 
 The adopted design (Control Room readback-accepted revision, architecture R1)
 introduces, for at most one future AUCDEV-023 harness-audit event only:
