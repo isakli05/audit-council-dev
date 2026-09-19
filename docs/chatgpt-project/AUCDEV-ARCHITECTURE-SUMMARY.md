@@ -213,8 +213,17 @@ generic fail-closed frozen event-package verification with exact transport
 cross-binding BEFORE GATES_PASSED, mandatory event-package root on every
 authority-bearing supervisor, synthetic/inert fixtures only; canonical
 report:
-[AUCDEV-023-EBS-SECOND-REMEDIATION-REPORT](AUCDEV-023-EBS-SECOND-REMEDIATION-REPORT.md))
-— and
+[AUCDEV-023-EBS-SECOND-REMEDIATION-REPORT](AUCDEV-023-EBS-SECOND-REMEDIATION-REPORT.md)).
+The fresh Control Room readback of that second remediation candidate
+returned PARTIALLY_ACCEPTED / NARROW_MANIFEST_ROW_TYPE_REMEDIATION_REQUIRED
+(canonical record:
+[AUCDEV-023-EBS-SECOND-REMEDIATION-READBACK](AUCDEV-023-EBS-SECOND-REMEDIATION-READBACK.md)):
+AUCDEV023-CR-EBS-REM-001 and the AUCDEV023-CR-EBS-001 remainder CLOSED /
+ACCEPTED and AUCDEV023-CR-EBS-002/-003 CLOSED / RECONFIRMED at Control Room
+implementation-readback strength — all bound to EXACT SHA `8f998209…` with
+no transfer to a future changed SHA — and NEW blocking finding
+AUCDEV023-CR-EBS-REM2-001 (event-package manifest files[] row `bytes` type
+validation incomplete) — and
 the EBS is NOT installed Audit Council runtime; the product/runtime source
 baseline of this document is unchanged.
 
@@ -247,20 +256,20 @@ ordinary predecessor chain is not claimed. Canonical record:
 
 The product/runtime source baseline of this document is unchanged by the
 adoption, the implementation candidate, its readback, the remediation
-candidate, or the second remediation candidate: the EBS is separate bootstrap tooling under
+candidate, the second remediation candidate, or its readback: the EBS is separate bootstrap tooling under
 `bootstrap-supervisor/**` (stdlib-only minimal TCB; one-shot process-bound
 authority; sealed-memfd custody; verified-open-fd launch; durable
 accounting; fail-closed frozen event-package verification with transport
 cross-binding; report custody with leak screen; inert synthetic test fixtures
 only; zero provider/model executions; qualification NONE / installation
-NONE), whose second-remediation candidate awaits its fresh Control Room
-readback
-(SECOND_REMEDIATION_CANDIDATE / AWAITING_FRESH_CONTROL_ROOM_READBACK;
-CR-EBS-REM-001 and the CR-EBS-001 remainder REMEDIATION_IMPLEMENTATED /
-AWAITING_CONTROL_ROOM_READBACK at implementer strength only;
-CR-EBS-002/-003 carry prior Control Room closure on `7911f057…` with
-regression evidence held for the new SHA; closure of no finding transfers
-to a future SHA). It is NOT an
+NONE), whose second-remediation candidate Control Room readback returned
+CONTROL_ROOM_SECOND_REMEDIATION_READBACK_PARTIAL / NARROW_MANIFEST_ROW_TYPE_REMEDIATION_REQUIRED
+(CR-EBS-REM-001 and the CR-EBS-001 remainder CLOSED / ACCEPTED and
+CR-EBS-002/-003 CLOSED / RECONFIRMED at Control Room implementation-readback
+strength, all on EXACT SHA `8f998209…`; CR-EBS-REM2-001 OPEN / BLOCKING —
+the event-package manifest files[] row `bytes` type-validation defect that
+must be narrowly remediated before event-package preparation; closure of no
+finding transfers to a future SHA). It is NOT an
 event package and is NOT
 execution-authorized: GATE-W′ (REQUIRED/UNPROVEN) and real-client
 credential/tool isolation (UNPROVEN / EVENT_PREPARATION_GATE) remain future
