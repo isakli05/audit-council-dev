@@ -27,6 +27,9 @@ Matrix (second-remediation tasking §11):
   ORDERING / MANDATORY startup order EBS -> store -> package identity ->
                        projection -> gates; event-package root has no
                        default and no bypass.
+  ROW TYPE (REM2-001)   files[].bytes must be an EXACT non-negative int
+                        (bool explicitly refused) at manifest-row
+                        validation, BEFORE GATES_PASSED.
 """
 import copy
 import json
@@ -37,7 +40,7 @@ from ebs.accounting import AccountingStore, inspect_accounting_record
 from ebs.binding import (PROJECTION_FIELDS, TOP_LEVEL, attempt_id_for,
                          binding_projection, output_name_for, parse_binding)
 from ebs.launch import LaunchError, LaunchRefused, Supervisor, \
-    verify_event_package
+    verify_event_package, verify_package_identity
 
 from conftest import EVENT_PKG_MARKER, binding_for, make_event_package, \
     seed_sha, sha_hex
@@ -432,3 +435,99 @@ def test_event_package_input_is_mandatory(cust_dir, binding_doc):
         Supervisor(binding, store, None)
     with pytest.raises(LaunchError, match="SUPERVISOR_REQUIRES_EVENT"):
         Supervisor(binding, store, 123)
+
+
+# ---------------- REM2-001: files[].bytes exact row-type contract ----------------
+
+REM2_ONE_BYTE = b"R"      # a REAL one-byte payload
+REM2_ROW_BYTES_CASES = [
+    ("bool-true-one-byte", True, REM2_ONE_BYTE),
+    ("float-one-dot-zero-one-byte", 1.0, REM2_ONE_BYTE),
+    ("string-one-one-byte", "1", REM2_ONE_BYTE),
+    ("negative-int", -1, REM2_ONE_BYTE),
+    ("bool-false-zero-byte", False, b""),
+    ("none-one-byte", None, REM2_ONE_BYTE),
+    ("list-one-byte", [1], REM2_ONE_BYTE),
+    ("dict-one-byte", {"bytes": 1}, REM2_ONE_BYTE),
+    ("float-wrong-value-one-byte", 2.0, REM2_ONE_BYTE),
+    ("empty-string-one-byte", "", REM2_ONE_BYTE),
+]
+
+
+def add_payload_row(pkg_root, rel, data, row_bytes):
+    """Materialize a REAL payload of exactly len(data) live bytes whose
+    manifest row carries a CORRECT sha256 but the (possibly type-invalid)
+    recorded byte count row_bytes; the regenerated package identity is
+    re-pinned by rewrite_manifest, so only the recorded TYPE differs."""
+    (pkg_root / rel).write_bytes(data)
+
+    def mutate(manifest):
+        manifest["files"].append({"path": rel, "bytes": row_bytes,
+                                  "sha256": sha_hex(data)})
+    return mutate
+
+
+@pytest.mark.parametrize("name,row_bytes,payload", REM2_ROW_BYTES_CASES,
+                         ids=[case[0] for case in REM2_ROW_BYTES_CASES])
+def test_rem2_001_manifest_row_bytes_type_refused_before_gates_passed(
+        cust_dir, binding_doc, event_package, name, row_bytes, payload):
+    """REM2-001: a self-consistent, correctly re-pinned synthetic package
+    whose manifest row byte count is NOT an exact non-negative int (bool
+    explicitly included) is refused at manifest-ROW validation BEFORE
+    GATES_PASSED; the durable record stays PREPARED.  The live payload
+    size and hash are EXACT for the row, so nothing but the recorded TYPE
+    can fail: for bytes=true/false/1.0 the size comparison is numerically
+    equal (True == 1, False == 0, 1.0 == 1), for the other values the
+    refusal must still come from row validation, not the later payload
+    comparison."""
+    mutate = add_payload_row(event_package, "rem2-payload.bin", payload,
+                             row_bytes)
+    rewrite_manifest(event_package, binding_doc, mutate)
+    binding, store = binding_and_store(cust_dir, binding_doc)
+    with pytest.raises(LaunchRefused,
+                       match="PACKAGE_MANIFEST_ROW_BYTES_TYPE_INVALID"):
+        Supervisor(binding, store, event_package)
+    assert inspect_accounting_record(
+        cust_dir, binding.attempt_id, binding.digest)["last_state"] \
+        == "PREPARED"
+
+
+@pytest.mark.parametrize("row_bytes", [True, 1.0, "1"],
+                         ids=["bool", "float", "string"])
+def test_rem2_001_row_type_refusal_is_at_row_validation(
+        binding_doc, event_package, row_bytes):
+    """The refusal comes from manifest-ROW validation, not the tree walk
+    or any gate: verify_package_identity ITSELF (no store, no gates
+    surface) refuses the malformed row against freshly re-pinned
+    identities."""
+    mutate = add_payload_row(event_package, "rem2-payload.bin",
+                             REM2_ONE_BYTE, row_bytes)
+    rewrite_manifest(event_package, binding_doc, mutate)
+    with pytest.raises(LaunchRefused,
+                       match="PACKAGE_MANIFEST_ROW_BYTES_TYPE_INVALID"):
+        verify_package_identity(
+            event_package,
+            binding_doc["event_package"]["manifest_sha256"],
+            binding_doc["event_package"]["package_sha256"])
+
+
+def test_rem2_001_manifest_row_bytes_valid_int_control_accepted(
+        cust_dir, binding_doc, event_package):
+    """Positive control: exact INTEGER byte counts remain ACCEPTED —
+    including bytes=0 for a REAL zero-byte regular payload and bytes=1
+    for a one-byte payload; the strict rule refuses only non-int, bool,
+    and negative values."""
+    (event_package / "rem2-zero-byte.bin").write_bytes(b"")
+    (event_package / "rem2-one-byte.bin").write_bytes(REM2_ONE_BYTE)
+
+    def mutate(manifest):
+        manifest["files"] += [
+            {"path": "rem2-zero-byte.bin", "bytes": 0,
+             "sha256": sha_hex(b"")},
+            {"path": "rem2-one-byte.bin", "bytes": 1,
+             "sha256": sha_hex(REM2_ONE_BYTE)}]
+    rewrite_manifest(event_package, binding_doc, mutate)
+    binding, store = binding_and_store(cust_dir, binding_doc)
+    sup = Supervisor(binding, store, event_package)
+    sup.validate_gates()
+    assert sup.state == "GATES_PASSED"

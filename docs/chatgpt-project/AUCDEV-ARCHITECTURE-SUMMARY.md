@@ -223,7 +223,14 @@ ACCEPTED and AUCDEV023-CR-EBS-002/-003 CLOSED / RECONFIRMED at Control Room
 implementation-readback strength — all bound to EXACT SHA `8f998209…` with
 no transfer to a future changed SHA — and NEW blocking finding
 AUCDEV023-CR-EBS-REM2-001 (event-package manifest files[] row `bytes` type
-validation incomplete) — and
+validation incomplete). A bounded NARROW manifest row-type remediation
+candidate now exists under `bootstrap-supervisor/**` (published 2026-09-19
+under the operator's narrow remediation authority: every manifest
+files[].bytes row must be an exact non-negative int, bool explicitly
+refused, at row validation BEFORE GATES_PASSED; synthetic/inert fixtures
+only; canonical report:
+[AUCDEV-023-EBS-NARROW-MANIFEST-TYPE-REMEDIATION-REPORT](AUCDEV-023-EBS-NARROW-MANIFEST-TYPE-REMEDIATION-REPORT.md))
+awaiting its fresh Control Room readback — and
 the EBS is NOT installed Audit Council runtime; the product/runtime source
 baseline of this document is unchanged.
 
@@ -256,20 +263,19 @@ ordinary predecessor chain is not claimed. Canonical record:
 
 The product/runtime source baseline of this document is unchanged by the
 adoption, the implementation candidate, its readback, the remediation
-candidate, the second remediation candidate, or its readback: the EBS is separate bootstrap tooling under
+candidate, the second remediation candidate, its readback, or the narrow
+manifest row-type remediation candidate: the EBS is separate bootstrap tooling under
 `bootstrap-supervisor/**` (stdlib-only minimal TCB; one-shot process-bound
 authority; sealed-memfd custody; verified-open-fd launch; durable
 accounting; fail-closed frozen event-package verification with transport
-cross-binding; report custody with leak screen; inert synthetic test fixtures
+cross-binding and exact int-typed manifest row byte counts; report custody
+with leak screen; inert synthetic test fixtures
 only; zero provider/model executions; qualification NONE / installation
-NONE), whose second-remediation candidate Control Room readback returned
-CONTROL_ROOM_SECOND_REMEDIATION_READBACK_PARTIAL / NARROW_MANIFEST_ROW_TYPE_REMEDIATION_REQUIRED
-(CR-EBS-REM-001 and the CR-EBS-001 remainder CLOSED / ACCEPTED and
-CR-EBS-002/-003 CLOSED / RECONFIRMED at Control Room implementation-readback
-strength, all on EXACT SHA `8f998209…`; CR-EBS-REM2-001 OPEN / BLOCKING —
-the event-package manifest files[] row `bytes` type-validation defect that
-must be narrowly remediated before event-package preparation; closure of no
-finding transfers to a future SHA). It is NOT an
+NONE), whose narrow manifest row-type remediation candidate (for
+CR-EBS-REM2-001, the files[].bytes row-type defect) is IMPLEMENTED at
+implementer strength and AWAITING its fresh Control Room readback (all
+prior closures bound to EXACT SHA `8f998209…`; no closure of any finding
+transfers to a future SHA). It is NOT an
 event package and is NOT
 execution-authorized: GATE-W′ (REQUIRED/UNPROVEN) and real-client
 credential/tool isolation (UNPROVEN / EVENT_PREPARATION_GATE) remain future

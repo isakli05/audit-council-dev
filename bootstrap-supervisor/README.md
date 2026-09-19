@@ -1,4 +1,4 @@
-# AUCDEV-023 External Bootstrap Supervisor (EBS) — second remediation candidate
+# AUCDEV-023 External Bootstrap Supervisor (EBS) — narrow manifest row-type remediation candidate
 
 Bounded implementation of the operator-ADOPTED AUCDEV-023 auditor-bootstrap
 governance architecture **R1 = CONTROLLERLESS / PROCESS-BOUND /
@@ -9,7 +9,10 @@ remediation** authority (Control Room findings AUCDEV023-CR-EBS-001/-002/
 `docs/chatgpt-project/AUCDEV-023-EBS-REMEDIATION-REPORT.md`), and the
 2026-09-19 bounded **second EBS remediation** authority (finding
 AUCDEV023-CR-EBS-REM-001; canonical record:
-`docs/chatgpt-project/AUCDEV-023-EBS-SECOND-REMEDIATION-REPORT.md`).
+`docs/chatgpt-project/AUCDEV-023-EBS-SECOND-REMEDIATION-REPORT.md`), and
+the 2026-09-19 bounded **narrow EBS manifest row-type remediation**
+authority (finding AUCDEV023-CR-EBS-REM2-001; canonical record:
+`docs/chatgpt-project/AUCDEV-023-EBS-NARROW-MANIFEST-TYPE-REMEDIATION-REPORT.md`).
 
 ## What this is
 
@@ -21,8 +24,9 @@ AUCDEV023-CR-EBS-REM-001; canonical record:
   event-package verification with transport cross-binding (second
   remediation)**, generic report custody with a
   credential leak screen, and an inspection-only CLI.
-- **A second remediation candidate awaiting a FRESH independent Control
-  Room readback.** Not accepted, not trusted for any event.
+- **A narrow manifest row-type remediation candidate awaiting a FRESH
+  independent Control Room readback.** Not accepted, not trusted for any
+  event.
 
 ## What this is NOT
 
@@ -83,7 +87,12 @@ bytes against the binding-pinned `event_package.manifest_sha256`,
 non-circular package identity against the binding-pinned
 `event_package.package_sha256`, exact per-file byte size + SHA-256,
 exact payload-set equality, missing/stale/unrecorded payload and
-symlink refusal.
+symlink refusal.  Strict row typing (AUCDEV023-CR-EBS-REM2-001, narrow
+remediation): every `files[]` row's recorded `bytes` must be an EXACT
+non-negative integer — `true`/`false`, floats (`1.0`), strings (`"1"`),
+`null`, containers, and negative values are all refused at
+manifest-row validation BEFORE tree traversal and before any gate; the
+exact live size/SHA-256 comparison itself is unchanged.
 
 **Non-circular cross-binding projection**: the manifest's
 `transport_binding` field must equal `binding_projection(binding)` —
@@ -144,6 +153,9 @@ Both digests are pinned **independently** in the frozen binding
 (`ebs_package`). Verification refuses (fail closed) on: manifest bytes
 mismatching the pinned manifest identity; the declared package identity
 not being self-consistent or mismatching the pinned package identity; any
+files[] row whose recorded `bytes` is not an exact non-negative integer
+(bool/float/string/null/container/negative — refused at row validation,
+REM2-001); any
 manifest-listed payload file whose live size or SHA-256 differs; any
 missing payload; any unrecorded payload file; any symlink in the package
 tree; malformed/non-object manifests. Therefore an attacker who modifies

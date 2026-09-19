@@ -158,11 +158,10 @@ def open_verified_launcher(path, expected_sha256: str) -> int:
 def verify_package_identity(root, expected_manifest_sha256: str,
                             expected_package_sha256: str) -> dict:
     """Fail-closed verification of the package at root: BOTH pinned
-    identities, every per-file size/SHA-256, and exact payload-set
-    equality (unsafe row paths cannot match the walked set — refused
-    structurally).  The manifest is parsed strictly (duplicate JSON keys
-    and non-finite constants refused) and the parsed document is returned
-    as "document" for the event-package cross-binding check."""
+    identities, per-file size/SHA-256, exact payload-set equality (unsafe
+    row paths cannot match the walked set), int-typed non-negative row
+    byte counts (bool refused).  Strict JSON parse (duplicate keys and
+    non-finite refused); returned as "document" for cross-binding."""
     try:
         fd = os.open(os.path.join(os.fspath(root), PACKAGE_MANIFEST),
                      os.O_RDONLY | os.O_NOFOLLOW)
@@ -214,10 +213,13 @@ def verify_package_identity(root, expected_manifest_sha256: str,
                 {"path", "bytes", "sha256"} or \
                 not isinstance(row["path"], str) or row["path"] in recorded:
             raise LaunchRefused(f"PACKAGE_MANIFEST_ROW_INVALID: {row!r}")
+        size = row["bytes"]
+        if not isinstance(size, int) or isinstance(size, bool) or size < 0:
+            raise LaunchRefused(f"PACKAGE_MANIFEST_ROW_BYTES_TYPE_INVALID: "
+                                f"{size!r} for row {row['path']!r}")
         recorded[row["path"]] = row
-    # Walk the LIVE tree; every regular file must be a manifest row with
-    # exactly the recorded size/SHA-256 (verified in the same pass); any
-    # unrecorded file or any manifest row with no live file is refused.
+    # Walk the LIVE tree: every regular file must be a manifest row with
+    # exactly the recorded size/SHA-256; unrecorded files/rows refused.
     root = os.fspath(root)
     total_bytes = 0
     for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
@@ -259,9 +261,8 @@ def verify_package_identity(root, expected_manifest_sha256: str,
 
 def verify_live_package_identity(binding) -> dict:
     """Production self-verification entry: verifies THE EXECUTING EBS
-    PACKAGE against the binding pins.  No root argument, no CLI flag,
-    no environment variable; every Supervisor construction runs it
-    before gates/authority are reachable."""
+    PACKAGE against the binding pins; takes no root/flag/env argument,
+    and every Supervisor construction runs it before gates/authority."""
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     return verify_package_identity(
         root, binding.ebs_package["manifest_sha256"],
@@ -272,13 +273,13 @@ def verify_event_package(root, binding) -> dict:
     """(CR-EBS-REM-001) Fail-closed verification of the frozen event
     package at root against the binding, BEFORE gates are reachable.
     Reuses verify_package_identity (no second package verifier) for the
-    pinned manifest/package identities and the per-file/payload-set
-    checks; then enforces the strict versioned event-manifest contract
-    (exact key set + schema tag) and transport_binding == the binding's
-    own projection compared as canonical JSON bytes — so an internally-
-    valid binding with substituted component identities under the SAME
-    frozen package identity, or a regenerated self-consistent package
-    with updated pins, both fail closed here."""
+    pinned identities and per-file/payload-set checks; then enforces the
+    strict versioned event-manifest contract (exact key set + schema
+    tag) and transport_binding == the binding's own projection compared
+    as canonical JSON bytes — so an internally-valid binding with
+    substituted component identities under the SAME frozen package
+    identity, or a regenerated self-consistent package with updated
+    pins, both fail closed here."""
     result = verify_package_identity(
         os.fspath(root), binding.event_package["manifest_sha256"],
         binding.event_package["package_sha256"])

@@ -1,14 +1,14 @@
 {
   "files": [
     {
-      "bytes": 12804,
+      "bytes": 13606,
       "path": "README.md",
-      "sha256": "5a15b1721875af5d25fb78099a76a240b57c38b86839f40370c6fa9301161cbb"
+      "sha256": "ac51088d295efc85dbb9f82e6fa93590168dd20246cc337bd0613a2c10ad8366"
     },
     {
-      "bytes": 1034,
+      "bytes": 994,
       "path": "ebs/__init__.py",
-      "sha256": "b5dba0269e80a4422d5543f5379eac9e649ee71300917bb3e81dd657c4c05a9e"
+      "sha256": "dc77dda12f51b49e690e7cfbaf496d5dafb4fc71afc3921a1c516562dea72d08"
     },
     {
       "bytes": 9077,
@@ -31,9 +31,9 @@
       "sha256": "f1c1d0f7cba21225e977c49fc86c5d32824766a0eddebe6b1761b0111c11f5ca"
     },
     {
-      "bytes": 27371,
+      "bytes": 27425,
       "path": "ebs/launch.py",
-      "sha256": "da5976b3428cff6f09541e1cd330790e3c00e4acefa74faea8e45f0873536bdf"
+      "sha256": "b6997c9739ccd06c32317748da151dbadcfd5deb3343aa0b3d16d0d80d3ecc97"
     },
     {
       "bytes": 4017,
@@ -76,9 +76,9 @@
       "sha256": "f650aaaa318dac29b7e8751a0ebbfeb80959e640aae8744eccf5686efa7f9b31"
     },
     {
-      "bytes": 20369,
+      "bytes": 25092,
       "path": "tests/test_eventpackage.py",
-      "sha256": "7512ccf33fbdc35e1bcc9c88980447910327265367e2efc8a54c6d9853dd921b"
+      "sha256": "bbd077a90f7a06205071422c2bc7d058050ea0aad506e4068c74b6052f95e817"
     },
     {
       "bytes": 18725,
@@ -91,9 +91,9 @@
       "sha256": "75d5f63f19a80a79977d4f6100ae7d6242fa0d31fff6d8f349ed6171edfcf2ca"
     },
     {
-      "bytes": 9878,
+      "bytes": 11718,
       "path": "tests/test_selfcheck.py",
-      "sha256": "f0f789b2a0c54953b2268197b1fb52a08ab8eea8efee4c9e8de3702103f25a83"
+      "sha256": "80d30fd27371325ee46679439cea5de09cbf1363fd05ebd4691fa95d90a6246e"
     },
     {
       "bytes": 3835,
@@ -106,13 +106,13 @@
       "sha256": "94686bfcdc741983619f1654e0a1e4a758c08e2baa2a75fba205563895b0d972"
     }
   ],
-  "implementation_base_commit": "a9bbdea7aeebfc475b7042410943f32fccbe5e83",
+  "implementation_base_commit": "dbe0dc5d955cc39573c907153f02f86aec2c119f",
   "package": "bootstrap-supervisor",
-  "package_sha256": "01ee6f5f9099b1ae0bf246f5f728452e7557982eb98c9d99a6f29232ada924ba",
+  "package_sha256": "d478a5013ede94ebd63870948594c0675914792ad1b8268708473366123ef9fd",
   "policy_id": "AUCDEV-023-R1-CONTROLLERLESS-PROCESS-BOUND-TARGET-INDEPENDENT-ONE-SHOT",
   "qualification_claim": "NONE",
   "runtime_dependencies": "Python 3 standard library ONLY + Linux kernel primitives (memfd/seals, prctl, fsync, execveat, /proc); no third-party runtime package",
-  "status": "SECOND_REMEDIATION_CANDIDATE / AWAITING_FRESH_CONTROL_ROOM_READBACK",
+  "status": "NARROW_MANIFEST_TYPE_REMEDIATION_CANDIDATE / AWAITING_FRESH_CONTROL_ROOM_READBACK",
   "target": {
     "commit": "d4d584ffa47ad2848268ba947247f81a845b2322",
     "qh_tree": "5b8d5e5465923740470ff63ed9b8683f257a3787",
@@ -120,5 +120,5 @@
     "root_tree": "1d4b8b8eb0619cf0b854984b778e6ea081ad9aa7",
     "skill_tree": "c792933a862d9a5434681a88d183470dd8b15d2f"
   },
-  "task": "AUCDEV-023 bounded External Bootstrap Supervisor (EBS) second remediation of AUCDEV023-CR-EBS-REM-001"
+  "task": "AUCDEV-023 bounded External Bootstrap Supervisor (EBS) narrow manifest row-type remediation of AUCDEV023-CR-EBS-REM2-001"
 }

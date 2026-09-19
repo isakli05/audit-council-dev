@@ -238,3 +238,44 @@ def test_no_environment_or_flag_bypass_surface():
                     f"{name}: environment access {node.attr}")
             if isinstance(node, ast.Name) and node.id == "environ":
                 raise AssertionError(f"{name}: environment access")
+
+
+# -------- REM2-001: row byte-count type contract on the live layer --------
+
+def rewrite_row_bytes(root, path, value):
+    """Set one manifest row's recorded byte count to value and regenerate
+    the self-consistent package identity; pins_of(root) then match the
+    mutated manifest exactly, so ONLY the row-type rule can refuse."""
+    import hashlib
+    doc = read_manifest(root)
+    for row in doc["files"]:
+        if row["path"] == path:
+            row["bytes"] = value
+    doc.pop("package_sha256", None)
+    doc["package_sha256"] = hashlib.sha256(json.dumps(
+        doc, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    write_manifest(root, doc)
+
+
+def test_rem2_001_live_layer_row_float_bytes_refused(tmp_path):
+    """REM2-001 refresh of the shared verifier's CR-EBS-003 layer: a
+    FLOAT row byte count that numerically EQUALS the live file size, in
+    a perfectly self-consistent copied package with matching pins, is
+    refused (the exact numeric-equality type-confusion defect class)."""
+    pkg = copy_package(tmp_path)
+    target = "ebs/statemachine.py"
+    rewrite_row_bytes(pkg, target, float((pkg / target).stat().st_size))
+    with pytest.raises(LaunchRefused,
+                       match="PACKAGE_MANIFEST_ROW_BYTES_TYPE_INVALID"):
+        verify_package_identity(pkg, *pins_of(pkg))
+
+
+def test_rem2_001_live_layer_row_bool_bytes_refused(tmp_path):
+    """A BOOL row byte count is refused at row validation in the copied
+    live-layer package, whatever the true file size (bool is never an
+    integer byte-count type for this contract)."""
+    pkg = copy_package(tmp_path)
+    rewrite_row_bytes(pkg, "ebs/statemachine.py", True)
+    with pytest.raises(LaunchRefused,
+                       match="PACKAGE_MANIFEST_ROW_BYTES_TYPE_INVALID"):
+        verify_package_identity(pkg, *pins_of(pkg))
