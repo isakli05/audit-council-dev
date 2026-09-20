@@ -477,6 +477,45 @@ claims, superseded only for CURRENT Control Room state; model
 engagements remain 0, qualification NONE / installation NONE, and the
 product/runtime source baseline of this document is unchanged.
 
+The bounded S1 remediation (2026-09-20, operator authority
+`AUCDEV-023-S1-PREP-REM-20260920-01`; canonical record:
+[AUCDEV-023-S1-EVENT-PACKAGE-REMEDIATION-REPORT](AUCDEV-023-S1-EVENT-PACKAGE-REMEDIATION-REPORT.md))
+has since implemented all three remediations at implementer strength in a
+NEW successor event-package set (historical S1 packages untouched;
+implementer dispositions AWAITING_CONTROL_ROOM_READBACK — NOT Control Room
+closure). Trust-boundary FACTS of the successor composition, all
+mechanically evidenced: (1) the boundary mounts NO `/opt/node` runtime —
+the Auditor-B executable is the NATIVE codex 0.154.0 binary and its
+COMPLETE six-file vendored runtime closure is staged INSIDE the frozen
+event package as manifest rows, with the package's vendored bwrap and rg
+bound PATH-first ahead of the host system surface (the prior
+peer-provider-client-code visibility at /opt/node no longer exists);
+(2) EVERY execution-visible evidence byte (frozen target subtrees,
+common evidence, EBS source, per-role gate evidence) is staged INSIDE the
+frozen event package and mounted ONLY from there, so the accepted EBS
+per-file package verification before GATES_PASSED is now also the
+pre-consumption identity binding of the mounted evidence (no external
+workspace evidence mount remains); (3) GATE-W′ aggregation and package
+freeze accept ONLY the exact status PASS, and assertion 10 is
+mechanically demonstrated for both roles through the REAL pinned clients
+via a deterministic mock transport (fixed scripted bytes, loopback-only
+inside isolated network namespaces — zero model inference, zero real
+provider request, zero real credential), which also surfaced and fixed
+three latent frozen-surface defects: the pinned claude client does not
+match `Write(...)` rules for file permission checks (corrected
+`Edit(//…)` surface), the pinned codex client refuses exec in a non-git
+cwd (frozen invocation gains `--skip-git-repo-check`), and the S1 tool
+wrapper's bind over the `/usr/bin/sh` symlink destination aborted every
+nested tool composition on this host (fail-closed but functionally
+inert; fixed, so the tool domain now genuinely executes). A disclosed
+composition-layering fact: beneath the interposed wrapper the designed
+ephemeral writable set is re-materialized in the fresh tool namespace,
+so the codex profile's writable_roots restriction is subsumed for
+namespace-local scratch only — every host-backed or evidence path
+remains denied at both layers. No EBS/qh/skill source change was made
+anywhere in the remediation; the product/runtime source baseline of this
+document is unchanged.
+
 The adopted design (Control Room readback-accepted revision, architecture R1)
 introduces, for at most one future AUCDEV-023 harness-audit event only:
 
