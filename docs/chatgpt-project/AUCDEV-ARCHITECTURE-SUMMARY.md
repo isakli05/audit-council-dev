@@ -396,6 +396,25 @@ LOC 2800 → 2904 disclosed NEW_TCB_GROWTH /
 AWAITING_CONTROL_ROOM_ACCEPTANCE; zero provider/model/auditor
 executions; the EBS is NOT installed Audit Council runtime and the
 product/runtime source baseline of this document is unchanged.
+The fresh Control Room readback of that candidate returned ACCEPTED
+(canonical record:
+[AUCDEV-023-EBS-S1-009-POSTCONSUMPTION-TERMINALITY-REMEDIATION-READBACK](AUCDEV-023-EBS-S1-009-POSTCONSUMPTION-TERMINALITY-REMEDIATION-READBACK.md)):
+AUCDEV023-CR-EBS-S1-009 CLOSED / ACCEPTED at Control Room
+implementation-readback strength, with all thirteen prior EBS invariants
+(CR-EBS-001/-002/-003, REM-001, REM2-001 and S1-001 through S1-008)
+source-level freshly reconfirmed on EXACT SHA `8c27b8a8…` with no
+closure transferring to a future changed SHA; the +104 TCB growth
+(2800 → 2904) accepted as a residual at implementation-readback
+strength (NOT_STANDING_AUTHORITY); there is NO known EBS implementation
+blocker at current readback strength — while
+NORMAL_EXIT_BOUNDARY_PROCESS_TREE_QUIESCENCE remains NOT_YET_PROVEN
+(S1 event-preparation evidence requirement), GATE-W′ remains
+REQUIRED/UNPROVEN, real-client credential/tool isolation remains
+UNPROVEN, the bootstrap event remains NOT_INSTANTIATED, and
+event-package preparation remains AUTHORIZED / NOT_STARTED / PAUSED
+pending this readback publication's independent verification; the EBS
+is NOT installed Audit Council runtime and the product/runtime source
+baseline of this document is unchanged.
 
 The adopted design (Control Room readback-accepted revision, architecture R1)
 introduces, for at most one future AUCDEV-023 harness-audit event only:
