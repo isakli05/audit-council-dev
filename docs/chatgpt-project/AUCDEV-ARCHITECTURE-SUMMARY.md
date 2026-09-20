@@ -435,6 +435,25 @@ provider/model/auditor executions; qualification NONE; installation
 NONE); the EBS is NOT installed Audit Council runtime and the
 product/runtime source baseline of this document is unchanged.
 
+The S1 event-package preparation has since been PERFORMED (2026-09-20,
+canonical record:
+[AUCDEV-023-S1-EVENT-PACKAGE-PREPARATION-REPORT](AUCDEV-023-S1-EVENT-PACKAGE-PREPARATION-REPORT.md)):
+`AUCDEV_023_S1_EVENT_PACKAGE_PREPARATION = PREPARED / AWAITING_CONTROL_ROOM_READBACK`
+— the real V5 event packages and bindings for event `evt-7df609ec6c569043`
+exist frozen OUTSIDE the repository with the frozen networked boundary
+launcher, tool-domain wrapper, runtime-gate artifacts, structural
+validator, sandbox profiles, neutral prompt contract and A=B common
+evidence; GATE-W′ = PASS with both assertion-10 completeness limitations
+disclosed, NORMAL_EXIT_BOUNDARY_PROCESS_TREE_QUIESCENCE = PASS at
+synthetic rehearsal strength, and REAL_CLIENT_CREDENTIAL_TOOL_ISOLATION =
+PASS at the adopted design's strength (subprocess isolation mechanical;
+in-process read protection application-level residual). The bootstrap
+event itself remains NOT_INSTANTIATED, model engagements remain 0, and
+every real execution authority remains NONE — a real first pass requires
+a NEW explicit operator execution authority after the independent Control
+Room readback of the S1 evidence; the product/runtime source baseline of
+this document is unchanged.
+
 The adopted design (Control Room readback-accepted revision, architecture R1)
 introduces, for at most one future AUCDEV-023 harness-audit event only:
 
