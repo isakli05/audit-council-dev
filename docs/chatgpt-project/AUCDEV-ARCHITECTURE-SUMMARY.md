@@ -350,6 +350,29 @@ zero provider/model/auditor executions; real event package NOT
 PREPARED; existing S1 authorization PRESERVED / PAUSED / NOT CONSUMED;
 the EBS is NOT installed Audit Council runtime and the
 product/runtime source baseline of this document is unchanged.
+The fresh Control Room readback of that candidate returned
+PARTIALLY_ACCEPTED (canonical record:
+[AUCDEV-023-EBS-FINAL-EXECUTION-LIFECYCLE-REMEDIATION-READBACK](AUCDEV-023-EBS-FINAL-EXECUTION-LIFECYCLE-REMEDIATION-READBACK.md)):
+AUCDEV023-CR-EBS-S1-007 CLOSED / ACCEPTED and
+AUCDEV023-CR-EBS-S1-008 CLOSED / ACCEPTED, with
+CR-EBS-001/-002/-003/REM-001/REM2-001/S1-001/S1-002/S1-003/S1-004/
+S1-005/S1-006 source-level reconfirmed, all bound to EXACT SHA
+`0f79d3bd…` with no transfer to a future changed SHA; the +451 TCB
+growth (2349 → 2800) accepted as a NONBLOCKING residual at
+implementation-readback strength (NOT_STANDING_AUTHORITY) — while the
+NEW blocking finding AUCDEV023-CR-EBS-S1-009
+(POST_CONSUMPTION_EXCEPTION_TERMINALIZATION_CAN_ESCAPE_PROCESS_BOUND_CLEANUP:
+post-EXEC_ATTEMPTED parent-side exceptions and an unwrapped
+timeout-path TERMINAL accounting sequence can escape process-bound
+fail-closed terminal settlement with custody/held fds open) remains
+OPEN/BLOCKING, a normal-exit boundary process-tree quiescence
+obligation is recorded as an S1 event-preparation evidence
+requirement (NOT_YET_PROVEN; additional lifecycle evidence, NOT an
+alteration of the twelve mandatory GATE-W′ assertions), and
+event-package preparation remains AUTHORIZED / PAUSED pending S1-009
+remediation and fresh readback; the EBS is NOT installed Audit
+Council runtime and the product/runtime source baseline of this
+document is unchanged.
 
 The adopted design (Control Room readback-accepted revision, architecture R1)
 introduces, for at most one future AUCDEV-023 harness-audit event only:
