@@ -84,6 +84,18 @@ consumed semantics (TIMEOUT_AFTER_CONSUMPTION; authority CONSUMED,
 model engagement CONSUMED FAIL-CLOSED, no report accepted, replacement
 = new operator authority only).
 
+S1-009 post-consumption fail-closed terminality: ONE centralized
+settlement primitive (_settle_post_consumption) separates the durable
+accounting attempt (report-outcome record when one applies, then
+TERMINAL; first durable failure preserves the record exactly, never
+counted as durable success) from a guaranteed in-process fail-closed
+death (fail_closed_terminal + custody/held-fd closure in a
+never-raising finally); durable accounting failure raises
+PostConsumptionTerminalAccountingError chaining any concurrent failure
+(never a success/timed-out/conforming AttemptResult), and parent-side
+exceptions after EXEC_ATTEMPTED re-raise only when the durable
+settlement completed.
+
 Gate-timing remediation (CR-EBS-S1-001) + preexec-gate remediation
 (CR-EBS-S1-002/-003): the DYNAMIC runtime gates are NOT frozen evidence.
 Every Supervisor construction holds the VERIFIED OPEN fd of BOTH runtime
@@ -169,6 +181,32 @@ class LaunchError(RuntimeError):
 
 class LaunchRefused(LaunchError):
     """Identity/verification refusal before any exec attempt."""
+
+
+class PostConsumptionTerminalAccountingError(LaunchError):
+    """(S1-009) The durable post-consumption terminal accounting chain
+    did NOT complete: the attempt is already in-process TERMINAL with
+    the custody and every held fd closed and NO retry exists, but the
+    durable record must be treated as INCOMPLETE; accounting_error /
+    original_error / related_error carry the exact failures.  Never
+    returned or swallowed as a success/timed-out/conforming result."""
+
+    def __init__(self, durable_error, original_error=None,
+                 related_error=None, last_state=None) -> None:
+        concurrent = original_error if original_error is not None \
+            else related_error
+        super().__init__(
+            "POSTCONSUMPTION_TERMINAL_ACCOUNTING_FAILED: the durable "
+            f"terminal accounting chain did not complete "
+            f"({durable_error!r}); last durable recorded state "
+            f"{last_state!r}; the attempt is in-process TERMINAL with "
+            "the custody and every held fd closed and NO retry exists — "
+            "treat the durable record as INCOMPLETE"
+            + ("" if concurrent is None
+               else f"; concurrent failure: {concurrent!r}"))
+        self.accounting_error = durable_error
+        self.original_error = original_error
+        self.related_error = related_error
 
 
 def _char_array(items) -> "ctypes.Array":
@@ -538,6 +576,18 @@ def _close_all_except(keep) -> None:
                 pass
 
 
+def _close_fds(*fds) -> None:
+    """Close every non-None fd, absorbing close failures: bounded
+    parent-side cleanup paths (gate/validator runner, attempt pipes,
+    held authority fds) must never raise on the way out."""
+    for fd in fds:
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+
+
 def _gate_child(gate_fd: int, result_w: int, devnull: int,
                 argv, env: dict, report_fd: int = None) -> None:
     """Child-side preparation for a runtime gate or the structural
@@ -667,12 +717,7 @@ def _run_runtime_gate(gate: str, gate_fd: int, argv, env: dict,
             raise LaunchRefused(f"{gate}_OUTPUT_MISSING: no result bytes")
         return output
     finally:
-        for fd in (result_r, result_w, devnull, report_fd):
-            if fd is not None:
-                try:
-                    os.close(fd)
-                except OSError:
-                    pass
+        _close_fds(result_r, result_w, devnull, report_fd)
 
 
 def _strict_gate_envelope(output: bytes, binding, gate: str, fields,
@@ -1257,52 +1302,49 @@ class Supervisor:
                 if not progressed:
                     time.sleep(0.01)               # bounded poll, no spin
         except BaseException as exc:
-            # Post-consumption failure: close remaining parent fds (a
-            # metadata-blocked child unblocks and dies), reap the child,
-            # record TERMINAL best-effort; never relabeled unconsumed.
-            for fd in (md_r, md_w, fail_r, fail_w, devnull):
-                if fd is not None:
-                    try:
-                        os.close(fd)
-                    except OSError:
-                        pass
+            # (S1-009) ANY post-consumption parent-side failure —
+            # including failures AFTER the durable EXEC_ATTEMPTED
+            # transition — gets the SAME centralized fail-closed
+            # settlement (remaining parent fds closed, the EXACT attempt
+            # process group killed and reaped, then
+            # _settle_post_consumption); the original failure re-raises
+            # only when the durable settlement completed, else the exact
+            # accounting-incompleteness error chaining it; never
+            # relabeled unconsumed, no same-attempt retry.
+            _close_fds(md_r, md_w, fail_r, fail_w, devnull)
+            md_r = fail_r = None
             if child_pid and not waited:
                 self._kill_attempt_group(child_pid)
                 try:
                     os.waitpid(child_pid, 0)   # deterministic post-kill reap
                 except OSError:
                     pass
-            if self._machine.state == CONSUMED_PRE_EXEC:
-                self._terminalize_after_consumption(
-                    f"PRE_EXEC_FAILURE_AFTER_CONSUMPTION: {exc!r}")
-            raise
+            reason = ("PRE_EXEC_FAILURE_AFTER_CONSUMPTION"
+                      if self._machine.state == CONSUMED_PRE_EXEC
+                      else "PARENT_FAILURE_AFTER_EXEC_ATTEMPTED")
+            self._settle_post_consumption(
+                None, None,
+                {"terminal_reason": f"{reason}: {exc!r}"[:256]},
+                original_error=exc)
+            raise   # backstop: settlement re-raises with original_error
         finally:
-            for fd in (md_r, fail_r):
-                if fd is not None:
-                    try:
-                        os.close(fd)
-                    except OSError:
-                        pass
+            _close_fds(md_r, fail_r)
         if timed_out:
-            # (S1-008 §16/§17) timeout is AFTER durable
-            # CONSUMED_PRE_EXEC: authority CONSUMED, model engagement
-            # CONSUMED FAIL-CLOSED (inference status never assumed
-            # absent), the EXACT attempt process group SIGKILLed
-            # (descendants included, unrelated processes untouched),
-            # the direct child reaped, no report accepted, TERMINAL with
-            # the exact durable classification, custody and held fds
-            # closed — all before any return to the caller.
+            # (S1-008 §16/§17 semantics under the S1-009 centralized
+            # settlement): timeout is AFTER durable CONSUMED_PRE_EXEC —
+            # authority CONSUMED, model engagement CONSUMED FAIL-CLOSED,
+            # no report accepted; the exact process group is killed and
+            # the direct child reaped BEFORE the settlement, and a
+            # TERMINAL-accounting failure raises the exact
+            # incompleteness error — never a timed-out AttemptResult.
             self._kill_attempt_group(child_pid)
             if not waited:
                 _, status = os.waitpid(child_pid, 0)
                 waited = True
-            self._store.append(TERMINAL, extra={
+            self._settle_post_consumption(None, None, {
                 "terminal_reason": "TIMEOUT_AFTER_CONSUMPTION",
                 "auditor_timeout_seconds": timeout,
                 "child_pid": child_pid})
-            self._machine.transition(TERMINAL)
-            self._close_custody()
-            self._close_held_fds()
             return AttemptResult(os.waitstatus_to_exitcode(status), False,
                                  {}, True, "", "", 0)
         metadata = None
@@ -1329,15 +1371,17 @@ class Supervisor:
         except OSError:
             pass          # already dead: the caller reaps deterministically
 
-    def _close_custody(self) -> None:
-        """Close the Supervisor-held sealed custody (idempotent; S1-004
-        custody lifetime: closed on EVERY terminal path)."""
-        if self._custody is not None:
-            self._custody.close()
-
-    def _close_held_fds(self) -> None:
-        """Close the held launcher/auditor-executable/invocation/
-        validator fds and the pre-opened output-custody directory fd."""
+    def _close_authority_holds(self) -> None:
+        """Close the Supervisor-held sealed custody and EVERY held fd
+        (launcher/auditor-executable/invocation/validator fds plus the
+        pre-opened output-custody directory fd; S1-004 custody lifetime
+        — closed on EVERY terminal path).  Each close absorbs its own
+        failure so the guaranteed settlement path can never raise."""
+        try:
+            if self._custody is not None:
+                self._custody.close()
+        except Exception:
+            pass
         for fd in (self._launcher_fd, self._auditor_fd,
                    self._invocation_fd, self._validator_fd,
                    self._out_dir_fd):
@@ -1351,34 +1395,54 @@ class Supervisor:
         self._validator_fd = None
         self._out_dir_fd = None
 
-    def _terminalize_after_consumption(self, reason: str) -> None:
-        """Best-effort durable TERMINAL after a post-consumption failure;
-        the spent guard forbids a second launch even if this fails."""
+    def _settle_post_consumption(self, report_state, report_extra,
+                                 terminal_extra=None, original_error=None,
+                                 related_error=None) -> None:
+        """(S1-009) THE single centralized post-consumption terminal
+        settlement — replaces every earlier duplicated terminalization
+        path (_settle, _terminalize_after_consumption, the timeout and
+        exceptional-cleanup sequences).  Concept A, durable accounting
+        ATTEMPT: the report-outcome record (when one applies) and then
+        TERMINAL, each with its normal transition while the chain still
+        advances; the FIRST durable failure stops further appends — the
+        existing record is preserved exactly, never counted as durable
+        success.  Concept B, guaranteed in-process fail-closed death
+        (the finally): whether or not the durable accounting completed,
+        the already-consumed attempt lands on TERMINAL with the custody
+        and every held fd closed; this path can never raise nor mask an
+        outcome.  A durable failure raises the exact incompleteness
+        error chaining the original/related failure; durable success
+        re-raises original_error when present; otherwise the caller
+        returns through only on a durably complete settlement."""
+        durable_error = None
+        if terminal_extra is None:
+            terminal_extra = report_extra if report_state is None \
+                else {"terminal_reason": "ATTEMPT_SETTLED"}
         try:
-            self._store.append(TERMINAL, extra={"terminal_reason":
-                                                reason[:256]})
-            self._machine.transition(TERMINAL)
-        except Exception:
-            pass    # medium unavailable: spent guard holds
+            if report_state is not None:
+                self._store.append(report_state, extra=report_extra)
+                self._machine.transition(report_state)
+            self._store.append(TERMINAL, extra=terminal_extra)
+            try:
+                self._machine.transition(TERMINAL)
+            except Exception:
+                pass    # the fallback primitive below still lands TERMINAL
+        except Exception as exc:
+            durable_error = exc
         finally:
-            self._close_custody()
-            self._close_held_fds()
-
-    def _settle(self, state, extra: dict) -> None:
-        """Process-bound terminal settlement (S1-007): durably record the
-        report outcome state (if any), then TERMINAL, then close the
-        custody and EVERY held fd — inside the single authority call; no
-        same-attempt continuation exists after this."""
-        if state is not None:
-            self._store.append(state, extra=extra)
-            self._machine.transition(state)
-            terminal_extra = {"terminal_reason": "ATTEMPT_SETTLED"}
-        else:
-            terminal_extra = extra      # direct settle: the exact reason
-        self._store.append(TERMINAL, extra=terminal_extra)
-        self._machine.transition(TERMINAL)
-        self._close_custody()
-        self._close_held_fds()
+            try:
+                self._machine.fail_closed_terminal()   # no-op iff there
+            except Exception:
+                pass    # unreachable from legal settlement source states
+            self._close_authority_holds()
+        if durable_error is not None:
+            raise PostConsumptionTerminalAccountingError(
+                durable_error, original_error, related_error,
+                self._store.last_state) from (original_error
+                                              or related_error
+                                              or durable_error)
+        if original_error is not None:
+            raise original_error
 
     def _run_validator(self, snapshot: bytes) -> None:
         """Execute the HELD frozen structural validator ONCE on the EXACT
@@ -1424,24 +1488,27 @@ class Supervisor:
             if exec_failed:
                 # the boundary never exec'd: no report phase is
                 # semantically appropriate — direct consumed terminal
-                self._settle(None, {"terminal_reason":
-                                    "EXEC_FAILED_AFTER_CONSUMPTION"})
+                self._settle_post_consumption(
+                    None, None,
+                    {"terminal_reason": "EXEC_FAILED_AFTER_CONSUMPTION"})
             else:
                 snapshot = snapshot_staging(self._staging_path)
                 if snapshot is None:
-                    self._settle(REPORT_MISSING, {"terminal_reason":
-                                                  "REPORT_MISSING"})
+                    self._settle_post_consumption(
+                        REPORT_MISSING,
+                        {"terminal_reason": "REPORT_MISSING"})
                     outcome["report_state"] = REPORT_MISSING
                 elif self._custody.contains(snapshot):
                     discard_staging(self._staging_path)
-                    self._settle(REPORT_SCREEN_FAIL,
-                                 {"terminal_reason": "REPORT_SCREEN_FAIL"})
+                    self._settle_post_consumption(
+                        REPORT_SCREEN_FAIL,
+                        {"terminal_reason": "REPORT_SCREEN_FAIL"})
                     outcome["report_state"] = REPORT_SCREEN_FAIL
                 else:
                     try:
                         self._run_validator(snapshot)
                     except (LaunchError, LaunchRefused) as exc:
-                        self._settle(
+                        self._settle_post_consumption(
                             REPORT_INVALID,
                             {"terminal_reason":
                              f"REPORT_INVALID: {exc}"[:256]})
@@ -1451,7 +1518,12 @@ class Supervisor:
                             snapshot, self._out_dir_fd,
                             self._binding.output_identity["name"])
                         discard_staging(self._staging_path)
-                        self._settle(
+                        # (S1-009 §12) a settlement failure here raises
+                        # the exact incompleteness error: the already
+                        # frozen artifact REMAINS operator-custodied
+                        # evidence (never deleted) and is NEVER returned
+                        # as a conforming first pass.
+                        self._settle_post_consumption(
                             REPORT_FROZEN,
                             {"terminal_reason": "REPORT_FROZEN",
                              "report_sha256": frozen["sha256"],
@@ -1463,21 +1535,23 @@ class Supervisor:
         except ReportRefused as exc:
             # operational report-custody refusal (invalid staging object,
             # oversize, unsafe output, no-overwrite collision): terminal
-            # fail-closed, no retry; custody/fds closed by _settle, or by
-            # the best-effort terminalization if even the durable append
-            # now fails
-            try:
-                self._settle(None, {"terminal_reason":
-                                    f"REPORT_CUSTODY_REFUSED: {exc}"[:256]})
-            except Exception:
-                self._terminalize_after_consumption(
-                    f"REPORT_CUSTODY_REFUSED: {exc!r}")
+            # fail-closed with the exact durable reason, no retry; a
+            # settlement accounting failure raises the exact
+            # incompleteness error chaining this refusal.
+            self._settle_post_consumption(
+                None, None,
+                {"terminal_reason": f"REPORT_CUSTODY_REFUSED: {exc}"[:256]},
+                related_error=exc)
+        except PostConsumptionTerminalAccountingError:
+            raise   # already settled in-process; custody/fds closed; the
+                    # durable incompleteness is surfaced honestly
         except Exception as exc:
-            self._terminalize_after_consumption(
-                f"REPORT_LIFECYCLE_FAILURE_AFTER_CONSUMPTION: {exc!r}")
-            if self._machine.state not in (TERMINAL,
-                                           TERMINAL_PREEXEC_STOP):
-                self._machine.transition(TERMINAL)
+            self._settle_post_consumption(
+                None, None,
+                {"terminal_reason":
+                 f"REPORT_LIFECYCLE_FAILURE_AFTER_CONSUMPTION: "
+                 f"{exc!r}"[:256]},
+                related_error=exc)
         return AttemptResult(returncode, exec_failed, metadata, False,
                              outcome["report_state"],
                              outcome["report_sha256"],
@@ -1496,5 +1570,4 @@ class Supervisor:
             pass    # medium unavailable: the spent/issued guards hold
         if self._machine.state in (PREPARED, GATES_PASSED):
             self._machine.transition(TERMINAL_PREEXEC_STOP)
-        self._close_custody()
-        self._close_held_fds()
+        self._close_authority_holds()

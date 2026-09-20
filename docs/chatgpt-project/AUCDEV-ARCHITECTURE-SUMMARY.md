@@ -373,6 +373,29 @@ event-package preparation remains AUTHORIZED / PAUSED pending S1-009
 remediation and fresh readback; the EBS is NOT installed Audit
 Council runtime and the product/runtime source baseline of this
 document is unchanged.
+Under the operator's 2026-09-20 narrow S1-009 post-consumption
+fail-closed terminality remediation authority, a bounded candidate for
+that ONE finding was then implemented and published at implementer
+strength ONLY (canonical report:
+[AUCDEV-023-EBS-S1-009-POSTCONSUMPTION-TERMINALITY-REMEDIATION-REPORT](AUCDEV-023-EBS-S1-009-POSTCONSUMPTION-TERMINALITY-REMEDIATION-REPORT.md)):
+ALL post-consumption terminal settlement is centralized in ONE
+primitive separating the durable accounting attempt (first failure
+preserves the record exactly) from a guaranteed never-raising
+in-process fail-closed death (the narrow absorbing-terminal-focused
+state-machine primitive restricted to post-consumption source states,
+plus custody and all held-fd closure); post-EXEC_ATTEMPTED parent-side
+exceptions, the timeout path and every report outcome settle through
+it; a durable accounting failure raises the exact incompleteness
+classification chaining any concurrent original failure and never a
+success/timed-out/conforming result; V5 is UNCHANGED; RED was proven
+first on the exact base and the deterministic battery (489/489, qh
+221/221) now contains the required injected S1-009 regressions;
+AUCDEV023-CR-EBS-S1-009 = REMEDIATION_IMPLEMENTED /
+AWAITING_CONTROL_ROOM_READBACK (implementer position ONLY); production
+LOC 2800 → 2904 disclosed NEW_TCB_GROWTH /
+AWAITING_CONTROL_ROOM_ACCEPTANCE; zero provider/model/auditor
+executions; the EBS is NOT installed Audit Council runtime and the
+product/runtime source baseline of this document is unchanged.
 
 The adopted design (Control Room readback-accepted revision, architecture R1)
 introduces, for at most one future AUCDEV-023 harness-audit event only:

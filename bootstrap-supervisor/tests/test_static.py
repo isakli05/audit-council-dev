@@ -161,10 +161,33 @@ def test_no_plugin_or_extension_architecture():
 # rewritten (2349 remains the last Control-Room-accepted residual).
 FINAL_EXECUTION_LIFECYCLE_CANDIDATE_LOC_BOUND = 2800
 
+# CR-EBS-S1-009 post-consumption fail-closed terminality remediation:
+# the ONE centralized settlement primitive (_settle_post_consumption,
+# separating the durable accounting attempt from the guaranteed
+# in-process fail-closed death), the narrow StateMachine
+# fail_closed_terminal primitive, and the exact
+# PostConsumptionTerminalAccountingError incompleteness classification
+# consolidate every earlier duplicated terminalization path
+# (_settle/_terminalize_after_consumption REMOVED; the shared fd-closer
+# and merged authority-hold closure also reused by the pre-exec path)
+# while buying genuinely new authority guarantees: honest durable
+# accounting-failure semantics, guaranteed in-process TERMINAL +
+# custody/held-fd closure on EVERY post-consumption path (incl.
+# injected post-EXEC_ATTEMPTED set_blocking/read/waitpid failures and
+# timeout/report TERMINAL-append/transition failures), and original +
+# settlement double-failure recoverability.  LOC 2800 -> 2904 disclosed
+# as NEW_TCB_GROWTH / AWAITING_CONTROL_ROOM_ACCEPTANCE with exact
+# per-function attribution in
+# AUCDEV-023-EBS-S1-009-POSTCONSUMPTION-TERMINALITY-REMEDIATION-REPORT.md.
+# The candidate ceiling below is CANDIDATE_ONLY / NOT_CONTROL_ROOM_
+# ACCEPTED; the prior accepted baselines above are PRESERVED and NOT
+# rewritten (2800 remains the last Control-Room-accepted residual).
+S1_009_POSTCONSUMPTION_TERMINALITY_CANDIDATE_LOC_BOUND = 2904
+
 
 def test_production_loc_within_minimal_tcb_bound():
     total = sum(len(p.read_text().splitlines()) for p in PKG_FILES)
-    assert total <= FINAL_EXECUTION_LIFECYCLE_CANDIDATE_LOC_BOUND, \
+    assert total <= S1_009_POSTCONSUMPTION_TERMINALITY_CANDIDATE_LOC_BOUND, \
         f"production source grew to {total} lines"
 
 

@@ -175,9 +175,11 @@ def test_s1_007_only_public_method_touching_state_is_run_attempt():
 
 
 def test_s1_007_every_exec_or_report_state_reaches_terminal_same_body():
-    """AST shape (extends the accepted S1-003/S1-005 regression): EVERY
-    method that transitions into EXEC_ATTEMPTED or any REPORT_* outcome
-    also transitions into TERMINAL within the SAME body — no method can
+    """AST shape (extends the accepted S1-003/S1-005 regression; S1-009
+    strengthens it onto the ONE centralized settlement primitive):
+    EVERY method that transitions into EXEC_ATTEMPTED or any REPORT_*
+    outcome reaches TERMINAL within the SAME body — directly or through
+    the statically-verified _settle_post_consumption — so no method can
     leave the machine in a nonterminal execution/report state."""
     src_path = os.path.join(os.path.dirname(os.path.dirname(
         os.path.abspath(__file__))), "ebs", "launch.py")
@@ -194,31 +196,41 @@ def test_s1_007_every_exec_or_report_state_reaches_terminal_same_body():
                     node.func.attr == "transition" and node.args and \
                     isinstance(node.args[0], ast.Name):
                 out.add(node.args[0].id)
-            # report-outcome settlements enter their state via _settle
+            # report-outcome settlements enter their state via the ONE
+            # centralized settlement primitive
             if isinstance(node, ast.Call) and \
                     isinstance(node.func, ast.Attribute) and \
-                    node.func.attr == "_settle" and node.args and \
-                    isinstance(node.args[0], ast.Name):
+                    node.func.attr == "_settle_post_consumption" and \
+                    node.args and isinstance(node.args[0], ast.Name):
                 out.add(node.args[0].id)
         return out
 
     def calls_settle(fn):
         return any(isinstance(node, ast.Call) and
                    isinstance(node.func, ast.Attribute) and
-                   node.func.attr == "_settle"
+                   node.func.attr == "_settle_post_consumption"
                    for node in ast.walk(fn))
 
-    # _settle is statically verified to reach TERMINAL and close both
-    # the custody and every held fd, so any _settle call site inherits
-    # that terminal guarantee.
+    # the settlement primitive is statically verified: Concept A durably
+    # records TERMINAL; Concept B is a GUARANTEED finally that lands the
+    # in-process machine on TERMINAL via fail_closed_terminal and closes
+    # the custody and every held fd — so every call site inherits the
+    # terminal + closure guarantee whatever the durable medium does.
     settle = next(fn for fn in supervisor.body
                   if isinstance(fn, ast.FunctionDef)
-                  and fn.name == "_settle")
+                  and fn.name == "_settle_post_consumption")
     assert "TERMINAL" in targets(settle)
-    assert any(isinstance(node, ast.Call) and
-               isinstance(node.func, ast.Attribute) and
-               node.func.attr in ("_close_custody", "_close_held_fds")
-               for node in ast.walk(settle))
+    finally_calls = [
+        call for node in ast.walk(settle)
+        if isinstance(node, ast.Try) and node.finalbody
+        for sub in node.finalbody for call in ast.walk(sub)
+        if isinstance(call, ast.Call)]
+    assert any(getattr(call.func, "attr", "") == "fail_closed_terminal"
+               for call in finally_calls), \
+        "settlement primitive lacks the guaranteed fail-closed death"
+    assert any(getattr(call.func, "attr", "") == "_close_authority_holds"
+               for call in finally_calls), \
+        "settlement primitive lacks guaranteed custody/held-fd closure"
     checked = 0
     for fn in [n for n in supervisor.body if isinstance(n, ast.FunctionDef)]:
         got = targets(fn)

@@ -1,4 +1,4 @@
-# AUCDEV-023 External Bootstrap Supervisor (EBS) — final execution-lifecycle remediation candidate
+# AUCDEV-023 External Bootstrap Supervisor (EBS) — S1-009 post-consumption terminality remediation candidate
 
 Bounded implementation of the operator-ADOPTED AUCDEV-023 auditor-bootstrap
 governance architecture **R1 = CONTROLLERLESS / PROCESS-BOUND /
@@ -26,7 +26,11 @@ and the 2026-09-20 bounded **final launch-seam remediation** authority
 and the 2026-09-20 bounded **final execution-lifecycle remediation**
 authority (findings AUCDEV023-CR-EBS-S1-007 and AUCDEV023-CR-EBS-S1-008;
 canonical record:
-`docs/chatgpt-project/AUCDEV-023-EBS-FINAL-EXECUTION-LIFECYCLE-REMEDIATION-REPORT.md`).
+`docs/chatgpt-project/AUCDEV-023-EBS-FINAL-EXECUTION-LIFECYCLE-REMEDIATION-REPORT.md`),
+and the 2026-09-20 bounded **S1-009 post-consumption fail-closed
+terminality remediation** authority (finding
+AUCDEV023-CR-EBS-S1-009; canonical record:
+`docs/chatgpt-project/AUCDEV-023-EBS-S1-009-POSTCONSUMPTION-TERMINALITY-REMEDIATION-REPORT.md`).
 
 ## What this is
 
@@ -39,9 +43,9 @@ canonical record:
   remediation)**, generic report snapshot custody with a credential
   leak screen and a frozen structural validator, and an
   inspection-only CLI.
-- **A final execution-lifecycle remediation candidate awaiting a FRESH
-  independent Control Room readback.** Not accepted, not trusted for any
-  event.
+- **An S1-009 post-consumption fail-closed terminality remediation
+  candidate awaiting a FRESH independent Control Room readback.** Not
+  accepted, not trusted for any event.
 
 ## What this is NOT
 
@@ -249,7 +253,8 @@ caller between the steps:
     block past the deadline; on expiry SIGKILL the EXACT attempt
     process group (descendants included; a pgid guard never touches an
     unrelated process), reap the direct child, and terminalize with
-    consumed semantics (`TIMEOUT_AFTER_CONSUMPTION`: authority
+    consumed semantics through the ONE centralized S1-009 settlement
+    (`TIMEOUT_AFTER_CONSUMPTION`: authority
     CONSUMED, model engagement CONSUMED FAIL-CLOSED, no report
     accepted, no same-attempt retry) — CR-EBS-S1-008;
 13. take the ONE immutable bounded report snapshot of the staging
@@ -298,14 +303,36 @@ same-attempt retry; a persisted `GATES_PASSED` whose consumption append
 failed is never relabeled resumable. Post-consumption failures keep the
 consumed fail-closed semantics (terminal, never unconsumed, no retry).
 
+**Centralized post-consumption settlement (CR-EBS-S1-009).** Every
+post-consumption terminalization — the timeout path, ANY parent-side
+exception after `EXEC_ATTEMPTED` (set_blocking / read / waitpid-class
+failures included), and every report outcome — flows through ONE
+settlement primitive with two separated concepts: a DURABLE ACCOUNTING
+ATTEMPT (report-outcome record when one applies, then `TERMINAL`; the
+first durable failure preserves the existing record exactly — nothing
+fabricated, rewritten, or truncated) and a GUARANTEED in-process
+fail-closed death (a finally that lands the already-consumed attempt on
+`TERMINAL` via the narrow `StateMachine.fail_closed_terminal` primitive
+and closes the custody and EVERY held fd, whatever the durable medium
+did). A durable accounting failure raises
+`PostConsumptionTerminalAccountingError` — never a success/timed-out/
+conforming `AttemptResult` — carrying the exact accounting failure and
+chaining any concurrent original failure; an original parent-side
+failure re-raises when (and only when) the durable settlement completed;
+an already-frozen report artifact whose settlement failed durably
+remains operator-custodied evidence, never deleted, never represented
+as a conforming first pass; `TERMINAL_PREEXEC_STOP` pre-exec semantics
+stay distinct (the fail-closed primitive refuses every non-post-
+consumption source state), and no same-attempt retry exists anywhere.
+
 **Custody ownership and lifetime (CR-EBS-S1-004).** The Supervisor —
 not the caller — owns the sealed `CredentialCustody` for the attempt:
 the public API accepts a credential SOURCE fd and never a custody
 object, role, grant, argv tail, or environment override; the SAME held
-custody serves the child's `CRED_FD` and the report leak screen
-(`adopt_report` takes no custody argument), and is closed on every
-terminal path (preexec stop, post-consumption terminalization, report
-outcome/finish). No plaintext attribute, digest, hash, or log of the
+custody serves the child's `CRED_FD` and the report leak screen (the
+single `run_attempt` call takes no custody argument), and is closed on
+every terminal path (preexec stop, post-consumption settlement). No
+plaintext attribute, digest, hash, or log of the
 credential exists anywhere.
 
 **Exact frozen invocation (CR-EBS-S1-006).** The child environment is
@@ -473,7 +500,9 @@ held-fd re-hash); absorbing terminal states (now including
 ebs/                production source (Python 3 stdlib only, Linux-only)
   binding.py        frozen-binding parser/validator + policy constants
                     + event-package manifest contract + binding projection
-  statemachine.py   one-shot attempt state machine (absorbing terminals)
+  statemachine.py   one-shot attempt state machine (absorbing terminals
+                    + the narrow post-consumption fail-closed terminal
+                    primitive)
   accounting.py     hash-chained JSONL record + read-only inspection
   custody.py        non-dumpable sealed-memfd credential custody
   launch.py         package verification (EBS self + event package with

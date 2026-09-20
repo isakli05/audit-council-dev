@@ -1,14 +1,14 @@
 {
   "files": [
     {
-      "bytes": 28349,
+      "bytes": 30206,
       "path": "README.md",
-      "sha256": "7e7de22fcfeee5b5af4062144bc3e237194f3e3bbfa06acd4bd2718819989ba9"
+      "sha256": "5a88b4508cf3984dd7da587a93ed61ae804d12187983a9a23b916aded9b4b12c"
     },
     {
-      "bytes": 2395,
+      "bytes": 2821,
       "path": "ebs/__init__.py",
-      "sha256": "a3ce80cc40f467f9457793f3cbbd45ce685e821c4998f2bc32ff3a2a14afc307"
+      "sha256": "6cb4147eea06325a2a329eb0d95cf6a31dbfe8f4722baf76825a40256b9877ac"
     },
     {
       "bytes": 9077,
@@ -31,9 +31,9 @@
       "sha256": "f1c1d0f7cba21225e977c49fc86c5d32824766a0eddebe6b1761b0111c11f5ca"
     },
     {
-      "bytes": 74406,
+      "bytes": 78777,
       "path": "ebs/launch.py",
-      "sha256": "bf64581583909e0c1f3d5c9a783b6b04445b49cfeff6abc0547668f7a58ec740"
+      "sha256": "9d72697fbd23553c1ef53fd2c05484873f19a2ba4383a5a4e379d6c604821ed5"
     },
     {
       "bytes": 4613,
@@ -41,9 +41,9 @@
       "sha256": "e83b5d53d607f9e2a046146165cdf23de9319abe1e330e87ef1d4edf11826f59"
     },
     {
-      "bytes": 2626,
+      "bytes": 3868,
       "path": "ebs/statemachine.py",
-      "sha256": "8a1f99898ebea75327c1a714514b4a7a3e256ae3ecf86dfc71850f248c014a66"
+      "sha256": "f60fcb9108d353a11f3ff8916780b3e91108a1d2c2d278e0b2c40e2b6643c57a"
     },
     {
       "bytes": 21106,
@@ -106,9 +106,9 @@
       "sha256": "af7473767a9a160056c4e6ef2f8697e3cf484b809dc8b33fa4e934fd7ad33919"
     },
     {
-      "bytes": 34259,
+      "bytes": 35063,
       "path": "tests/test_final_execution_lifecycle.py",
-      "sha256": "edd4a26222fc5e88064b6bdd3a90567622f0734f171fb9e7f5da47ee44c8dc70"
+      "sha256": "48eb1253fd2bf93bd85dd42fb16943935d1514feebdc05971babd55bf00f353b"
     },
     {
       "bytes": 33046,
@@ -136,6 +136,11 @@
       "sha256": "6b32ba350aaa1c4013302e5361c2fb82cceb76cc5a85e693d350e95b390fdc81"
     },
     {
+      "bytes": 18746,
+      "path": "tests/test_s1_009_postconsumption_terminality.py",
+      "sha256": "bea20c317c073f43f91b25eee1eca0a2b5a92184897d3db719f9a78d4ca571a7"
+    },
+    {
       "bytes": 11968,
       "path": "tests/test_selfcheck.py",
       "sha256": "104b1fb9d0de49ddfd604ca0401b2608617dba6b85479a2501b9a852f1c1098f"
@@ -146,18 +151,18 @@
       "sha256": "1a8135b2fb13bb59e69ddbea69e28ee80866fca40a1d8e1ad341e0023bafaac5"
     },
     {
-      "bytes": 13725,
+      "bytes": 15162,
       "path": "tests/test_static.py",
-      "sha256": "bc6afdb70d1d99933b4fc2ee71a5ddf27d497152fc577ea80fb2740c446c5276"
+      "sha256": "431a7f43a0f1418fc96fb5a10c4f7a989ea3a248841e9d7e98c70ea972f160fe"
     }
   ],
-  "implementation_base_commit": "f96330e548499462601400d423ccff7564c03871",
+  "implementation_base_commit": "76e6012d2753af94215670ce87abd35d43d9f57b",
   "package": "bootstrap-supervisor",
-  "package_sha256": "6c39d889733ce02c5a4089933276a6b7dc13252485e783a020646b43da6d32fc",
+  "package_sha256": "8685c36e8286acb4e7fdc59bd68c92aa7ec96d27d3623a19d0f975e67d73c0d8",
   "policy_id": "AUCDEV-023-R1-CONTROLLERLESS-PROCESS-BOUND-TARGET-INDEPENDENT-ONE-SHOT",
   "qualification_claim": "NONE",
   "runtime_dependencies": "Python 3 standard library ONLY + Linux kernel primitives (memfd/seals, prctl, fsync, execveat, /proc); no third-party runtime package",
-  "status": "FINAL_EXECUTION_LIFECYCLE_REMEDIATION_CANDIDATE / AWAITING_FRESH_CONTROL_ROOM_READBACK",
+  "status": "S1_009_POSTCONSUMPTION_TERMINALITY_REMEDIATION_CANDIDATE / AWAITING_FRESH_CONTROL_ROOM_READBACK",
   "target": {
     "commit": "d4d584ffa47ad2848268ba947247f81a845b2322",
     "qh_tree": "5b8d5e5465923740470ff63ed9b8683f257a3787",
@@ -165,5 +170,5 @@
     "root_tree": "1d4b8b8eb0619cf0b854984b778e6ea081ad9aa7",
     "skill_tree": "c792933a862d9a5434681a88d183470dd8b15d2f"
   },
-  "task": "AUCDEV-023 bounded External Bootstrap Supervisor (EBS) final execution-lifecycle remediation of AUCDEV023-CR-EBS-S1-007 and AUCDEV023-CR-EBS-S1-008"
+  "task": "AUCDEV-023 bounded External Bootstrap Supervisor (EBS) post-consumption fail-closed terminality remediation of AUCDEV023-CR-EBS-S1-009"
 }

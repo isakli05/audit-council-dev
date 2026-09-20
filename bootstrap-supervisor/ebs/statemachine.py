@@ -25,6 +25,12 @@ STATES = frozenset({
 
 ABSORBING = frozenset({TERMINAL_PREEXEC_STOP, TERMINAL})
 
+# (S1-009) the only legal source states of the fail-closed terminal
+# primitive below: everything after durable CONSUMED_PRE_EXEC.
+POST_CONSUMPTION_STATES = frozenset({
+    CONSUMED_PRE_EXEC, EXEC_ATTEMPTED, REPORT_FROZEN, REPORT_MISSING,
+    REPORT_INVALID, REPORT_SCREEN_FAIL})
+
 TRANSITIONS = {
     PREPARED: frozenset({GATES_PASSED, TERMINAL_PREEXEC_STOP}),
     GATES_PASSED: frozenset({CONSUMED_PRE_EXEC, TERMINAL_PREEXEC_STOP}),
@@ -66,6 +72,25 @@ class StateMachine:
                 "failing closed")
         self._state = next_state
         return next_state
+
+    def fail_closed_terminal(self) -> str:
+        """(S1-009) Narrow fail-closed terminal primitive: land an
+        ALREADY-CONSUMED attempt on TERMINAL when the normal durable
+        append -> transition sequence cannot complete (e.g. the TERMINAL
+        append itself failed).  Callable ONLY from a post-consumption
+        state (idempotent no-op from TERMINAL); PREPARED, GATES_PASSED
+        and TERMINAL_PREEXEC_STOP are REFUSED — pre-exec refusals keep
+        their own distinct absorbing state; never leaves TERMINAL; no
+        reset, retry, or resume exists."""
+        if self._state == TERMINAL:
+            return TERMINAL
+        if self._state not in POST_CONSUMPTION_STATES:
+            raise InvalidTransition(
+                f"FAIL_CLOSED_TERMINAL_REFUSED_{self._state}: only an "
+                "already-consumed attempt can settle fail-closed on "
+                "TERMINAL")
+        self._state = TERMINAL
+        return TERMINAL
 
 
 def valid_path(sequence) -> bool:

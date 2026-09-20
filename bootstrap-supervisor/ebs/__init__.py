@@ -27,12 +27,18 @@ is credential-screened with the SAME held custody, structurally
 validated by the HELD frozen output_validator artifact (sealed-snapshot
 delivery, strict result contract, its own frozen timeout), and only
 then frozen 0444 under the pre-opened operator custody fd; the separate
-public adopt_report/finish surface is GONE.  Synthetic/inert fixtures
-only — no real event package. NOT Audit Council, NOT qualified, NOT
-installed, NO execution authority, NO real provider or bootstrap event;
-a fresh Control Room readback is pending.
+public adopt_report/finish surface is GONE.  Under the 2026-09-20 S1-009
+post-consumption fail-closed terminality remediation authority, ALL
+post-consumption terminal settlement is centralized in ONE primitive
+with a guaranteed in-process fail-closed death (in-process TERMINAL +
+custody/held-fd closure on every path, honest
+PostConsumptionTerminalAccountingError incompleteness on durable
+accounting failure, original-failure chaining, no same-attempt retry).
+Synthetic/inert fixtures only — no real event package. NOT Audit
+Council, NOT qualified, NOT installed, NO execution authority, NO real
+provider or bootstrap event; a fresh Control Room readback is pending.
 """
-VERSION = "0.7.0-final-execution-lifecycle-candidate"
+VERSION = "0.8.0-s1-009-postconsumption-terminality-candidate"
 
 __all__ = ["binding", "statemachine", "accounting", "custody", "launch",
            "reportcustody", "cli"]
