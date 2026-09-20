@@ -416,6 +416,25 @@ pending this readback publication's independent verification; the EBS
 is NOT installed Audit Council runtime and the product/runtime source
 baseline of this document is unchanged.
 
+The S1-009 readback publication itself (commit `0610e900…`) has now been
+independently verified by the Control Room:
+`AUCDEV_023_EBS_S1_009_POSTCONSUMPTION_TERMINALITY_REMEDIATION_READBACK_PUBLICATION_VERIFICATION =
+ACCEPTED / PUBLICATION_IDENTITY_VERIFIED / HANDOFF_INTEGRITY_VERIFIED /
+CANONICAL_BYTES_VERIFIED / PROTECTED_TREES_UNCHANGED /
+NO_PUBLICATION_DEFECT_FOUND` (canonical record:
+[AUCDEV-023-S1-EVENT-PACKAGE-PREPARATION-RESUMPTION](AUCDEV-023-S1-EVENT-PACKAGE-PREPARATION-RESUMPTION.md));
+consequently event-package preparation is now AUTHORIZED_BY_OPERATOR /
+NOT_STARTED / RESUMABLE and S1_AUTHORIZATION =
+EXISTING_OPERATOR_AUTHORITY_PERSISTS / NOT_CONSUMED / RESUMABLE — the
+underlying operator authority is pre-existing and unconsumed (NO new
+authorization granted; S1 NOT started; no event package, no event id;
+GATE-W′ REQUIRED/UNPROVEN, real-client credential/tool isolation
+UNPROVEN, NORMAL_EXIT_BOUNDARY_PROCESS_TREE_QUIESCENCE NOT_YET_PROVEN,
+bootstrap event NOT_INSTANTIATED, model engagements 0; zero
+provider/model/auditor executions; qualification NONE; installation
+NONE); the EBS is NOT installed Audit Council runtime and the
+product/runtime source baseline of this document is unchanged.
+
 The adopted design (Control Room readback-accepted revision, architecture R1)
 introduces, for at most one future AUCDEV-023 harness-audit event only:
 
