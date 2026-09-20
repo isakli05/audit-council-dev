@@ -454,6 +454,29 @@ a NEW explicit operator execution authority after the independent Control
 Room readback of the S1 evidence; the product/runtime source baseline of
 this document is unchanged.
 
+The Control Room readback of that S1 preparation has since returned
+PARTIALLY_ACCEPTED (2026-09-20, canonical record:
+[AUCDEV-023-S1-EVENT-PACKAGE-PREPARATION-READBACK](AUCDEV-023-S1-EVENT-PACKAGE-PREPARATION-READBACK.md)):
+publication identity, handoff integrity, canonical bytes, protected
+trees and the mechanical event-package identities are VERIFIED and MOST
+S1 mechanical evidence is ACCEPTED — but GATE_W′ is NOT_ACCEPTED
+(assertion 10 is incomplete for both roles and the rehearsal harness's
+`all_pass`/frozen-PASS conversion makes the frozen classification
+invalid), and THREE findings are OPEN/BLOCKING:
+AUCDEV023-CR-S1-PREP-001 GATE_W_PRIME_ASSERTION_10_INCOMPLETE_BUT_FROZEN_PASS,
+AUCDEV023-CR-S1-PREP-002 AUDITOR_B_EFFECTIVE_CLIENT_RUNTIME_IDENTITY_NOT_FULLY_PINNED
+(the frozen entrypoint SHA does not cover the launcher-mounted Node
+runtime), and AUCDEV023-CR-S1-PREP-003
+LIVE_COMMON_EVIDENCE_SET_NOT_PRECONSUMPTION_REVERIFIED (no live
+walk/hash rebound of the externally mounted common-evidence payload to
+the frozen manifest on the pre-consumption authority path).
+AUDITOR_A/B_EVENT_READINESS = BLOCKED, real execution is NOT authorized,
+and bounded remediation plus a fresh Control Room readback are REQUIRED;
+the implementation report's original claims remain historical implementer
+claims, superseded only for CURRENT Control Room state; model
+engagements remain 0, qualification NONE / installation NONE, and the
+product/runtime source baseline of this document is unchanged.
+
 The adopted design (Control Room readback-accepted revision, architecture R1)
 introduces, for at most one future AUCDEV-023 harness-audit event only:
 
