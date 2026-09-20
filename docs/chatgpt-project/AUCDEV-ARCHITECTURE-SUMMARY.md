@@ -581,6 +581,42 @@ rows are disclosed as outside the closure). No EBS/qh/skill source change
 was made anywhere in this remediation; the product/runtime source baseline
 of this document is unchanged.
 
+The Control Room's readback of that remediation (2026-09-21, canonical
+record:
+[AUCDEV-023-S1-PREP002-REM002-REMEDIATION-READBACK](AUCDEV-023-S1-PREP002-REM002-REMEDIATION-READBACK.md))
+returned **ACCEPTED**: the generated-last complete remediation handoff
+(`d16b81d4…`; 512 members, 431/431 checksums PASS) was independently
+verified, the complete NEW successor package bytes were independently
+byte-verified (Auditor-A 189/189; Auditor-B 192/192; new package/binding
+identities verified incl. binding transport projections and the identical
+shared launcher), the native wrapper closure was verified (ELF static-PIE,
+no PT_INTERP, no dynamic NEEDED, no script interpreter; package-pinned
+bwrap and probe-true; wrapper-mutation negative control fails closed;
+A/B boundary parity passes), and the real Codex zsh-entry wrapper
+interposition was verified WITH the causal differential no-wrapper control
+(wrapper-positive: TOOLMARKER=1, sentinel/home/init ABSENT, credential
+unreadable via /proc; no-wrapper control: marker absent, all PRESENT,
+readable). AUCDEV023-CR-S1-PREP-002 and AUCDEV023-CR-S1-REM-002 are
+therefore CLOSED at Control Room readback strength (with PREP-001/PREP-003
+held invariants verified regression-clean and REM-001 remaining CLOSED);
+the known S1 preparation/remediation blockers are
+CLOSED_AT_CONTROL_ROOM_READBACK_STRENGTH — this is NOT independent-audit
+PASS and NOT qualification. The disclosed residuals are retained
+(application-level CLIENT_IN_PROCESS_READ_PROTECTION; host-netns exposure;
+composition-layering; zero-inference mock-transport limitation with a real
+first pass still event-time evidence; OBSERVATION-ONLY engine shim; the two
+disclosed pre-client-entry BOUNDARY_SETUP host-interpreter rows outside the
+bounded closure; TEST_ENVIRONMENT_DIVERGENCE; Code Mode INFORMATIONAL), and
+a 20-byte implementer FINAL-RETURN transcription discrepancy on the
+Auditor-A payload-byte count (236,260,404 vs the established 236,260,424)
+is recorded as INFORMATIONAL with no package identity defect. Resulting
+posture: Auditor-A AND Auditor-B event readiness =
+READY_FOR_SEPARATE_OPERATOR_EXECUTION_AUTHORITY (real execution still NOT
+AUTHORIZED; event `evt-7df609ec6c569043` and both reserved attempts
+preserved NOT-STARTED/NOT-CONSUMED; MODEL_ENGAGEMENTS 0; qualification
+NONE / installation NONE). No source or package was changed by this
+record; the product/runtime source baseline of this document is unchanged.
+
 The adopted design (Control Room readback-accepted revision, architecture R1)
 introduces, for at most one future AUCDEV-023 harness-audit event only:
 
