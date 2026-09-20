@@ -516,6 +516,31 @@ remains denied at both layers. No EBS/qh/skill source change was made
 anywhere in the remediation; the product/runtime source baseline of this
 document is unchanged.
 
+The Control Room's complete-handoff readback of that remediation (2026-09-20,
+canonical record:
+[AUCDEV-023-S1-REMEDIATION-COMPLETE-HANDOFF-READBACK](AUCDEV-023-S1-REMEDIATION-COMPLETE-HANDOFF-READBACK.md))
+independently byte-verified the complete successor packages (A 183/183, B
+188/188) and CLOSED PREP-001, PREP-003 and REM-001 at Control Room readback
+strength — but found the NEW execution-boundary defect
+AUCDEV023-CR-S1-REM-002 AUDITOR_B_REAL_TOOL_ENTRYPOINT_BYPASSES_CREDENTIAL_DOMAIN_WRAPPER
+(OPEN/BLOCKING, with PREP-002 remaining OPEN/BLOCKING): the real Codex
+client's recorded tool path executes commands through `/usr/bin/zsh -lc`,
+while the frozen launcher interposes the credential-domain wrapper ONLY at
+`/usr/bin/bash` — and the read-only host `/usr` bind leaves `/usr/bin/zsh`
+a real executable path independent of the vendored frozen zsh. The adopted
+C2 mechanical isolation invariant (every tool subprocess tree runs where
+the credential path does not exist) is therefore NOT ESTABLISHED for the
+observed REAL Auditor-B tool path: real Auditor-B subprocess
+credential/tool-domain isolation must NOT be represented as established or
+execution-ready while REM-002 remains open (the earlier remediation-era
+statement that the tool domain "genuinely executes" remains true only of
+the wrapper composition itself and of shell entries that resolve through
+`/usr/bin/bash`). No credential exposure is claimed to have occurred; the
+defect is the unproven invariant. A fail-closed Code Mode unavailability
+observation is preserved as INFORMATIONAL. A separately authorized bounded
+PREP-002/REM-002 remediation is required before Auditor-B event readiness
+can be reconsidered; no source or package was changed by this record.
+
 The adopted design (Control Room readback-accepted revision, architecture R1)
 introduces, for at most one future AUCDEV-023 harness-audit event only:
 
