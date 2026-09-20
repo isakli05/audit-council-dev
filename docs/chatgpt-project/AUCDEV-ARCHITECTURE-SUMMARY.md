@@ -617,6 +617,40 @@ preserved NOT-STARTED/NOT-CONSUMED; MODEL_ENGAGEMENTS 0; qualification
 NONE / installation NONE). No source or package was changed by this
 record; the product/runtime source baseline of this document is unchanged.
 
+Subsequently (2026-09-21, canonical record:
+[AUCDEV-023-S1-FIRSTPASS-EXECUTION-PRELAUNCH-READBACK](AUCDEV-023-S1-FIRSTPASS-EXECUTION-PRELAUNCH-READBACK.md))
+the operator granted the first-pass execution authority
+`AUCDEV-023-S1-FIRSTPASS-EXEC-20260921-01` (event `evt-7df609ec6c569043`;
+reserved attempts `-A-01`/`-B-01`; budget exactly 2), and the Control
+Room's exact operator-launch preflight **STOPPED_PREEXEC** on NEW blocking
+finding AUCDEV023-CR-S1-EXEC-001
+(RESOURCE_GATE_VALIDATES_STALE_ATTEMPT_WORKSPACE_ROOT; HARNESS/PROTOCOL
+DEFECT / PREEXEC RUNTIME-GATE COVERAGE GAP): the frozen
+`runtime/resource-gate.py` (`960058b3…`, identical in both role packages)
+samples the HISTORICAL S1 preparation workspace root
+`/home/isa/aucdev023-s1-event-preparation`, while the frozen shared
+launcher (`2efb6660…`, identical in both role packages) constructs the
+ACTUAL first-pass attempt staging under
+`/home/isa/aucdev023-s1-prep002-rem002/attempts/<attempt>/staging` and
+bind-mounts it as `/auditor-output` — both artifacts correctly frozen and
+byte-verified, so this is a SEMANTIC runtime-gate COVERAGE mismatch
+between two correctly frozen components, not an identity mismatch; the
+mandatory live pre-consumption workspace-readiness invariant is therefore
+NOT mechanically established for the actual successor composition (the
+gate's freshness is temporal but its attempt-workspace TARGET is stale).
+The PREP/REM closures above remain HISTORICAL and are not reopened, but
+CURRENT execution readiness is superseded: Auditor-A and Auditor-B event
+readiness = BLOCKED_PENDING_EXEC_001_REMEDIATION; INDEPENDENT_HARNESS_AUDIT
+= BLOCKED_PRELAUNCH; REAL EXECUTION = DO NOT START. The authority is
+GRANTED / UNCONSUMED / PRELAUNCH_BLOCKED and
+BOUND_TO_CURRENT_PACKAGE_GENERATION — it does NOT transfer automatically
+to any successor generation that changes any frozen
+event-package/binding/launcher/runtime-gate identity; remediation + fresh
+Control Room readback + a NEW explicit operator execution authority are
+required. No source or package was changed by this record; no architecture
+redesign; the adopted R1 architecture/policy semantics are unaltered; the
+product/runtime source baseline of this document is unchanged.
+
 The adopted design (Control Room readback-accepted revision, architecture R1)
 introduces, for at most one future AUCDEV-023 harness-audit event only:
 
