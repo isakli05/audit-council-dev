@@ -651,6 +651,40 @@ required. No source or package was changed by this record; no architecture
 redesign; the adopted R1 architecture/policy semantics are unaltered; the
 product/runtime source baseline of this document is unchanged.
 
+Subsequently (2026-09-21, canonical record:
+[AUCDEV-023-S1-EXEC001-EVENT-PACKAGE-REMEDIATION-REPORT](AUCDEV-023-S1-EXEC001-EVENT-PACKAGE-REMEDIATION-REPORT.md))
+a bounded implementer session under operator authority
+`AUCDEV-023-S1-EXEC001-REM-20260921-01` remediated EXEC-001 at implementer
+strength by the smallest authorized change: a NEW successor event-package
+generation for BOTH roles (workspace
+`/home/isa/aucdev023-s1-exec001-remediation/`; historical generation
+byte-immutable, verified before and after) in which the frozen
+`runtime/resource-gate.py` line-26 `ROOT` is now
+`/home/isa/aucdev023-s1-prep002-rem002` — EXACTLY equal to the
+byte-identical frozen launcher's workspace contract (`2efb6660…`
+unchanged), so the dynamic RESOURCE_GATE now samples the SAME
+`ROOT/attempts/<attempt>/{staging,custody-out,accounting}` tree the
+launcher actually constructs and the EBS `run_attempt` report locators
+point into (workspace-contract verification EXACT_MATCH both roles;
+new gate `e8f85391…`; new A manifest `45805629…` / package `703dd95b…` /
+binding digest `5c48fa3f…` 189 rows and B manifest `5c1421ae…` / package
+`23131e88…` / binding digest `f088b132…` 192 rows; per-package change set
+EXACTLY the gate line + identity-derived linter/package-binding-identity/
+MANIFEST regenerations; EBS-verified both roles; N1–N5 contract/mutation/
+substitution controls + a synthetic zero-inference gate rehearsal proving
+the gate samples the actual launcher root, all PASS; EBS 489/489 + qh
+221/221 regression batteries at the exact base). This is a
+runtime-gate workspace-contract FACT continuation only: no architecture
+redesign, the adopted R1 architecture/policy semantics and the V5
+package/binding schema are unaltered, the launcher/wrapper/client bytes
+are unchanged, and the disposition is REMEDIATION_IMPLEMENTED /
+AWAITING_CONTROL_ROOM_READBACK — EXEC-001 is NOT closed by the
+implementer, the old execution authority remains UNCONSUMED and
+non-transferable, and the new generation requires deployment at the
+launcher-resolved root location plus a NEW explicit operator execution
+authority after readback acceptance. The product/runtime source baseline
+of this document is unchanged.
+
 The adopted design (Control Room readback-accepted revision, architecture R1)
 introduces, for at most one future AUCDEV-023 harness-audit event only:
 
