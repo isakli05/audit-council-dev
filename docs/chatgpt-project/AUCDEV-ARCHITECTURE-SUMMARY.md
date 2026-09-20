@@ -541,6 +541,46 @@ observation is preserved as INFORMATIONAL. A separately authorized bounded
 PREP-002/REM-002 remediation is required before Auditor-B event readiness
 can be reconsidered; no source or package was changed by this record.
 
+That separately authorized bounded remediation has since been implemented
+(2026-09-21, operator authority `AUCDEV-023-S1-PREP002-REM002-20260920-01`;
+canonical record:
+[AUCDEV-023-S1-PREP002-REM002-REMEDIATION-REPORT](AUCDEV-023-S1-PREP002-REM002-REMEDIATION-REPORT.md))
+at implementer strength in a NEW successor event-package generation for BOTH
+roles (every prior generation untouched; implementer dispositions
+AWAITING_CONTROL_ROOM_READBACK — NOT Control Room closure). Trust-boundary
+FACTS of the new successor composition, all mechanically evidenced and
+frozen as package rows: (1) the credential-domain wrapper is a NATIVE
+STATIC-PIE executable — no host interpreter, no dynamic loader and no
+dynamic library executes in the credential-bearing transition path —
+interposed at BOTH real initial shell entry points `/usr/bin/bash` AND
+`/usr/bin/zsh` (regular-file destinations; every `sh`/`/bin` entry resolves
+onto them), so the REAL observed Codex tool entry path `/usr/bin/zsh -lc`
+now crosses the wrapper, with the `AUCDEV_TOOL_DOMAIN=1` marker observed
+inside the real client tool path and a differential no-wrapper control
+establishing CAUSAL traversal (on the deliberately unwrapped control path
+the credential staging copy is `/proc/1/root`-readable; with the wrapper it
+is UNREADABLE and the client-domain sentinel is absent); (2) the wrapper
+execs the PACKAGE-PINNED sandbox engine `/auditor-tools/bin/bwrap` (the
+frozen vendored bwrap row), and the OUTER boundary composition itself is
+likewise composed by the package-pinned vendored bwrap staged as a manifest
+row in BOTH role packages — no unpinned host sandbox-engine byte remains
+between the pinned clients and the credential-free tool domain; (3) the
+pinned client's startup capability-probe payload (`/usr/bin/true`,
+mechanically observed executing in the credential-bearing window) is itself
+a pinned static-pie package row; (4) the real shells are preserved at
+post-split-only paths `/auditor-tools/shells/{bash,zsh}` (basenames chosen
+so zsh runs in NORMAL mode, retaining zsh semantics; never silently replaced
+by bash) and are bound over the wrapper's own interposition paths INSIDE the
+tool domain; (5) a fixed synthetic boundary sentinel is staged read-only at
+`/auditor-init/boundary-sentinel` (client-domain-only; absent from the tool
+domain by construction) as the no-wrapper differential oracle. The
+machine-readable authority-path inventory mechanically establishes that
+every CLIENT_DOMAIN and SPLIT_TRANSITION executable byte is a frozen,
+EBS-verified package byte (the two pre-client-entry launcher/INNER custody
+rows are disclosed as outside the closure). No EBS/qh/skill source change
+was made anywhere in this remediation; the product/runtime source baseline
+of this document is unchanged.
+
 The adopted design (Control Room readback-accepted revision, architecture R1)
 introduces, for at most one future AUCDEV-023 harness-audit event only:
 
