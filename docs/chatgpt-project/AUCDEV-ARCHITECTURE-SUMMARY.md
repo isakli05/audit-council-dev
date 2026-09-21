@@ -685,6 +685,49 @@ launcher-resolved root location plus a NEW explicit operator execution
 authority after readback acceptance. The product/runtime source baseline
 of this document is unchanged.
 
+Subsequently (2026-09-21, canonical record:
+[AUCDEV-023-S1-EXEC001-EVENT-PACKAGE-REMEDIATION-READBACK](AUCDEV-023-S1-EXEC001-EVENT-PACKAGE-REMEDIATION-READBACK.md))
+the Control Room readback of that remediation was **ACCEPTED** and
+**EXEC-001 was CLOSED at Control Room readback strength** (NOT
+independent-audit PASS, NOT qualification): the complete 233,161,895-byte
+handoff (`80e7d204…`; 512 members = 434 regular + 78 directories; exactly
+one SHA256SUMS, 433/433 PASS, no unlisted or absent payload) verified with
+the four canonical publication files Git-blob-identical to live GitHub; the
+new successor packages verified A 189/189 and B 192/192 with the new
+identities (A manifest `45805629…` / package `703dd95b…` / binding file
+`9cb8002f…` / canonical digest `5c48fa3f…`; B manifest `5c1421ae…` /
+package `23131e88…` / binding file `12f89308…` / canonical digest
+`f088b132…`); the historical→new gate source difference confirmed EXACTLY
+ONE substantive line (the ROOT correction) with the launcher `2efb6660…`
+BYTE-IDENTICAL, so `RESOURCE_GATE_ROOT == LAUNCHER_ROOT ==
+/home/isa/aucdev023-s1-prep002-rem002` for BOTH roles with
+workspace-contract classification EXACT_MATCH; the change scope confirmed
+EXACTLY the gate row + identity-derived regenerations + MANIFEST root per
+package with A/B execution-visible `payload/evidence/**` 169/169
+byte-identical; the N1–N5 negative controls, the synthetic zero-inference
+gate rehearsal and the held PREP-001/-002/-003 + REM-001/-002 invariants
+(EBS 489/489 + qh 221/221) all verified. Resulting posture: Auditor-A AND
+Auditor-B event readiness =
+READY_FOR_NEW_EXACT_GENERATION_EXECUTION_AUTHORITY and
+INDEPENDENT_HARNESS_AUDIT =
+READY_FOR_NEW_EXACT_GENERATION_EXECUTION_AUTHORITY / NOT YET AUTHORIZED
+— REAL EXECUTION AUTHORITY FOR THE NEW GENERATION = NONE; the OLD
+authority `AUCDEV-023-S1-FIRSTPASS-EXEC-20260921-01` remains GRANTED
+HISTORICALLY / UNCONSUMED / PRELAUNCH_BLOCKED FOR ITS GENERATION /
+NON-TRANSFERABLE to the new generation. EXECUTION PRECONDITION (not a new
+defect): the byte-identical launcher resolves its execution package tree
+under `/home/isa/aucdev023-s1-prep002-rem002/event/`, so before any future
+real attempt — under a NEW explicit operator execution authority — the
+Control-Room-accepted NEW successor generation must be DEPLOYED to that
+launcher-resolved event location, and the deployed bytes must be
+mechanically reverified to EXACTLY the accepted
+package/binding/launcher/gate identities BEFORE any AccountingStore
+creation, credential ingestion, dynamic runtime gate, GATES_PASSED,
+CONSUMED_PRE_EXEC or provider/model execution. No source or package was
+changed by this record; no architecture redesign; the adopted R1
+architecture/policy semantics are unaltered; the product/runtime source
+baseline of this document is unchanged.
+
 The adopted design (Control Room readback-accepted revision, architecture R1)
 introduces, for at most one future AUCDEV-023 harness-audit event only:
 
