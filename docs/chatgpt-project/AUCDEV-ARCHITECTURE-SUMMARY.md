@@ -774,6 +774,37 @@ adopted R1 architecture/policy semantics and the V5 package/binding schema
 are unaltered, and the product/runtime source baseline of this document is
 unchanged.
 
+The Control Room readback of that remediation was subsequently published
+(2026-09-21, canonical record:
+[AUCDEV-023-S1-EXEC02-ARGV-REMEDIATION-READBACK](AUCDEV-023-S1-EXEC02-ARGV-REMEDIATION-READBACK.md))
+**ACCEPTED / COMPLETE_HANDOFF_INTEGRITY_VERIFIED / A_189_OF_189_BYTE_VERIFIED /
+B_192_OF_192_BYTE_VERIFIED / PACKAGE_IDENTITIES_RECOMPUTED /
+BINDING_DIGESTS_RECOMPUTED / RESOURCE_GATE_DIFF_VERIFIED_BOUNDED /
+EXACT_EBS_FD_EXEC_REGRESSION_VERIFIED / ARGV_1_THROUGH_ARGV_6_SUPPORTED /
+COMMON_EVIDENCE_169_OF_169_BYTE_PARITY_VERIFIED /
+HISTORICAL_ATTEMPT_STATE_HELD**, closing
+`AUCDEV023-CR-S1-EXEC02-001` and `AUCDEV023-CR-S1-EXEC02-002` at Control
+Room readback strength (readback strength ONLY — NOT independent-audit
+PASS, NOT first-pass completion, NOT qualification). The successor package
+BYTES are REMEDIATION_ACCEPTED, but the successor binding/event identity
+is NOT EXECUTION-READY FOR AUDITOR-A: the frozen EBS derives attempt ids
+only as `{event}-{role}-01` and refuses any other with
+`ATTEMPT_EVENT_RELATIONSHIP_INVALID`, so a same-event `A-02` replacement
+is NOT EXPRESSIBLE under the frozen EBS, and the successor A binding
+mechanically carries the TERMINAL historical `…-A-01` identity. The
+Control Room's execution-planning disposition is therefore: independent
+first-pass execution = BLOCKED_PENDING_NEW_EVENT_REBIND_AND_READBACK; the
+preferred minimal route for any replacement campaign is a NEW EVENT with
+FRESH `-A-01` and `-B-01` attempts sharing ONE first-pass barrier, NEW
+bindings/package identities as mechanically required, a NEW Control Room
+readback and a NEW explicit operator execution authority (a new-event
+Auditor-A pass must NOT be mixed with the old-event `…-B-01` under one
+barrier); real execution authority = NONE for any replacement event. This
+is a readback-state FACT continuation only: no architecture redesign, the
+adopted R1 architecture/policy semantics and the V5 package/binding schema
+are unaltered, and the product/runtime source baseline of this document is
+unchanged.
+
 The adopted design (Control Room readback-accepted revision, architecture R1)
 introduces, for at most one future AUCDEV-023 harness-audit event only:
 
