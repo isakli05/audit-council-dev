@@ -728,6 +728,52 @@ changed by this record; no architecture redesign; the adopted R1
 architecture/policy semantics are unaltered; the product/runtime source
 baseline of this document is unchanged.
 
+Subsequently (2026-09-21, canonical record:
+[AUCDEV-023-S1-EXEC02-ARGV-REMEDIATION-REPORT](AUCDEV-023-S1-EXEC02-ARGV-REMEDIATION-REPORT.md))
+the EXEC-02 first-pass attempt failed pre-exec at the frozen RESOURCE_GATE
+(finding `AUCDEV023-CR-S1-EXEC02-001`: the accepted gate `e8f85391…`
+required `len(sys.argv) >= 5` and unpacked `sys.argv[1:5]`, while the EBS
+fd-exec path presents the gate EXACTLY four Python-visible argv elements —
+the kernel's shebang handling drops the EBS argv's leading logical-identity
+element and the gate therefore exited 3 BEFORE any sampling), and a bounded
+implementer session under operator authority
+`AUCDEV-023-S1-EXEC02-ARGV-REM-20260921-01` remediated that invocation
+contract in a NEW successor generation for BOTH roles by the smallest
+authorized change: the frozen gate now requires EXACTLY four Python-visible
+argv elements (`if len(sys.argv) != 4: return 3`;
+`_script, event, role, attempt = sys.argv[0:4]`) — the SAME working
+convention the frozen NETWORK_READINESS gate already demonstrates under the
+same EBS verified-fd/shebang path — and documents the two DISTINCT notions
+(EBS logical gate binding/invocation identity vs Python-visible sys.argv);
+ROOT, thresholds, sampling logic, result schema and gate identity are
+unchanged; the EBS argv construction is unchanged (bootstrap-supervisor
+byte-identical). The corrected gate is proven through the REAL internal EBS
+path (`launch._run_runtime_gate → _gate_child → fd_exec`) with the exact
+four-element EBS argv: the historical gate reproduces the production
+exit-3-before-sampling refusal (ARGV-1) and the corrected gate passes the
+strict envelope with three samples under the actual launcher root (ARGV-2),
+with strict-arity negatives, exact-validator compatibility, no-reserved-
+attempt-effect and complete cleanup controls (ARGV-3…6) — this exact-fd-exec
+regression is now MANDATORY evidence for every later RESOURCE_GATE successor
+generation. New generation identities: gate `27948980…` (5528 B); A
+manifest `5b6bb4dc…` / package `0670817a…` / binding digest `5de31410…`
+(189 rows) and B manifest `9c692e86…` / package `e56708f9…` / binding
+digest `4f5624be…` (192 rows); launcher, NETWORK_READINESS, auditor
+executables, wrapper, profiles, prompt contract and common evidence
+byte-identical; per-package change set exactly the gate + identity-derived
+regenerations. Disposition is IMPLEMENTED / AWAITING_CONTROL_ROOM_READBACK
+(EXEC02-001/002 NOT closed by the implementer); real execution remains
+NOT AUTHORIZED, the historical execution authority is non-transferable to
+the new generation, and the successor A binding mechanically carries the
+frozen-EBS-derived `-01` attempt identity (an `A-02` binding is REFUSED
+`ATTEMPT_EVENT_RELATIONSHIP_INVALID` by the protected EBS — a fact returned
+to the Control Room for the future authority to resolve: a new event id or
+a separate EBS-source remediation). This is a runtime-gate
+invocation-contract FACT continuation only: no architecture redesign, the
+adopted R1 architecture/policy semantics and the V5 package/binding schema
+are unaltered, and the product/runtime source baseline of this document is
+unchanged.
+
 The adopted design (Control Room readback-accepted revision, architecture R1)
 introduces, for at most one future AUCDEV-023 harness-audit event only:
 
