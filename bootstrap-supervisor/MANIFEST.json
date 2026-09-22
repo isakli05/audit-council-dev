@@ -31,9 +31,9 @@
       "sha256": "f1c1d0f7cba21225e977c49fc86c5d32824766a0eddebe6b1761b0111c11f5ca"
     },
     {
-      "bytes": 78777,
+      "bytes": 84365,
       "path": "ebs/launch.py",
-      "sha256": "9d72697fbd23553c1ef53fd2c05484873f19a2ba4383a5a4e379d6c604821ed5"
+      "sha256": "dfc63f0033aad802e5355e9dad652499d27a602122c7cfa1e2fa4d252947e9b7"
     },
     {
       "bytes": 4613,
@@ -46,9 +46,9 @@
       "sha256": "f60fcb9108d353a11f3ff8916780b3e91108a1d2c2d278e0b2c40e2b6643c57a"
     },
     {
-      "bytes": 21106,
+      "bytes": 21952,
       "path": "tests/conftest.py",
-      "sha256": "ca5836a901b564c300ca412cc402194110229ea82cc540c42caeea100e552cdb"
+      "sha256": "2328c1882fcb7be3dcafb28de0331b44e68dd87dcec3cef0348f25eda977c457"
     },
     {
       "bytes": 1005,
@@ -86,6 +86,11 @@
       "sha256": "da3b326c429560050a7ffa9dba1eaf3de657c2a2946604fe68409ed3d9d64ed3"
     },
     {
+      "bytes": 12799,
+      "path": "tests/real_validator_materialization.py",
+      "sha256": "3d822dd2f1ecd9eef84d03570b4137479bcac0f0c7172937a3521a754aa4d3e0"
+    },
+    {
       "bytes": 9903,
       "path": "tests/test_accounting.py",
       "sha256": "e20c956f5beeb21770a39e0986e252f8a818b0b012ecb183fc31a213ca5edb54"
@@ -106,9 +111,14 @@
       "sha256": "af7473767a9a160056c4e6ef2f8697e3cf484b809dc8b33fa4e934fd7ad33919"
     },
     {
-      "bytes": 35063,
+      "bytes": 23264,
+      "path": "tests/test_exec03_real_validator_lifecycle.py",
+      "sha256": "fda943883179e2b8df59a42cde767abc688f196a1c8da1edcba1a41a76931d99"
+    },
+    {
+      "bytes": 35726,
       "path": "tests/test_final_execution_lifecycle.py",
-      "sha256": "48eb1253fd2bf93bd85dd42fb16943935d1514feebdc05971babd55bf00f353b"
+      "sha256": "ca0f79f03185cea2941e5ccbe47cfc3c128a2967c97420e90555aba9b94b7aae"
     },
     {
       "bytes": 33046,
@@ -151,18 +161,18 @@
       "sha256": "1a8135b2fb13bb59e69ddbea69e28ee80866fca40a1d8e1ad341e0023bafaac5"
     },
     {
-      "bytes": 15162,
+      "bytes": 16000,
       "path": "tests/test_static.py",
-      "sha256": "431a7f43a0f1418fc96fb5a10c4f7a989ea3a248841e9d7e98c70ea972f160fe"
+      "sha256": "cb72bfcba87bc0da3f0015a081a31a7d59585014cfef7c79f9861a0f1178ff54"
     }
   ],
-  "implementation_base_commit": "76e6012d2753af94215670ce87abd35d43d9f57b",
+  "implementation_base_commit": "58161595fb217c947a05eed8fd7f1cd5f018ab22",
   "package": "bootstrap-supervisor",
-  "package_sha256": "8685c36e8286acb4e7fdc59bd68c92aa7ec96d27d3623a19d0f975e67d73c0d8",
+  "package_sha256": "d42aa9e3dd1f6d4ed8831c13aaf7352dcaaab20cbb5ac81559e57eae93c922f8",
   "policy_id": "AUCDEV-023-R1-CONTROLLERLESS-PROCESS-BOUND-TARGET-INDEPENDENT-ONE-SHOT",
   "qualification_claim": "NONE",
   "runtime_dependencies": "Python 3 standard library ONLY + Linux kernel primitives (memfd/seals, prctl, fsync, execveat, /proc); no third-party runtime package",
-  "status": "S1_009_POSTCONSUMPTION_TERMINALITY_REMEDIATION_CANDIDATE / AWAITING_FRESH_CONTROL_ROOM_READBACK",
+  "status": "EXEC03_STRUCTURAL_REMEDIATION_CANDIDATE / AWAITING_FRESH_CONTROL_ROOM_READBACK",
   "target": {
     "commit": "d4d584ffa47ad2848268ba947247f81a845b2322",
     "qh_tree": "5b8d5e5465923740470ff63ed9b8683f257a3787",
@@ -170,5 +180,5 @@
     "root_tree": "1d4b8b8eb0619cf0b854984b778e6ea081ad9aa7",
     "skill_tree": "c792933a862d9a5434681a88d183470dd8b15d2f"
   },
-  "task": "AUCDEV-023 bounded External Bootstrap Supervisor (EBS) post-consumption fail-closed terminality remediation of AUCDEV023-CR-EBS-S1-009"
+  "task": "AUCDEV-023 bounded EBS EXEC-03 structural contract/validator remediation of AUCDEV023-CR-S1-EXEC03-001/-002/-004"
 }

@@ -184,10 +184,24 @@ FINAL_EXECUTION_LIFECYCLE_CANDIDATE_LOC_BOUND = 2800
 # rewritten (2800 remains the last Control-Room-accepted residual).
 S1_009_POSTCONSUMPTION_TERMINALITY_CANDIDATE_LOC_BOUND = 2904
 
+# EXEC-03 structural remediation (AUCDEV023-CR-S1-EXEC03-001/-004): the
+# validator-child stderr channel becomes a WRITABLE bounded pipe with a
+# STRUCTURAL-ONLY token sanitizer (the frozen validator's sole
+# failure-diagnostic channel; every other gate child keeps the exact
+# historical read-only /dev/null fd 2) and the REPORT_INVALID
+# settlement durably pins the exact invalid snapshot SHA-256/size the
+# validator saw (hash/size only — never report bytes).  LOC 2904 ->
+# 3016 disclosed as NEW_TCB_GROWTH / AWAITING_CONTROL_ROOM_ACCEPTANCE
+# with exact per-function attribution in
+# AUCDEV-023-S1-EXEC03-STRUCTURAL-REMEDIATION-REPORT.md.
+# The candidate ceiling below is CANDIDATE_ONLY / NOT_CONTROL_ROOM_
+# ACCEPTED; the prior baselines above are PRESERVED and NOT rewritten.
+EXEC03_STRUCTURAL_REMEDIATION_CANDIDATE_LOC_BOUND = 3016
+
 
 def test_production_loc_within_minimal_tcb_bound():
     total = sum(len(p.read_text().splitlines()) for p in PKG_FILES)
-    assert total <= S1_009_POSTCONSUMPTION_TERMINALITY_CANDIDATE_LOC_BOUND, \
+    assert total <= EXEC03_STRUCTURAL_REMEDIATION_CANDIDATE_LOC_BOUND, \
         f"production source grew to {total} lines"
 
 

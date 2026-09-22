@@ -156,6 +156,21 @@ METADATA_GRACE = 0.5           # bounded post-reap metadata drain (seconds)
 # parsing.
 RUNTIME_GATE_TIMEOUT = 10.0             # seconds; deterministic fail-closed
 RUNTIME_GATE_RESULT_MAX = 65536         # accepted result bytes (bound first)
+
+# EXEC-03 structural remediation (AUCDEV023-CR-S1-EXEC03-001): the
+# structural output validator's ONLY failure-diagnostic channel is the
+# frozen stderr emission `VALIDATION_ERROR: <detail>` (its stdout
+# envelope carries no error field), so the validator child receives a
+# WRITABLE bounded stderr pipe (every other gate child keeps the exact
+# historical read-only /dev/null fd 2) and the captured bytes are
+# reduced — fail-closed — to a bounded STRUCTURAL-ONLY token before any
+# durable use: never validator prose, report text, credentials or
+# arbitrary child output.
+VALIDATOR_STDERR_MAX = 4096
+STRUCTURAL_TOKEN_PREFIX = "VALIDATION_ERROR: "
+STRUCTURAL_TOKEN_CHARS = frozenset(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
+
 RESOURCE_GATE_SAMPLES = 3
 RESOURCE_GATE_RESULT_FIELDS = ("schema", "status", "event_id",
                                "auditor_role", "attempt_id", "samples")
@@ -588,20 +603,50 @@ def _close_fds(*fds) -> None:
                 pass
 
 
+def _sanitize_structural_diagnostic(stderr: bytes) -> str:
+    """(EXEC03-001) Bounded STRUCTURAL-ONLY diagnostic grammar for the
+    frozen first-pass output validator: accept the captured stderr ONLY
+    when its first line is the frozen VALIDATION_ERROR emission, reduce
+    it to the pre-colon structural token, and keep that token ONLY when
+    it is a short uppercase [A-Z0-9_] identifier.  Everything else —
+    parser prose, repr'd report values, duplicate-key names, codec
+    messages, arbitrary child output, oversize or non-UTF-8 channels —
+    yields "" (the caller falls back to the generic bounded refusal).
+    A returned token therefore can never contain report prose,
+    credentials, paths or any model/auditor text."""
+    if not stderr or len(stderr) > VALIDATOR_STDERR_MAX:
+        return ""
+    try:
+        first = stderr.decode("utf-8").splitlines()[0].strip()
+    except (UnicodeDecodeError, IndexError):
+        return ""
+    if not first.startswith(STRUCTURAL_TOKEN_PREFIX):
+        return ""
+    token = first[len(STRUCTURAL_TOKEN_PREFIX):].split(":", 1)[0].strip()
+    if not 1 <= len(token) <= 128:
+        return ""
+    if not all(ch in STRUCTURAL_TOKEN_CHARS for ch in token):
+        return ""
+    return token
+
+
 def _gate_child(gate_fd: int, result_w: int, devnull: int,
-                argv, env: dict, report_fd: int = None) -> None:
+                argv, env: dict, report_fd: int = None,
+                stderr_w: int = None) -> None:
     """Child-side preparation for a runtime gate or the structural
     validator: stdout is the bounded result pipe, stdin/stderr are
-    devnull, NO credential fd is inherited (custody never enters this
-    path and the child receives no launch authority), every other fd is
-    closed, and the ALREADY-VERIFIED open gate fd is exec'd
+    devnull (stderr EXCEPT the structural validator, whose writable
+    bounded stderr_w pipe replaces the read-only devnull on fd 2 —
+    EXEC03-001), NO credential fd is inherited (custody never enters
+    this path and the child receives no launch authority), every other
+    fd is closed, and the ALREADY-VERIFIED open gate fd is exec'd
     (identity-preserving; no pathname re-open).  When report_fd is given
     (validator only) the sealed immutable report snapshot is inherited at
     the fixed VALIDATOR_REPORT_FD slot.  Never returns."""
     try:
         os.dup2(devnull, 0)
         os.dup2(result_w, 1)
-        os.dup2(devnull, 2)
+        os.dup2(stderr_w if stderr_w is not None else devnull, 2)
         exec_target = gate_fd
         keep = {0, 1, 2, gate_fd}
         if report_fd is not None:
@@ -629,14 +674,22 @@ def _gate_child(gate_fd: int, result_w: int, devnull: int,
 
 def _run_runtime_gate(gate: str, gate_fd: int, argv, env: dict,
                       timeout: float = RUNTIME_GATE_TIMEOUT,
-                      report_bytes: bytes = None) -> bytes:
+                      report_bytes: bytes = None,
+                      capture_stderr: bool = False) -> bytes:
     """Execute the verified gate/validator fd EXACTLY ONCE with a
     bounded fail-closed timeout; return the raw result bytes
     (size-bounded).  Any fork/exec failure, hang past the deadline,
     oversized output, or non-zero child exit refuses.  report_bytes (the
     structural validator only) is delivered to the child as a sealed
     read-only memfd at VALIDATOR_REPORT_FD — the validator sees exactly
-    the immutable clean snapshot, never a pathname, never a credential."""
+    the immutable clean snapshot, never a pathname, never a credential.
+    capture_stderr (EXEC03-001, the structural validator only) gives
+    the child a WRITABLE bounded stderr pipe instead of the read-only
+    /dev/null fd 2 every other gate keeps, reads it under the same
+    deadline/size bounds (oversize refuses fail-closed), and on a
+    non-zero exit appends ONLY the sanitized structural token
+    (_sanitize_structural_diagnostic) to the bounded refusal detail —
+    never arbitrary child output."""
     report_fd = None
     if report_bytes is not None:
         # the EXACT immutable clean snapshot on a sealed read-only memfd
@@ -654,6 +707,10 @@ def _run_runtime_gate(gate: str, gate_fd: int, argv, env: dict,
         except Exception:
             os.close(report_fd)
             raise
+    err_r = err_w = None
+    if capture_stderr:
+        err_r, err_w = os.pipe()
+        os.set_blocking(err_r, False)
     result_r, result_w = os.pipe()
     devnull = os.open(os.devnull, os.O_RDONLY)
     child_pid = None
@@ -663,9 +720,13 @@ def _run_runtime_gate(gate: str, gate_fd: int, argv, env: dict,
         except OSError as exc:
             raise LaunchError(f"{gate}_FORK_FAILED: {exc!r}") from exc
         if child_pid == 0:
-            _gate_child(gate_fd, result_w, devnull, argv, env, report_fd)
+            _gate_child(gate_fd, result_w, devnull, argv, env, report_fd,
+                        err_w)
         os.close(result_w)
         result_w = None
+        if err_w is not None:
+            os.close(err_w)
+            err_w = None
         os.close(devnull)
         devnull = None
         if report_fd is not None:
@@ -674,6 +735,7 @@ def _run_runtime_gate(gate: str, gate_fd: int, argv, env: dict,
         os.set_blocking(result_r, False)
         deadline = time.monotonic() + timeout
         output = b""
+        stderr_out = b""
         eof = False
         exitcode = None
         while True:
@@ -700,6 +762,20 @@ def _run_runtime_gate(gate: str, gate_fd: int, argv, env: dict,
                                 f"{gate}_OUTPUT_TOO_LARGE: emitted more "
                                 f"than {RUNTIME_GATE_RESULT_MAX} result "
                                 f"bytes")
+            if err_r is not None:
+                try:
+                    chunk = os.read(err_r, 65536)
+                except BlockingIOError:
+                    chunk = None
+                if chunk is not None and chunk:
+                    progressed = True
+                    stderr_out += chunk
+                    if len(stderr_out) > VALIDATOR_STDERR_MAX:
+                        _kill_and_reap(child_pid)
+                        raise LaunchRefused(
+                            f"{gate}_STDERR_TOO_LARGE: emitted more "
+                            f"than {VALIDATOR_STDERR_MAX} stderr bytes; "
+                            f"failing closed")
             if exitcode is None:
                 waited_pid, status = os.waitpid(child_pid, os.WNOHANG)
                 if waited_pid == child_pid:
@@ -709,15 +785,36 @@ def _run_runtime_gate(gate: str, gate_fd: int, argv, env: dict,
                 break
             if not progressed:
                 time.sleep(0.01)               # bounded poll, no busy spin
+        if err_r is not None and exitcode is not None:
+            # the child is reaped: its writes are complete — one final
+            # bounded nonblocking drain of the stderr channel
+            while True:
+                try:
+                    chunk = os.read(err_r, 65536)
+                except BlockingIOError:
+                    break
+                if not chunk:
+                    break
+                stderr_out += chunk
+                if len(stderr_out) > VALIDATOR_STDERR_MAX:
+                    raise LaunchRefused(
+                        f"{gate}_STDERR_TOO_LARGE: emitted more than "
+                        f"{VALIDATOR_STDERR_MAX} stderr bytes; failing "
+                        f"closed")
         if exitcode != 0:
             reason = ("EXEC_FAILED" if exitcode == CHILD_EXIT_EXEC_FAIL
                       else "NONZERO_EXIT")
-            raise LaunchRefused(f"{gate}_{reason}: exited {exitcode}")
+            detail = f"{gate}_{reason}: exited {exitcode}"
+            if capture_stderr:
+                token = _sanitize_structural_diagnostic(stderr_out)
+                if token:
+                    detail += f"; structural_error={token}"
+            raise LaunchRefused(detail)
         if not output:
             raise LaunchRefused(f"{gate}_OUTPUT_MISSING: no result bytes")
         return output
     finally:
-        _close_fds(result_r, result_w, devnull, report_fd)
+        _close_fds(result_r, result_w, devnull, report_fd, err_r, err_w)
 
 
 def _strict_gate_envelope(output: bytes, binding, gate: str, fields,
@@ -1450,9 +1547,12 @@ class Supervisor:
         immediately before execution; only frozen non-secret binding
         context in the argv; minimal EBS-defined environment; NO
         credential fd; sealed-memfd snapshot delivery; the frozen
-        validator_timeout_seconds bounds the run.  Any refusal is
-        classified REPORT_INVALID by the caller; never a second
-        execution."""
+        validator_timeout_seconds bounds the run.  EXEC03-001: the
+        validator child receives a WRITABLE bounded stderr channel so a
+        structural validation failure surfaces its bounded safe token
+        instead of the historical read-only-fd rc-120 masking.  Any
+        refusal is classified REPORT_INVALID by the caller; never a
+        second execution."""
         descriptor = self._binding.output_validator
         got = _hash_fd(self._validator_fd)
         os.lseek(self._validator_fd, 0, os.SEEK_SET)
@@ -1469,7 +1569,7 @@ class Supervisor:
              str(len(snapshot))],
             {"PATH": "/usr/bin:/bin", "LANG": "C"},
             timeout=b.execution_limits["validator_timeout_seconds"],
-            report_bytes=snapshot)
+            report_bytes=snapshot, capture_stderr=True)
         _validate_validator_result(output, b, digest, len(snapshot))
 
     def _report_and_terminalize(self, core) -> AttemptResult:
@@ -1508,11 +1608,23 @@ class Supervisor:
                     try:
                         self._run_validator(snapshot)
                     except (LaunchError, LaunchRefused) as exc:
+                        # (EXEC03-004) durably pin the EXACT immutable
+                        # snapshot identity that was supplied to the
+                        # validator — hash/size ONLY; the invalid report
+                        # bytes themselves are never retained as
+                        # mechanical evidence, and REPORT_INVALID stays
+                        # terminal and nonconforming (no freeze, no
+                        # acceptance, no retry).
+                        invalid_sha = hashlib.sha256(snapshot).hexdigest()
                         self._settle_post_consumption(
                             REPORT_INVALID,
                             {"terminal_reason":
-                             f"REPORT_INVALID: {exc}"[:256]})
+                             f"REPORT_INVALID: {exc}"[:256],
+                             "report_sha256": invalid_sha,
+                             "report_size": len(snapshot)})
                         outcome["report_state"] = REPORT_INVALID
+                        outcome["report_sha256"] = invalid_sha
+                        outcome["report_size"] = len(snapshot)
                     else:
                         frozen = freeze_snapshot(
                             snapshot, self._out_dir_fd,

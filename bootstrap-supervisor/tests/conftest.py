@@ -177,7 +177,7 @@ EVENT_PKG_MARKER = (b"EBS-SYNTHETIC-INERT-EVENT-PACKAGE-FIXTURE-"
 
 
 def make_event_package(doc, tmp_path, name=EVENT_PKG_NAME,
-                       projection_mutator=None) -> Path:
+                       projection_mutator=None, validator_bytes=None) -> Path:
     """Build ONE unmistakably synthetic/inert event package for a binding
     document and pin its live identity into doc["event_package"].
 
@@ -193,14 +193,30 @@ def make_event_package(doc, tmp_path, name=EVENT_PKG_NAME,
     runtime_gates.*.sha256 values are pinned to the materialized bytes
     BEFORE the projection is derived.  Optional projection_mutator
     alters ONLY the manifest transport_binding projection
-    (PACKAGE->BINDING negatives)."""
+    (PACKAGE->BINDING negatives).
+
+    EXEC03-002: optional validator_bytes (exact bytes of the REAL frozen
+    structural validator, byte-identity asserted by the caller's
+    materialization aid) replaces the inert validator fixture at the
+    bound runtime path so the REAL negative-path regression can run the
+    exact frozen validator through the exact EBS execution path; when
+    None (every pre-existing call) the inert fixture discipline is
+    byte-identical to before."""
     root = tmp_path / name
     nr_path, nr_sha = make_network_readiness_gate(
         root / "runtime" / "network-readiness.py")
     gate_path, gate_sha = make_resource_gate(
         root / "runtime" / "resource-gate.py")
-    val_path, val_sha = make_validator(root / "runtime" /
-                                       "output-validator.py")
+    if validator_bytes is not None:
+        val_path = root / "runtime" / "output-validator.py"
+        val_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(val_path, "wb") as handle:
+            handle.write(validator_bytes)
+        os.chmod(val_path, 0o755)      # conftest fixture mode discipline
+        val_sha = sha_hex(validator_bytes)
+    else:
+        val_path, val_sha = make_validator(root / "runtime" /
+                                           "output-validator.py")
     doc["runtime_gates"]["NETWORK_READINESS"]["sha256"] = nr_sha
     doc["runtime_gates"]["RESOURCE_GATE"]["sha256"] = gate_sha
     doc["output_validator"]["sha256"] = val_sha

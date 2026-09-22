@@ -35,6 +35,7 @@ a second run_attempt is refused; both runtime gates still execute
 exactly once in order.
 """
 import ast
+import hashlib
 import inspect as pyinspect
 import json
 import os
@@ -343,7 +344,10 @@ def test_s1_007_validator_negative_outcomes_are_report_invalid(
     result = run(sup, launcher, auditor_exe, stage, cust_out,
                  planted=CLEAN_REPORT)
     assert result.report_state == refusal
-    assert result.report_sha256 == ""
+    # (EXEC03-004 remediated) the durable REPORT_INVALID identity pins
+    # the EXACT invalid snapshot supplied to the validator
+    assert result.report_sha256 == hashlib.sha256(CLEAN_REPORT).hexdigest()
+    assert result.report_size == len(CLEAN_REPORT)
     assert not any(cust_out.iterdir())
     assert sup.state == TERMINAL
     assert states_of(cust_dir, sup)[-2:] == ["REPORT_INVALID", "TERMINAL"]
@@ -541,9 +545,13 @@ def test_s1_007_validator_receives_no_credential_fd_and_exact_snapshot(
 def test_s1_007_recorded_digest_only_after_screen_passes(
         launcher, auditor_exe, cust_dir, binding_doc, event_package,
         stage, cust_out):
-    """Digest/size enter the durable record ONLY on the
-    screen-passed+validated path: the SCREEN_FAIL and REPORT_INVALID
-    records carry no digest of the report bytes."""
+    """Digest/size enter the durable record ONLY on the screen-passed
+    path (EXEC03-004 remediated): a screened-out or missing report is
+    never hashed (no identity in SCREEN_FAIL/MISSING records), while a
+    report that REACHED the validator — whatever its outcome — has its
+    EXACT immutable snapshot identity pinned (REPORT_FROZEN full
+    record; REPORT_INVALID hash/size-only pin of the invalid snapshot,
+    never its bytes)."""
     write_val_state(ATTEMPT, "fail-status")
     sup = build(cust_dir, binding_doc, event_package)
     run(sup, launcher, auditor_exe, stage, cust_out,
@@ -552,9 +560,12 @@ def test_s1_007_recorded_digest_only_after_screen_passes(
     view = inspect_accounting_record(cust_dir, sup._binding.attempt_id,
                                      sup._binding.digest)
     for rec in view["records"]:
-        if rec["state"] in ("REPORT_INVALID", "REPORT_SCREEN_FAIL",
-                            "REPORT_MISSING"):
+        if rec["state"] in ("REPORT_SCREEN_FAIL", "REPORT_MISSING"):
             assert "report_sha256" not in rec
+        if rec["state"] == "REPORT_INVALID":
+            assert rec["report_sha256"] == hashlib.sha256(
+                CLEAN_REPORT).hexdigest()
+            assert rec["report_size"] == len(CLEAN_REPORT)
 
 
 # ===================== S1-008: auditor timeout ==========================
