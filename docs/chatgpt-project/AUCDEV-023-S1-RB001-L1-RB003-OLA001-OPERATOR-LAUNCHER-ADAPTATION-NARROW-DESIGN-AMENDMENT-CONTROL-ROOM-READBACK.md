@@ -1,0 +1,70 @@
+# AUCDEV-023 S1 RB-001 L1 RB-003 OLA-001 Narrow Design Amendment — Control Room Readback
+
+**OLA001_NARROW_DESIGN_AMENDMENT_CONTROL_ROOM_READBACK = ACCEPTED_AT_CONTROL_ROOM_DESIGN_READBACK_STRENGTH / IMPLEMENTATION_INSTRUCTION_CONTRADICTION_RESOLVED / EXACT_PREDECESSOR_REPORT_INVALID_VERIFIER_DELTA_AUTHORIZED_FOR_FUTURE_REIMPLEMENTATION / ALL_OTHER_DRIVER_CONTROL_FLOW_HELD / EXISTING_CANDIDATE_NOT_RETROACTIVELY_ADMITTED / REIMPLEMENTATION_REQUIRED / ZERO_RUNTIME**
+
+Publication authority: `AUCDEV-023-S1-RB001-L1-RB003-OLA001-NARROW-DESIGN-AMENDMENT-CONTROL-ROOM-READBACK-20260925-01`, over design authority `AUCDEV-023-S1-RB001-L1-RB003-OLA001-NARROW-DESIGN-AMENDMENT-20260925-01` (design-amendment record blob `08f87f03fb73e551d88035cd0ecf8e97ae9a7df6` at commit `331eaae0420a0435eb32bfc6376c77b92e914978`).
+
+This session is a **RECORD-ONLY CONTROL ROOM READBACK PUBLISHER** — NOT an implementation executor, NOT a prelaunch activator, NOT a deployment authority, NOT an execution controller, NOT an execution-authority grantor, NOT Auditor-A or Auditor-B, NOT a qualification authority, NOT an installation authority. This publication grants NO runtime authority and performs NO runtime mutation. ZERO reviewed archive members were executed (read-only extraction for checksum verification only). NOTHING was rebuilt, patched, chmod'd, deployed, staged, or granted; the candidate driver/wrapper were neither executed nor imported and their modes remain exactly 0600. Scope: this ACCEPTS the amendment design; it does NOT accept the prior nonconforming implementation candidate; it grants NO prelaunch/deployment/execution authority; it proves NO runtime behavior.
+
+## 1. Live bootstrap (all EXACT; NO drift)
+
+Live `origin/master` == local HEAD == `331eaae0420a0435eb32bfc6376c77b92e914978` (branch `master`; root tree `6a2277b311e2f41b8c49220bd84e33cb6e5aded0`; sole parent `41ba1012f2195879dfc30443e37ff0843a281ba6`). Blobs at the base verified EXACT: CURRENT `f7ff6c4aa3afafcd01beb34003199308362665ba`, BACKLOG `5e7b226ac00e47ae721417cebb082ea4679e335b`, OLA-001 design amendment `08f87f03fb73e551d88035cd0ecf8e97ae9a7df6`, OLA implementation CR readback `d01fd73ddf028b7e67e4d2a917ba2f4bb7d1cac6`, OLA implementation `072dbbccb715b93d7b3e60b947b3af8222f94407`. Protected trees exact: `bootstrap-supervisor 732b8def9f22d7c466ce77f3d3049da53bfff3d0`, `qualification-harness 5b8d5e5465923740470ff63ed9b8683f257a3787`, `skill c792933a862d9a5434681a88d183470dd8b15d2f`. Pre-existing `smoke-fixture` / `smoke-fixture-103` gitlink drift preserved unstaged. No auto-rebase anywhere.
+
+## 2. Reviewed generated-LAST handoff — independently verified read-only, ZERO members executed
+
+`AUCDEV-023-S1-RB001-L1-RB003-OLA001-OPERATOR-LAUNCHER-ADAPTATION-NARROW-DESIGN-AMENDMENT-HANDOFF.tar.gz` — outer SHA-256 `c101376dedfced0bed10d2ce0773b3f734962ea67b9f92f1e43593c2b39abbe1` / 769030 B EXACT. Mechanically verified census: 25 members = 21 regular files (20 payload + 1 SHA256SUMS) + 4 directories; 0 unsafe/traversal, 0 absolute, 0 duplicate paths, 0 symlinks, 0 hardlinks, 0 special files; exactly one SHA256SUMS with 20 payload rows, 20/20 PASS by read-only re-hash of every extracted payload member, zero missing, zero unlisted. All five canonical archive copies (`canonical/`) are byte-identical to the corresponding live Git blobs at the base (design amendment `08f87f03…`, CURRENT `f7ff6c4a…`, BACKLOG `5e7b226a…`, OLA implementation CR readback `d01fd73d…`, OLA implementation `072dbbcc…`) — verified by `git hash-object` equality this session.
+
+## 3. Control Room disposition
+
+**ACCEPTED_AT_CONTROL_ROOM_DESIGN_READBACK_STRENGTH.** The amendment explicitly and exactly defines the sole fail-closed predecessor-B `REPORT_INVALID` snapshot-identity verifier delta (`6a1f079f68932f4249b17996f61b4624dc5d415c56fa0ed08cd5073b2f659387` / 202 / 0600 at the pinned staging pathname, identity-only, single fail-closed conjunction, recorded into historical-immutable evidence), holds all other driver control flow, supersedes the contradictory RAW/LABEL-only acceptance classification with the three-category classification, and preserves the non-retroactivity of the existing nonconforming candidate. The original Control Room implementation-instruction contradiction (predecessor REPORT_INVALID rebind mandated while PROPOSED_BEHAVIOR_CHANGE=0) is thereby explicitly resolved at design strength.
+
+## 4. OLA-001 resulting state
+
+**`AUCDEV023-CR-S1-RB001-L1-RB003-OLA-001` = CLOSED_AT_CONTROL_ROOM_DESIGN_AMENDMENT_READBACK_STRENGTH.** The authorized future implementation classification is `RAW_AST_UNCHANGED` / `LABEL_OR_EVIDENCE_NAME_ONLY` / `AUTHORIZED_OLA001_PREDECESSOR_REPORT_STATE_VERIFIER_DELTA`, the third category allowed ONLY in `phase0_operator_host_check`, maximum cardinality 1 function, limited exactly to the predecessor-B REPORT_INVALID snapshot verifier. Closing OLA-001 at design-amendment readback strength does NOT admit the existing candidate and does NOT establish launcher implementation completion. Tracked separately: **`RB003_OPERATOR_LAUNCHER_CANDIDATE = NOT_ADMITTED_FOR_PRELAUNCH / REIMPLEMENTATION_REQUIRED`.**
+
+## 5. Old and amended verifier contract
+
+- **Historical old contract** (baseline driver `fd977a9d6c6b819d1d3af055fb3073ae2a01a00e5f2c665697056914d530b784`, lines 1364–1375): Auditor-B predecessor report artifacts MUST remain ABSENT (`HISTORICAL_PREDECESSOR_B_REPORT_MUST_REMAIN_ABSENT`).
+- **Current mechanically true predecessor** `evt-60636835d5fd6f37`: Auditor-B terminal `REPORT_INVALID / TERMINAL` (B accounting `4e26b9af…`/5611, states PREPARED→GATES_PASSED→CONSUMED_PRE_EXEC→EXEC_ATTEMPTED→REPORT_INVALID→TERMINAL; custody-out empty; attempt root contains the accounting file plus exactly one sealed staging snapshot), exact sealed identity SHA-256 `6a1f079f68932f4249b17996f61b4624dc5d415c56fa0ed08cd5073b2f659387` / 202 / 0600 — re-verified identity-only this session; substance remains SEALED/UNREAD.
+- **Amended future verifier contract**: the exact report-suffixed path census under the predecessor B attempt root must equal EXACTLY the pinned staging path; that path must be a regular file; exact SHA/size/mode must match; any absence, additional artifact, path mismatch, non-regular file, hash/size/mode mismatch fails closed (`DriverStop`); substance remains SEALED/UNREAD except bytes mechanically hashed for identity; the exact identity is recorded in historical-immutable evidence.
+
+## 6. Exact permitted semantic delta
+
+Authorized for a FUTURE separately authorized reimplementation ONLY: **`AUTHORIZED_OLA001_PREDECESSOR_REPORT_STATE_VERIFIER_DELTA`**, permitted surface `phase0_operator_host_check` only. The equivalent minimum implementation may include: the pinned B snapshot pathname; a B report identity object; `os.path.isfile`; `os.lstat`; `sha256_file`; size/mode extraction; ONE fail-closed exact-identity refusal conjunction; exact SHA/size/mode constants; historical-immutable identity evidence. The implementation need not use the same variable names; semantic equivalence to the accepted amendment is mandatory.
+
+## 7. Forbidden change boundary
+
+No other semantic/control-flow changes are authorized. Held unchanged: repository admission; source-trust anchor; governed-path policy; package verification; `EXPECT_NEW` semantics; the accepted `EXPECT_OLD` identity rebind; deployment classification; deployment ordering; `ALREADY_NEW` refusal; the deployment-inside-single-human-wrapper-invocation invariant; deployed re-verification; attempt preparation; A-before-B ordering; the B-after-conforming-A gate; AccountingStore; credential resolution/custody ordering; runtime-gate ownership; boundary execution; report custody; structural validator; conformance evaluation; engagement accounting; barrier logic; retry/resume/fallback refusal; handoff generation; `run_pipeline`; `main`. No new success path, no retry, no bypass, no fail-closed gate downgrade. Any future structural difference outside §6 ⇒ STOP = `UNAUTHORIZED_DRIVER_BEHAVIOR_CHANGE`.
+
+## 8. Existing candidate status (NOT retroactively admitted)
+
+- Driver `/home/isa/audit-council-dev/aucdev023-firstpass-rb001-l1-rb003-4a51f4b9.py` — SHA-256 `15198c024123f2471e85f8114ed783ee183a808c219b3f89b59465a1b9711b25` / 165489 B / 3335 lines / mode 0600 (re-hashed EXACT read-only this session).
+- Wrapper `/home/isa/audit-council-dev/run-aucdev023-firstpass-rb001-l1-rb003-4a51f4b9.sh` — SHA-256 `1366785b957c29c9e8b861ddaba0c6aab30d1c1f2297152bb9acfe2585af5c96` / 3408 B / 82 lines / mode 0600.
+
+Status remains **NON-EXECUTABLE / NOT_ADMITTED_FOR_PRELAUNCH / ORIGINAL_IMPLEMENTATION_AUTHORITY_NONCONFORMING**. These artifacts were NOT retroactively admitted, chmod'd, executed, overwritten or mutated by this publication. A future implementation must produce a separately evidenced conforming candidate under the amended authority.
+
+## 9. Held fresh package state (unchanged)
+
+Admitted fresh event `evt-4a51f4b9413a1476`. Auditor-A: binding `f2dada28ecab4ea850a8f4e820047d2493d9751e2bec357bc714bfad77ede755`, canonical digest `168d6678d401439fd262f785114acf155681df447b90162c32efe4bc47b9b3be`, MANIFEST `f0898c99ef43b097c70ccaec458e107ef1091f0fa66fedd4f67bcce55fbc97da`, package `206cd496fec835f11b8150fdcaaa9e7e20222a15ea9cfe7fc1a9765b151cbbfc` (191 rows / 236321909 B). Auditor-B: binding `121f359dd7ab8dfaf0ffcf0f1bcd3365d27dd3a10c8c2adfc214ed69cc693325`, canonical digest `35169ee5724d886ea3c6ef1e559cda87f0812f91e5d153de2d7b630fab3b0663`, MANIFEST `ddfcc31fbb67c8db51e2a5a4154d65ab17343da31bfe94b7771e51f4b78b436c`, package `9a1809559b75d2d98ae22456d87c51e535c81adc649be2ecfd52d5224ee6f4fd` (194 rows / 343453864 B). These remain accepted at package-preparation readback strength (verified through the exact live EBS at the amendment publication and carried in the reviewed handoff evidence). `PREP-001` remains CLOSED. EXEC-RB-004 single-writer semantics remain held. The fresh A/B attempt roots remain ABSENT from the real launcher root (re-verified this session).
+
+## 10. Accepted static evidence (recorded)
+
+- **Historical baseline**: B predecessor report absence invariant (excerpt `fd977a9d…` lines 1364–1375).
+- **Current predecessor**: B accounting `REPORT_INVALID → TERMINAL`; custody-out empty; attempt root contains the accounting plus exactly one sealed staging snapshot (`6a1f079f…`/202/0600).
+- **Candidate/amendment structural evidence** (static `ast.parse` only; neither file executed): 52 top-level functions; `RAW_AST_UNCHANGED` 50; `LABEL_OR_EVIDENCE_NAME_ONLY` 1 (`build_handoff`); authorized future structural-delta surface 1 (`phase0_operator_host_check`). Observed structural delta: +1 If, +1 BoolOp, +5 Compare; Pass/Continue/Break deltas 0/0/0; loops unchanged; exception handlers unchanged; raises unchanged; returns unchanged. No new retry or success bypass observed. The current candidate is evidence of the proposed shape ONLY — NOT an admitted implementation.
+
+## 11. Residual / counting precision (informational, non-blocking)
+
+**`OLA001_MODULE_DIFF_COUNTING_METHODOLOGY`** — EVIDENCE-REPORTING / COUNTING METHODOLOGY / INFORMATIONAL / NON-BLOCKING. The amendment evidence enumerates 21 changed module constants + 3 newly introduced B-report pins + 0 removed; the prior implementation record summarized the same effective mutation set using a different grouped-count presentation. No differing constant identity was found. Recorded as informational only.
+
+## 12. Runtime / authority state (zero-state preserved)
+
+Reserved future authority `AUCDEV-023-S1-RB001-L1-RB003-FIRSTPASS-EXEC-20260925-01` = RESERVED_IDENTITY_PROPOSED_ONLY / NOT_GRANTED / NOT_CONSUMED / NOT_EXECUTABLE. chmod NONE; prelaunch NONE; deployment NONE; runtime attempts NONE; credential read NONE; dynamic real gates NONE; boundary execution NONE; Auditor-A/B NONE; provider/model ZERO; qualification NONE; installation NONE. Historical RB002 execution authority `AUCDEV-023-S1-RB001-L1-RB002-FIRSTPASS-EXEC-20260924-01` remains CONSUMED / TERMINAL / CLOSED / NO_RERUN (2/2 engagements USED). Held findings preserved verbatim: EXEC-RB-001 OPEN/ROOT_CAUSE_UNRESOLVED; EXEC-RB-002 CLOSED_AT_CONTROL_ROOM_MECHANICAL_READBACK_STRENGTH; EXEC-RB-003 ROOT_CAUSE_ESTABLISHED_AT_ZERO_PROVIDER_MECHANICAL_STRENGTH; EXEC-RB-004 CLOSED_AT_CONTROL_ROOM_IMPLEMENTATION_READBACK_STRENGTH; PREP-001 CLOSED_AT_CONTROL_ROOM_PACKAGE_PREPARATION_READBACK_STRENGTH; audit completeness INCOMPLETE; qualification readiness BLOCKED_BY_MISSING_MANDATORY_AUDITOR_B_CONFORMING_FIRST_PASS; AUCDEV-023 remains P1 / READY / NOT DONE with NO queue-count transition (READY 9 / OPEN 7 / BLOCKED 3 = 19 open; P0 2 / P1 7 / P2 11).
+
+## 13. Publication
+
+Exactly three changed tracked paths over base `331eaae0420a0435eb32bfc6376c77b92e914978`: NEW canonical Control Room readback (this file) + `AUCDEV-CURRENT-STATE.md` (current-facing fields rotation lines 3/11/23–25 + one dated record appended) + `AUCDEV-BACKLOG.md` (one dated record appended with blank separator; prior content byte-identical prefix). Exactly ONE bounded docs-only fast-forward publication commit whose sole parent is `331eaae0…`, with live master re-resolved EXACT immediately before staging (no auto-rebase; STOP on drift). NOT modified: the design amendment, the current candidate driver/wrapper, the OLA implementation/readback records, packages, deployed event, attempts, protected trees, `AUCDEV-ARCHITECTURE-SUMMARY.md`, `AUCDEV-QUALIFICATION-HISTORY.md`. The generated-LAST reviewer handoff is produced after this push and the post-push readback with nothing included mutated afterward.
+
+## 14. Next action — EXACTLY ONE
+
+CONTROL ROOM PREPARATION OF A SEPARATELY AUTHORIZED RB003 OPERATOR-LAUNCHER REIMPLEMENTATION UNDER THE ACCEPTED OLA-001 AMENDMENT, PRODUCING A NEW CONFORMING 0600 DRIVER/WRAPPER CANDIDATE WITH ONLY THE AUTHORIZED PREDECESSOR REPORT_INVALID VERIFIER DELTA AND THE ALREADY-ACCEPTED IDENTITY REBINDS; NO PRELAUNCH TRANSITION DESIGN, CHMOD-TO-0700 ACTIVATION, DEPLOYMENT, RUNTIME ATTEMPT CREATION, CREDENTIAL READ, EXECUTION-AUTHORITY GRANT, AUDITOR/PROVIDER EXECUTION, QUALIFICATION, OR INSTALLATION.
