@@ -44,7 +44,7 @@ import time
 import pytest
 
 from ebs.accounting import AccountingStore, inspect_accounting_record
-from ebs.binding import parse_binding
+from ebs.binding import FROZEN_TARGET, parse_binding
 from ebs.custody import CustodyError
 from ebs.launch import (AttemptResult, LaunchError, Supervisor,
                         open_output_validator)
@@ -57,7 +57,13 @@ from conftest import (SYNTH_CRED, binding_for, clear_nr_tracks,
                       write_val_state)
 
 ATTEMPT = "evt-0011223344556677-A-01"
-CLEAN_REPORT = b'{"synthetic": "inert first-pass double"}\n'
+# PCH6-CR-BSD-001: the synthetic/inert first-pass double stays synthetic
+# but is target-BOUND to the authoritative frozen constant (single
+# literal source) so the unconditional acceptance-boundary semantic
+# check can pass on the positive freeze path.
+CLEAN_REPORT = ('{"synthetic": "inert first-pass double", '
+                '"target_commit": "%s"}\n'
+                % FROZEN_TARGET["commit"]).encode()
 
 
 @pytest.fixture(autouse=True)

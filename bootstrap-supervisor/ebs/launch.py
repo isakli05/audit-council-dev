@@ -961,6 +961,38 @@ def _validate_validator_result(output: bytes, binding, digest: str,
             "digest/size differ from the exact screened snapshot")
 
 
+# PCH6-CR-BSD-001 bounded remediation: the EXACT semantic binding of an
+# accepted report to the frozen audit target.  The historical frozen
+# structural validator checks target_commit SHAPE ONLY, so this
+# Supervisor-side acceptance gate — executed AFTER that validator has
+# PASSED and its strict result envelope has been accepted and BEFORE
+# freeze_snapshot()/REPORT_FROZEN — strictly re-parses the SAME
+# immutable snapshot bytes with the shared strict parser and requires
+# report["target_commit"] == binding.target["commit"] EXACTLY.  Fixed
+# fail-closed tokens only: the submitted value, report prose, and any
+# parse detail are never echoed into durable accounting, and nothing is
+# repaired, coerced, or normalized.  The frozen validator bytes, its
+# argv, and its result schema are UNCHANGED.
+REPORT_TARGET_COMMIT_MISMATCH = "REPORT_TARGET_COMMIT_MISMATCH"
+REPORT_TARGET_BINDING_UNPARSEABLE = "REPORT_TARGET_BINDING_UNPARSEABLE"
+
+
+def _validate_report_target_binding(snapshot: bytes, binding) -> None:
+    """(PCH6-CR-BSD-001) Exact report-to-frozen-target semantic binding
+    on the SAME immutable snapshot the frozen structural validator just
+    accepted.  Any unexpected strict-parse/object condition — impossible
+    after a validator PASS on the same bytes, refused fail-closed anyway
+    with its own fixed non-substantive token rather than parse prose."""
+    try:
+        document = strict_loads(snapshot)
+    except Exception:
+        raise LaunchRefused(REPORT_TARGET_BINDING_UNPARSEABLE) from None
+    if not isinstance(document, dict):
+        raise LaunchRefused(REPORT_TARGET_BINDING_UNPARSEABLE)
+    if document.get("target_commit") != binding.target["commit"]:
+        raise LaunchRefused(REPORT_TARGET_COMMIT_MISMATCH)
+
+
 def _child_setup(launcher_fd: int, metadata_w: int, fail_w: int,
                  devnull: int, custody_fd: int, auditor_fd: int,
                  invocation_fd: int, argv, env: dict) -> None:
@@ -1607,6 +1639,15 @@ class Supervisor:
                 else:
                     try:
                         self._run_validator(snapshot)
+                        # (PCH6-CR-BSD-001) exact semantic target binding
+                        # AFTER the frozen structural validator PASS/
+                        # envelope acceptance, BEFORE freeze_snapshot():
+                        # the SAME immutable snapshot, so a valid-shape
+                        # wrong target settles through the identical
+                        # REPORT_INVALID path below (mismatch -> fixed
+                        # token, hash/size only, no freeze, no retry).
+                        _validate_report_target_binding(snapshot,
+                                                        self._binding)
                     except (LaunchError, LaunchRefused) as exc:
                         # (EXEC03-004) durably pin the EXACT immutable
                         # snapshot identity that was supplied to the

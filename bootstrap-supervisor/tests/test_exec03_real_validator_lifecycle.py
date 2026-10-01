@@ -42,9 +42,10 @@ import sys
 import pytest
 
 from ebs.accounting import AccountingStore, inspect_accounting_record
-from ebs.binding import parse_binding
+from ebs.binding import FROZEN_TARGET, parse_binding
 from ebs.launch import (LaunchError, LaunchRefused, Supervisor,
                         _run_runtime_gate, _sanitize_structural_diagnostic,
+                        _validate_report_target_binding,
                         VALIDATOR_STDERR_MAX)
 from ebs.statemachine import TERMINAL
 
@@ -59,7 +60,13 @@ from real_validator_materialization import (REAL_VALIDATOR_IDENTITY,
 EVENT = "evt-0000e03c0de0aa55"
 ROLE = "AUDITOR_A"
 ATTEMPT = EVENT + "-A-01"
-TARGET_COMMIT = "0123456789abcdef0123456789abcdef01234567"
+# PCH6-CR-BSD-001: the positive fixture is target-BOUND to the
+# authoritative frozen constant (single literal source, no second
+# frozen-target literal); the module's historical synthetic literal is
+# exactly 40 lowercase hex and therefore the deterministic WRONG-target
+# regression value below.
+TARGET_COMMIT = FROZEN_TARGET["commit"]
+WRONG_TARGET_COMMIT = "0123456789abcdef0123456789abcdef01234567"
 PROSE_MARKERS = ["SUMMARY-MARKER-9d1f6a2b", "NOTE-MARKER-4c7e81dd",
                  "METHODOLOGY-MARKER-2b9a40c1"]
 
@@ -351,6 +358,9 @@ NEGATIVES = [
      lambda r: r.update({"summary": "   "}), "SUMMARY_EMPTY", True),
     ("summary_not_a_string",
      lambda r: r.update({"summary": 42}), "SUMMARY_NOT_A_STRING", True),
+    ("methodology_not_a_string",
+     lambda r: r.update({"methodology": 42}), "METHODOLOGY_NOT_A_STRING",
+     True),
     ("findings_not_a_list",
      lambda r: r.update({"findings": {"id": "x"}}), "FINDINGS_NOT_A_LIST",
      True),
@@ -459,6 +469,112 @@ def test_exec03_v7_non_utf8_generic_refusal(tmp_path):
     assert "structural_error=" not in reason
     assert result.report_sha256 == hashlib.sha256(payload).hexdigest()
     assert_no_prose(reason)
+
+
+# ====== PCH6-B bounded structural remediation regressions ===============
+# PCH6-CR-BSD-001 (exact report target semantic binding) and PCH6-B-SD-002
+# (methodology type regression): both through the EXACT EBS lifecycle with
+# the REAL frozen validator materialization.
+
+class _TargetStandIn:
+    """Minimal binding stand-in for the unit pin: target dict only."""
+    target = {"commit": FROZEN_TARGET["commit"]}
+
+
+def test_exec03_tgt_semantic_check_strict_parser_unit():
+    """TGT-13 unit pin: the Supervisor-side semantic target-binding check
+    consumes the shared STRICT parser discipline (duplicate keys and
+    non-object documents refused, never loosely accepted) and refuses
+    with fixed non-substantive tokens only — nothing parsed is echoed."""
+    good = json.dumps(
+        {"target_commit": FROZEN_TARGET["commit"]}).encode()
+    _validate_report_target_binding(good, _TargetStandIn)   # exact match
+    duplicate = b'{"target_commit": "a", "target_commit": "a"}'
+    with pytest.raises(LaunchRefused,
+                       match="REPORT_TARGET_BINDING_UNPARSEABLE"):
+        _validate_report_target_binding(duplicate, _TargetStandIn)
+    not_object = b'[{"target_commit": "a"}]'
+    with pytest.raises(LaunchRefused,
+                       match="REPORT_TARGET_BINDING_UNPARSEABLE"):
+        _validate_report_target_binding(not_object, _TargetStandIn)
+    wrong = json.dumps({"target_commit": WRONG_TARGET_COMMIT}).encode()
+    with pytest.raises(LaunchRefused,
+                       match="REPORT_TARGET_COMMIT_MISMATCH"):
+        _validate_report_target_binding(wrong, _TargetStandIn)
+    missing = b'{"something": "else"}'
+    with pytest.raises(LaunchRefused,
+                       match="REPORT_TARGET_COMMIT_MISMATCH"):
+        _validate_report_target_binding(missing, _TargetStandIn)
+
+
+def test_exec03_tgt_wrong_target_report_invalid_mismatch_token(tmp_path):
+    """PCH6-CR-BSD-001: a structurally valid synthetic report whose
+    target_commit is a DIFFERENT syntactically valid 40-lowercase-hex
+    value passes the REAL frozen structural validator (shape-only) and
+    is then refused by the Supervisor-side exact semantic binding:
+    REPORT_INVALID, TERMINAL, never REPORT_FROZEN, the fixed
+    REPORT_TARGET_COMMIT_MISMATCH token in the durable reason (never
+    the submitted wrong value), the exact immutable snapshot SHA-256/
+    size recorded, no output artifact, no report prose leak, and no
+    same-attempt retry."""
+    assert WRONG_TARGET_COMMIT != FROZEN_TARGET["commit"]
+    assert len(WRONG_TARGET_COMMIT) == 40
+    assert all(char in "0123456789abcdef" for char in WRONG_TARGET_COMMIT)
+    sup, launcher, auditor, stage, out_root, cust_dir = \
+        build_real(tmp_path)
+    report = synth_report(covered=True)
+    report["target_commit"] = WRONG_TARGET_COMMIT
+    payload = render(report)
+    result = run_planted(sup, launcher, auditor, stage, out_root, payload)
+    assert result.report_state == "REPORT_INVALID"
+    assert sup.state == TERMINAL
+    record = invalid_record(view_of(cust_dir, sup))
+    reason = record["terminal_reason"]
+    assert "REPORT_TARGET_COMMIT_MISMATCH" in reason
+    assert WRONG_TARGET_COMMIT not in reason     # value never persisted
+    expect_sha = hashlib.sha256(payload).hexdigest()
+    assert result.report_sha256 == expect_sha
+    assert result.report_size == len(payload)
+    assert record["report_sha256"] == expect_sha
+    assert record["report_size"] == len(payload)
+    assert not any(out_root.iterdir())           # nothing frozen
+    assert_no_prose(reason, repr(result),
+                    accounting_raw_bytes(cust_dir, sup).decode(
+                        errors="replace"))
+    with pytest.raises(LaunchError, match="RUN_ATTEMPT_REFUSED"):
+        run_planted(sup, launcher, auditor, stage, out_root, payload)
+
+
+def test_exec03_meth_nonstring_methodology_full_lifecycle(tmp_path):
+    """PCH6-B-SD-002: a clearly non-string methodology (integer 42) is
+    refused by the REAL frozen validator through the exact EBS lifecycle
+    with the safe structural diagnostic METHODOLOGY_NOT_A_STRING:
+    REPORT_INVALID, TERMINAL, never REPORT_FROZEN, no output artifact,
+    the exact invalid snapshot SHA-256/size recorded, no report prose
+    leak into any durable/mechanical surface, and no same-attempt
+    retry."""
+    sup, launcher, auditor, stage, out_root, cust_dir = \
+        build_real(tmp_path)
+    report = synth_report(covered=True)
+    report["methodology"] = 42
+    payload = render(report)
+    result = run_planted(sup, launcher, auditor, stage, out_root, payload)
+    assert result.report_state == "REPORT_INVALID"
+    assert sup.state == TERMINAL
+    record = invalid_record(view_of(cust_dir, sup))
+    reason = record["terminal_reason"]
+    assert "structural_error=METHODOLOGY_NOT_A_STRING" in reason
+    expect_sha = hashlib.sha256(payload).hexdigest()
+    assert result.report_sha256 == expect_sha
+    assert result.report_size == len(payload)
+    assert record["report_sha256"] == expect_sha
+    assert record["report_size"] == len(payload)
+    assert not any(out_root.iterdir())           # nothing frozen
+    assert_no_prose(reason, repr(result),
+                    accounting_raw_bytes(cust_dir, sup).decode(
+                        errors="replace"))
+    with pytest.raises(LaunchError, match="RUN_ATTEMPT_REFUSED"):
+        run_planted(sup, launcher, auditor, stage, out_root, payload)
 
 
 # ================= U*: diagnostic grammar unit pins ====================

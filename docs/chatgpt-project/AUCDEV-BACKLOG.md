@@ -2344,6 +2344,68 @@ append-only. Canonical report:
   NEXT (grants nothing): independent Control Room verification of this
   scope-amendment publication verification/correction record before
   the expanded ten-path implementation authority is released.
+- PCH6-B bounded structural remediation implementation status (2026-10-01;
+  IMPLEMENTED_AS_CANDIDATE over authorized exact base
+  `068f5e29904f446bf832138fd64c8833b9037cb7` under the expanded ten-path
+  implementation authority
+  `AUCDEV-023-PCH6-B-STRUCTURAL-REMEDIATION-IMPLEMENTATION-20261001-02`
+  released by the Control Room correction readback): exactly TEN tracked
+  paths changed with NO eleventh — M bootstrap-supervisor/ebs/launch.py,
+  M bootstrap-supervisor/tests/test_exec03_real_validator_lifecycle.py,
+  M bootstrap-supervisor/README.md, NEW canonical implementation record
+  docs/chatgpt-project/AUCDEV-023-PCH6-B-STRUCTURAL-REMEDIATION-IMPLEMENTATION.md,
+  M docs/chatgpt-project/AUCDEV-CURRENT-STATE.md, M this file, M
+  bootstrap-supervisor/MANIFEST.json, M
+  bootstrap-supervisor/tests/test_final_execution_lifecycle.py, M
+  bootstrap-supervisor/tests/test_final_launch_seam.py, M
+  bootstrap-supervisor/tests/test_static.py; PCH6-CR-BSD-001 implemented
+  as the smallest fail-closed Supervisor-side EXACT semantic
+  report-target binding (strict_loads on the SAME immutable snapshot
+  AFTER the historical frozen structural validator PASSes and BEFORE
+  freeze_snapshot; fixed REPORT_TARGET_COMMIT_MISMATCH /
+  REPORT_TARGET_BINDING_UNPARSEABLE tokens; never the submitted value;
+  existing _report_and_terminalize settlement: REPORT_INVALID /
+  TERMINAL / no freeze / no retry / hash+size only; frozen validator
+  bytes/argv/result-schema and FROZEN_TARGET unchanged); PCH6-B-SD-002
+  implemented as the deterministic zero-provider methodology type
+  regression (REAL frozen validator materialization through the CURRENT
+  EBS lifecycle; METHODOLOGY_NOT_A_STRING; REPORT_INVALID; TERMINAL;
+  exact snapshot hash/size; no artifact; no prose leak; no retry); both
+  additional positive lifecycle fixtures target-bound from
+  FROZEN_TARGET; production EBS LOC 3057 <= 3060 under the NEW
+  PCH6_B_STRUCTURAL_REMEDIATION_CANDIDATE_LOC_BOUND with the historical
+  3016 ceiling preserved; MANIFEST regenerated from the COMPLETE FINAL
+  candidate bytes with ALL semantic metadata preserved exactly;
+  ZERO-NETWORK test execution (local python3 3.14.7 + pytest 9.1.1 from
+  pre-existing local bytes only; PIP_NO_INDEX=1 / UV_OFFLINE=1; ZERO
+  package-manager invocation, ZERO fetch, ZERO install): exec03 focused
+  35 passed / lifecycle surfaces 62 passed / launch+binding 156 passed
+  / static 13 passed / FULL deterministic suite 524 passed (520
+  pre-existing + 4 new; zero failures at first observation); held
+  unchanged verified byte-identical: binding.py,
+  real_validator_materialization.py, frozen validator 6aff0e7e… / 7228
+  B, qualification-harness/**, skill/**, historical PCH6
+  records/packages/reports/prompts, prior scope-amendment and
+  scope-amendment-verification records, AUCDEV-ARCHITECTURE-SUMMARY.md,
+  AUCDEV-024 source/policy; PCH6-B-SD-001 ZERO implementation
+  (RETAINED / OPEN / untouched); honest session iterations recorded
+  without erasure (T-1 instrument-side MANIFEST-verification reporting
+  TypeError after the write, corrected re-derivation clean; T-2
+  rotation-script opcode-expectation defect, write correct and
+  changed-line assertion passed); PCH6-B-SD-002 and PCH6-CR-BSD-001
+  IMPLEMENTED AS CANDIDATE / AWAITING CONTROL ROOM READBACK / NOT
+  CLOSED / NOT established as cause of the historical PCH6 failure;
+  ROOT_CAUSE_NOT_ESTABLISHED unchanged with no causal conversion and NO
+  finding closed; SCOPEPUB-001/002 remain untouched open historical
+  publication-evidence observations; counts UNCHANGED READY 10 / OPEN 7
+  / BLOCKED 3 = 20 open; P0 2 / P1 8 / P2 11 = 21 queue rows;
+  IN_PROGRESS 0; 3 DEFERRED / 8 ACCEPTED_RESIDUAL / 5 DONE; no
+  queue-row status transition; no backlog item marked DONE; the exact
+  result candidate SHA / staged write-tree are recorded in the commit
+  message / FINAL-RETURN / generated-LAST handoff (a commit cannot
+  contain its own final hash); NEXT (grants nothing): FRESH CONTROL
+  ROOM READBACK of this implementation candidate and its generated-LAST
+  handoff at the exact result SHA.
 
 ### AUCDEV-024 — Auditor Model Selection Policy & Model Generation Migration
 
@@ -3142,3 +3204,5 @@ means `AUDIT-COUNCIL-V2-KNOWN-LIMITATIONS.md`. Links to deeper authority are in
 2026-10-01 (AUCDEV-023 PCH6-B STRUCTURAL REMEDIATION IMPLEMENTATION SCOPE-AMENDMENT — record-only publication of the independently reached Control Room scope-amendment decision over the stopped implementation attempt, by authority `AUCDEV-023-PCH6-B-STRUCTURAL-REMEDIATION-IMPLEMENTATION-SCOPE-AMENDMENT-PUBLICATION-20261001-01` over exact base `697b8999e7ade3479d20e9676c464a2f54cb8606` (this session is the RECORD-ONLY CONTROL ROOM PUBLISHER, NOT the Control Room decision-maker, NOT a remediation implementer, NOT Auditor-A/B, NOT an /audit-council executor, NOT a provider/model/frontier executor, NOT a qualification or installation authority; ZERO provider/model/frontier calls, ZERO auditor execution, ZERO wrapper/driver invocation, ZERO test execution, ZERO source/MANIFEST/README modification, ZERO package-manager/PyPI/npm fetch, ZERO credential-content access, ZERO sealed-substance access; the input stop-evidence handoff was handled DATA-ONLY with zero members executed or extracted for execution): STOP_ACCEPTED for the prior implementation session (scope insufficiency mechanically established; NO candidate SHA; NO commit; NO push; instrumentation-only evidence) with live source remaining the exact pre-implementation base; four additional tracked paths approved with constraints (MANIFEST.json final-bytes regeneration from the COMPLETE FINAL candidate bytes; target-bound positive freeze fixtures from ebs.binding.FROZEN_TARGET; the historical 3016 LOC baseline preserved with a NEW 3060 PCH6-B candidate ceiling) expanding the NEXT implementation authority to exactly ten paths with no eleventh path; network-fetch protocol deviation recorded with MUST_NOT_RECUR and the next implementation required to be ZERO-network with only already-installed local test dependencies; instrumentation evidence recorded at implementation-instrumentation strength only (NOT candidate truth; NOT finding closure; NOT audit; NOT qualification; NOT installation); held governance preserved (PCH6-B-SD-001 RETAINED / OPEN; PCH6-B-SD-002 and PCH6-CR-BSD-001 SELECTED FOR BOUNDED REMEDIATION / NOT CLOSED; ROOT_CAUSE_NOT_ESTABLISHED unchanged; AUCDEV-023 and AUCDEV-024 both P1 / READY / NOT DONE; PCH6 authority CONSUMED / TERMINAL / CLOSED / NO_RERUN; MODEL_ENGAGEMENTS 2/2 USED; retry FALSE; reconciliation FALSE; CONFORMING_TWO_FIRSTPASS_SET INCOMPLETE; audit completeness INCOMPLETE; sealed substance UNREAD; installed Audit Council source `8ae33444f349ce73c1359b963722e2d16acba630` with independently-qualified predecessor provenance NOT ESTABLISHED; independent-auditor provenance / authority gate remains OPEN; qualification NONE; installation NONE; no /audit-council execution authority); counts UNCHANGED (READY 10 / OPEN 7 / BLOCKED 3 = 20 open; P0 2 / P1 8 / P2 11 = 21 queue rows; IN_PROGRESS 0; 3 DEFERRED / 8 ACCEPTED_RESIDUAL / 5 DONE; no backlog item marked DONE; no queue-row status transition); canonical record `docs/chatgpt-project/AUCDEV-023-PCH6-B-STRUCTURAL-REMEDIATION-IMPLEMENTATION-SCOPE-AMENDMENT.md`; NEXT ACTION EXACTLY ONE: INDEPENDENT CONTROL ROOM VERIFICATION OF THIS SCOPE-AMENDMENT PUBLICATION AND ITS GENERATED-LAST HANDOFF BEFORE THE EXPANDED TEN-PATH IMPLEMENTATION AUTHORITY IS RELEASED — grants nothing)
 
 2026-10-01 (AUCDEV-023 PCH6-B IMPLEMENTATION SCOPE-AMENDMENT PUBLICATION CONTROL ROOM VERIFICATION — PARTIALLY_ACCEPTED over exact publication `c8f96c1656b3768e0b9c0ef60f399e26ae91ed27` by record-only publication verification authority `AUCDEV-023-PCH6-B-STRUCTURAL-REMEDIATION-IMPLEMENTATION-SCOPE-AMENDMENT-PUBLICATION-CONTROL-ROOM-VERIFICATION-20261001-01` (this session is the RECORD-ONLY CONTROL ROOM VERIFICATION PUBLISHER of the independently reached Control Room verification decision — NOT the Control Room decision-maker, NOT a remediation implementer, NOT Auditor-A/B, NOT an /audit-council executor, NOT a provider/model/frontier executor, NOT a qualification authority, NOT an installation authority; ZERO provider/model/frontier calls, ZERO client inference calls, ZERO auditor execution, ZERO wrapper/driver invocation, ZERO test execution, ZERO source/test/MANIFEST/README modification, ZERO package-manager fetch, ZERO credential-content access, ZERO sealed-substance access; the input handoff archive was handled DATA-ONLY with zero members executed or extracted for execution): live Git geometry, handoff archive integrity, canonical blob equality, protected-tree equality and ten-path scope semantics ACCEPTED; SCOPEPUB-001 (canonical honest-iteration record incomplete: committed canonical section 11 contains ONLY T-1/T-2 while the commit message records T-1..T-4 and the handoff FINAL-RETURN claims all four are in section 11; recorded append-only; the published scope-amendment record NOT edited; no intent speculation) and SCOPEPUB-002 (handoff validation-output completeness limitation: FileNotFoundError CURRENT-base.md under the precommit-gate and staged-rotation-re-assertion sections with corrected rerun outputs absent; failed output NOT converted to PASS; the Git geometry/blob/protected-tree facts and the substantive scope decision NOT invalidated) recorded OPEN as publication-evidence findings; T-5/T-6 OPERATOR_REPORTED post-publication packaging iterations with final archive integrity independently verified; EXPANDED TEN-PATH IMPLEMENTATION AUTHORITY HELD (no candidate SHA exists; no implementation has occurred; PCH6-B-SD-001 retained/open; PCH6-B-SD-002 and PCH6-CR-BSD-001 selected/not closed; ROOT_CAUSE_NOT_ESTABLISHED unchanged; no finding closed); counts UNCHANGED (READY 10 / OPEN 7 / BLOCKED 3 = 20 open; P0 2 / P1 8 / P2 11 = 21 queue rows; IN_PROGRESS 0; 3 DEFERRED / 8 ACCEPTED_RESIDUAL / 5 DONE; no backlog item marked DONE; no queue-row status transition); AUCDEV-023 and AUCDEV-024 both remain P1 / READY / NOT DONE with the independent-auditor provenance / authority gate OPEN; qualification NONE; installation NONE; canonical record `docs/chatgpt-project/AUCDEV-023-PCH6-B-STRUCTURAL-REMEDIATION-IMPLEMENTATION-SCOPE-AMENDMENT-PUBLICATION-CONTROL-ROOM-VERIFICATION.md`; NEXT ACTION EXACTLY ONE: INDEPENDENT CONTROL ROOM VERIFICATION OF THIS SCOPE-AMENDMENT PUBLICATION VERIFICATION/CORRECTION RECORD BEFORE THE EXPANDED TEN-PATH IMPLEMENTATION AUTHORITY IS RELEASED — grants nothing)
+
+2026-10-01 (AUCDEV-023 PCH6-B BOUNDED STRUCTURAL REMEDIATION IMPLEMENTATION — IMPLEMENTED_AS_CANDIDATE over authorized exact base `068f5e29904f446bf832138fd64c8833b9037cb7` by implementation authority `AUCDEV-023-PCH6-B-STRUCTURAL-REMEDIATION-IMPLEMENTATION-20261001-02`: exactly TEN tracked paths (launch.py, test_exec03_real_validator_lifecycle.py, README.md, NEW implementation record, CURRENT-STATE, BACKLOG, MANIFEST.json, test_final_execution_lifecycle.py, test_final_launch_seam.py, test_static.py) with NO eleventh; PCH6-CR-BSD-001 = Supervisor-side exact semantic report-target binding after validator PASS before freeze on the SAME immutable snapshot (strict parser, fixed tokens, existing REPORT_INVALID settlement); PCH6-B-SD-002 = deterministic methodology_not_a_string regression through the REAL frozen validator materialization and CURRENT EBS lifecycle; production LOC 3057 <= 3060 (3016 preserved); MANIFEST final-byte regenerated with semantic metadata preserved EXACTLY; ZERO-NETWORK local tests 35/62/156/13 and FULL 524 passed; held files/trees verified unchanged; PCH6-B-SD-001 untouched; findings NOT closed by implementer; ROOT_CAUSE_NOT_ESTABLISHED unchanged; result candidate SHA / staged write-tree in the commit message / FINAL-RETURN / generated-LAST handoff awaiting the fresh Control Room readback canonical pin — grants nothing beyond the candidate)

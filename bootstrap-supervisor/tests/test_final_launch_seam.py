@@ -48,7 +48,7 @@ import os
 import pytest
 
 from ebs.accounting import AccountingStore, inspect_accounting_record
-from ebs.binding import parse_binding
+from ebs.binding import FROZEN_TARGET, parse_binding
 from ebs.custody import CustodyError, CredentialCustody
 from ebs.launch import (RUNTIME_GATES, LaunchError, LaunchRefused,
                         Supervisor)
@@ -321,8 +321,13 @@ def test_s1_004_clean_report_freezes_and_closes_custody(
         stage, cust_out):
     """Positive report path: clean report is structurally validated and
     frozen 0444 under operator custody INSIDE the single call; the
-    attempt (with its custody) terminalizes before the call returns."""
-    report = b'{"synthetic": "inert first-pass double"}\n'
+    attempt (with its custody) terminalizes before the call returns.
+    (PCH6-CR-BSD-001) the synthetic/inert double is target-BOUND to the
+    authoritative frozen constant so the unconditional Supervisor-side
+    semantic binding passes on the positive freeze path."""
+    report = ('{"synthetic": "inert first-pass double", '
+              '"target_commit": "%s"}\n'
+              % FROZEN_TARGET["commit"]).encode()
     stage.write_bytes(report)
     sup = build(cust_dir, binding_doc, event_package)
     result = run(sup, launcher, auditor_exe, stage, cust_out)

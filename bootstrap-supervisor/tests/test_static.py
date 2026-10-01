@@ -198,10 +198,27 @@ S1_009_POSTCONSUMPTION_TERMINALITY_CANDIDATE_LOC_BOUND = 2904
 # ACCEPTED; the prior baselines above are PRESERVED and NOT rewritten.
 EXEC03_STRUCTURAL_REMEDIATION_CANDIDATE_LOC_BOUND = 3016
 
+# PCH6-B bounded structural remediation (PCH6-B-SD-002 +
+# PCH6-CR-BSD-001): the Supervisor-side EXACT semantic binding of the
+# accepted report to the frozen target (strict re-parse of the SAME
+# immutable snapshot AFTER the frozen structural validator PASSes and
+# BEFORE freeze_snapshot; fixed fail-closed MISMATCH/UNPARSEABLE
+# tokens; no validator/argv/schema change) grows the authority boundary
+# beyond the 3016 EXEC-03 candidate ceiling.  The prior 3016 ceiling
+# above is PRESERVED and NOT rewritten (it remains the historical/
+# current prior ceiling with its comments intact); THIS PCH6-B
+# candidate ceiling is 3060; the stopped instrumentation implementation
+# demonstrated a +44 LOC shape (3016 -> 3060 ceiling fit), while THIS
+# implementation reports its ACTUAL final LOC/delta in
+# AUCDEV-023-PCH6-B-STRUCTURAL-REMEDIATION-IMPLEMENTATION.md.  The
+# ceiling below is CANDIDATE_ONLY / NOT independently audited / NOT
+# qualification.
+PCH6_B_STRUCTURAL_REMEDIATION_CANDIDATE_LOC_BOUND = 3060
+
 
 def test_production_loc_within_minimal_tcb_bound():
     total = sum(len(p.read_text().splitlines()) for p in PKG_FILES)
-    assert total <= EXEC03_STRUCTURAL_REMEDIATION_CANDIDATE_LOC_BOUND, \
+    assert total <= PCH6_B_STRUCTURAL_REMEDIATION_CANDIDATE_LOC_BOUND, \
         f"production source grew to {total} lines"
 
 

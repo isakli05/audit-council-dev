@@ -278,13 +278,26 @@ caller between the steps:
     exactly PASS — never inferred from the exit code) under the frozen
     `validator_timeout_seconds`; any FAIL/non-zero/malformed/mismatch/
     timeout is `REPORT_INVALID`;
-16. only on validator PASS freeze the EXACT screened+validated bytes
-    0444 (O_EXCL no-overwrite, fsync) through the PRE-OPENED held
-    operator-custody output fd (validated PREEXEC; the artifact name
-    derives ONLY from `binding.output_identity`), record
-    `REPORT_FROZEN` with the exact digest/size/mode, then `TERMINAL`,
-    close the custody and EVERY held fd, and return the
-    `AttemptResult` — outcome DATA only (CR-EBS-S1-007).
+16. after the validator PASS and its strict result-envelope acceptance,
+    the Supervisor itself strictly parses that SAME immutable snapshot
+    (the shared strict parser — duplicate keys/non-finite refused, no
+    weaker report parser) and requires the EXACT semantic binding
+    `report.target_commit == binding.target["commit"]`
+    (PCH6-CR-BSD-001): a structurally valid but different target is
+    `REPORT_INVALID` (terminal, no retry, fixed
+    `REPORT_TARGET_COMMIT_MISMATCH` token — the submitted value and
+    report prose are never persisted); the HISTORICAL FROZEN STRUCTURAL
+    VALIDATOR itself is UNCHANGED and still checks target shape only —
+    this semantic gate is a Supervisor-side acceptance boundary, not a
+    validator modification;
+17. only after BOTH the structural and the semantic checks pass can the
+    exact screened+validated bytes be frozen 0444 (O_EXCL no-overwrite,
+    fsync) through the PRE-OPENED held operator-custody output fd
+    (validated PREEXEC; the artifact name derives ONLY from
+    `binding.output_identity`), record `REPORT_FROZEN` with the exact
+    digest/size/mode, then `TERMINAL`, close the custody and EVERY held
+    fd, and return the `AttemptResult` — outcome DATA only
+    (CR-EBS-S1-007).
 
 `GATES_PASSED`, `CONSUMED_PRE_EXEC`, `EXEC_ATTEMPTED` and every
 `REPORT_*` outcome state are therefore mechanically unreachable as
