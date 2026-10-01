@@ -63,6 +63,10 @@
               "type": "string",
               "minLength": 1
             },
+            "effort": {
+              "type": "string",
+              "minLength": 1
+            },
             "role": {
               "type": "string",
               "minLength": 1
@@ -111,6 +115,114 @@
       "items": {
         "type": "string",
         "minLength": 1
+      }
+    },
+    "model_selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "modes",
+        "precedence",
+        "no_silent_fallback",
+        "audit_default",
+        "supported_models",
+        "supported_efforts",
+        "legacy"
+      ],
+      "properties": {
+        "modes": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "enum": ["audit-default", "inherit", "explicit"]
+          }
+        },
+        "precedence": {
+          "type": "string",
+          "minLength": 1
+        },
+        "no_silent_fallback": {
+          "const": true
+        },
+        "audit_default": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["opus", "codex"],
+          "properties": {
+            "opus": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["model", "effort"],
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "codex": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["model", "reasoning_effort"],
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "reasoning_effort": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        },
+        "supported_models": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          }
+        },
+        "supported_efforts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          }
+        },
+        "inherit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "claude_launch_contract": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resume_lock": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mismatch": {
+          "type": "string",
+          "minLength": 1
+        },
+        "legacy": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "artifact_semantics": {

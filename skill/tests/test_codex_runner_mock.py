@@ -79,6 +79,7 @@ if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)
 
 import codex_runner  # noqa: E402
+import model_selection  # noqa: E402
 import render_report  # noqa: E402
 
 
@@ -169,7 +170,9 @@ class Harness(unittest.TestCase):
                      "FAKE_CODEX_SLEEP": "SLEEP",
                      "FAKE_CODEX_USAGE_FIRST": "USAGE_FIRST",
                      "FAKE_CODEX_SESSION": "SESSION",
-                     "FAKE_CODEX_FINGERPRINT": "FINGERPRINT"}
+                     "FAKE_CODEX_FINGERPRINT": "FINGERPRINT",
+                     "FAKE_CODEX_EFFECTIVE_MODEL": "EFFECTIVE_MODEL",
+                     "FAKE_CODEX_EFFECTIVE_EFFORT": "EFFECTIVE_EFFORT"}
 
     def _write_fake_codex_control(self, env):
         lines = [f"{mapped}={env[key]}" for key, mapped
@@ -206,6 +209,22 @@ class Harness(unittest.TestCase):
         with open(os.path.join(self.run, "state.json")) as f:
             return json.load(f)
 
+    def write_state(self, state):
+        with open(os.path.join(self.run, "state.json"), "w") as f:
+            json.dump(state, f)
+
+    def freeze_codex_selection(self, model="gpt-6.1-sol", effort="high",
+                               mode="audit-default", source="audit-default"):
+        """Simulate a run whose codex selection was already frozen (any era:
+        legacy values are frozen exactly as historical runs had them)."""
+        state = self.state()
+        state.setdefault("model_selection", {})["codex"] = \
+            model_selection.freeze_record({
+                "auditor": "codex", "mode": mode, "source": source,
+                "requested_model": None, "requested_effort": None,
+                "model": model, "effort": effort})
+        self.write_state(state)
+
 
 # ---------------------------------------------------------------------------
 # happy path + telemetry (also scenario O argv checks)
@@ -221,8 +240,13 @@ class TestComplete(Harness):
         self.assertNotIn("--last", argv)
         for bad in ("--dangerously-bypass-approvals-and-sandbox", "danger-full-access"):
             self.assertNotIn(bad, argv)
-        self.assertIn('model_reasoning_effort="xhigh"',
-                      [a for a in argv if a.startswith("model_reasoning_effort")])
+        # AUCDEV-024: audit-default gpt-6.1-sol / high on the fresh argv
+        argv_exact = self.job_json(job_path).get("codex_argv") or argv
+        self.assertEqual(argv_exact[argv_exact.index("--model") + 1],
+                         "gpt-6.1-sol")
+        self.assertIn('model_reasoning_effort="high"',
+                      [a for a in argv_exact
+                       if a.startswith("model_reasoning_effort")])
 
         proc = self.wait(job_path)
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
@@ -266,7 +290,8 @@ class TestComplete(Harness):
         proc = self.cli("result", job_path)
         self.assertEqual(proc.returncode, 0)
         data = json.loads(proc.stdout)
-        self.assertEqual(data["model"], "gpt-5.6-sol")
+        # the fixture echoes the selected identity into the artifact
+        self.assertEqual(data["model"], "gpt-6.1-sol")
 
     def test_status_command(self):
         job_path = self.start()
@@ -361,6 +386,8 @@ class TestClassification(Harness):
 
 class TestResume(Harness):
     def test_m_explicit_session_resume(self):
+        # AUCDEV-024: resuming requires (and reuses) the run-frozen selection
+        self.freeze_codex_selection()
         job_path = self.start(phase="cross_examination", session="SESS-42")
         job = self.job_json(job_path)
         # v2: argv may be the bwrap-wrapped invocation; the exact codex
@@ -371,7 +398,9 @@ class TestResume(Harness):
         self.assertNotIn("--sandbox", argv)
         # O: resume uses -c sandbox_mode="read-only"
         self.assertIn('sandbox_mode="read-only"', argv)
-        self.assertIn('model_reasoning_effort="xhigh"', argv)
+        # AUCDEV-024: resume carries the run-frozen explicit model + effort
+        self.assertEqual(argv[argv.index("--model") + 1], "gpt-6.1-sol")
+        self.assertIn('model_reasoning_effort="high"', argv)
         self.assertNotIn("--dangerously-bypass-approvals-and-sandbox", argv)
         self.assertNotIn("danger-full-access", argv)
 
@@ -380,6 +409,8 @@ class TestResume(Harness):
                                ("cross_examination", "S1"),
                                ("adjudication", "S1")):
             self._free_stage(phase)
+            if session:
+                self.freeze_codex_selection()
             job_path = self.start(phase=phase, session=session)
             argv = self.job_json(job_path)["argv"]
             self.assertNotIn("--last", argv, "%s: %s" % (phase, argv))
@@ -390,6 +421,7 @@ class TestResume(Harness):
         state["codex"]["session_id"] = "STATE-SESS"
         with open(os.path.join(self.run, "state.json"), "w") as f:
             json.dump(state, f)
+        self.freeze_codex_selection()
         job_path = self.start(phase="cross_examination")
         argv = self.job_json(job_path)["argv"]
         self.assertEqual(argv[argv.index("resume") + 1], "STATE-SESS")
@@ -399,6 +431,175 @@ class TestResume(Harness):
         state["codex"]["stage_counts"][phase] = 0
         with open(os.path.join(self.run, "state.json"), "w") as f:
             json.dump(state, f)
+
+
+# ---------------------------------------------------------------------------
+# AUCDEV-024 model selection: freeze / resume-lock / no-fallback / mismatch
+# ---------------------------------------------------------------------------
+
+class TestModelSelection(Harness):
+    def test_fresh_start_freezes_audit_default_selection(self):
+        job_path = self.start()
+        frozen = self.state()["model_selection"]["codex"]
+        self.assertEqual(frozen["auditor"], "codex")
+        self.assertEqual(frozen["mode"], "audit-default")
+        self.assertEqual(frozen["source"], "audit-default")
+        self.assertEqual(frozen["model"], "gpt-6.1-sol")
+        self.assertEqual(frozen["effort"], "high")
+        self.assertIsNone(frozen["requested_model"])
+        self.assertIsNone(frozen["requested_effort"])
+        self.assertRegex(frozen["selection_digest"], "^[0-9a-f]{64}$")
+        # digest is mutation-detecting
+        self.assertEqual(model_selection.selection_digest(frozen),
+                         frozen["selection_digest"])
+        # job record carries the frozen identities + mode provenance
+        job = self.job_json(job_path)
+        self.assertEqual(job["model"], "gpt-6.1-sol")
+        self.assertEqual(job["reasoning_effort"], "high")
+        self.assertEqual(job["model_selection"]["mode"], "audit-default")
+
+    def test_explicit_legacy_pair_selected_and_frozen(self):
+        proc = self.cli("start", "--run", self.run, "--phase", "independent",
+                        "--codex-bin", FAKE_CODEX,
+                        "--model", "gpt-5.6-sol", "--effort", "xhigh")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        job = self.job_json(proc.stdout.strip())
+        argv = job.get("codex_argv") or job["argv"]
+        self.assertEqual(argv[argv.index("--model") + 1], "gpt-5.6-sol")
+        self.assertIn('model_reasoning_effort="xhigh"',
+                      [a for a in argv if a.startswith("model_reasoning_effort")])
+        frozen = self.state()["model_selection"]["codex"]
+        self.assertEqual(frozen["mode"], "explicit")
+        self.assertEqual(frozen["model"], "gpt-5.6-sol")
+        self.assertEqual(frozen["effort"], "xhigh")
+        self.assertEqual(frozen["requested_model"], "gpt-5.6-sol")
+        self.assertEqual(frozen["requested_effort"], "xhigh")
+        self.cli("cancel", proc.stdout.strip())
+
+    def test_unsupported_model_fails_closed_no_fallback(self):
+        proc = self.cli("start", "--run", self.run, "--phase", "independent",
+                        "--codex-bin", FAKE_CODEX, "--model", "gpt-4o",
+                        "--effort", "high")
+        self.assertEqual(proc.returncode, 3)
+        self.assertIn("MODEL_SELECTION:UNSUPPORTED_MODEL", proc.stderr)
+        self.assertIn("no fallback", proc.stderr)
+        # zero inference: no job record, no frozen selection
+        jobs_dir = os.path.join(self.run, "logs", "jobs")
+        self.assertTrue(not os.path.isdir(jobs_dir)
+                        or os.listdir(jobs_dir) == [])
+        self.assertNotIn("model_selection", self.state())
+
+    def test_symbolic_effort_fails_closed(self):
+        proc = self.cli("start", "--run", self.run, "--phase", "independent",
+                        "--codex-bin", FAKE_CODEX, "--model", "gpt-6.1-sol",
+                        "--effort", "auto")
+        self.assertEqual(proc.returncode, 3)
+        self.assertIn("MODEL_SELECTION:SYMBOLIC_EFFORT", proc.stderr)
+
+    def test_partial_explicit_fails_closed(self):
+        proc = self.cli("start", "--run", self.run, "--phase", "independent",
+                        "--codex-bin", FAKE_CODEX, "--model", "gpt-6.1-sol")
+        self.assertEqual(proc.returncode, 3)
+        self.assertIn("MODEL_SELECTION:EXPLICIT_PARTIAL", proc.stderr)
+
+    def test_resume_without_frozen_selection_fails_closed(self):
+        state = self.state()
+        state["codex"]["session_id"] = "OLD-SESS"  # an old resumable run
+        state["phase"] = "OPUS_CROSS_EXAM_COMPLETE"
+        self.write_state(state)
+        proc = self.start(phase="cross_examination", session="OLD-SESS",
+                          expect=3)
+        self.assertIn("RESUME_WITHOUT_FROZEN_SELECTION", proc.stderr)
+        jobs_dir = os.path.join(self.run, "logs", "jobs")
+        self.assertTrue(not os.path.isdir(jobs_dir)
+                        or os.listdir(jobs_dir) == [])
+
+    def test_resume_reuses_frozen_legacy_generation_exactly(self):
+        # a run frozen under the LEGACY generation must resume on it —
+        # never silently migrated to the new audit-default
+        self.freeze_codex_selection(model="gpt-5.6-sol", effort="xhigh")
+        job_path = self.start(phase="cross_examination", session="LEG-1")
+        job = self.job_json(job_path)
+        argv = job.get("codex_argv") or job["argv"]
+        self.assertEqual(argv[argv.index("--model") + 1], "gpt-5.6-sol")
+        self.assertIn('model_reasoning_effort="xhigh"',
+                      [a for a in argv if a.startswith("model_reasoning_effort")])
+        self.assertEqual(job["model"], "gpt-5.6-sol")
+        self.assertEqual(job["reasoning_effort"], "xhigh")
+        # frozen record untouched by the resume
+        frozen = self.state()["model_selection"]["codex"]
+        self.assertEqual((frozen["model"], frozen["effort"]),
+                         ("gpt-5.6-sol", "xhigh"))
+        self.cli("cancel", job_path)
+
+    def test_conflicting_cli_model_on_frozen_run_refused(self):
+        job_path = self.start()  # freezes gpt-6.1-sol/high
+        self.cli("cancel", job_path)
+        state = self.state()
+        state["codex"]["stage_counts"]["independent"] = 0
+        self.write_state(state)
+        proc = self.cli("start", "--run", self.run, "--phase", "independent",
+                        "--codex-bin", FAKE_CODEX,
+                        "--model", "gpt-5.6-sol", "--effort", "xhigh")
+        self.assertEqual(proc.returncode, 3)
+        self.assertIn("RUN_FROZEN_MODEL_CONFLICT", proc.stderr)
+
+    def test_tampered_frozen_selection_refused(self):
+        job_path = self.start()
+        self.cli("cancel", job_path)
+        state = self.state()
+        state["model_selection"]["codex"]["effort"] = "low"  # tamper
+        state["codex"]["stage_counts"]["independent"] = 0
+        self.write_state(state)
+        proc = self.cli("start", "--run", self.run, "--phase", "independent",
+                        "--codex-bin", FAKE_CODEX)
+        self.assertEqual(proc.returncode, 3)
+        self.assertIn("FROZEN_RECORD_TAMPERED", proc.stderr)
+
+    def test_effective_model_mismatch_fails_closed(self):
+        self.base_env["FAKE_CODEX_EFFECTIVE_MODEL"] = "gpt-5.6-sol"
+        job_path = self.start()
+        proc = self.wait(job_path)
+        self.assertEqual(proc.returncode, 8, proc.stdout + proc.stderr)
+        job = self.job_json(job_path)
+        self.assertEqual(job["status"], "MODEL_MISMATCH")
+        self.assertEqual(job["effective_model"], "gpt-5.6-sol")
+        self.assertEqual(job["model"], "gpt-6.1-sol")
+        self.assertIn("run-frozen", job["error"])
+        # invalidated attempt: the stage is NOT counted successful
+        self.assertEqual(self.state()["codex"]["stage_counts"]
+                         ["independent"], 0)
+
+    def test_effective_effort_mismatch_fails_closed(self):
+        self.base_env["FAKE_CODEX_EFFECTIVE_EFFORT"] = "medium"
+        job_path = self.start()
+        proc = self.wait(job_path)
+        self.assertEqual(proc.returncode, 8, proc.stdout + proc.stderr)
+        self.assertEqual(self.job_json(job_path)["status"], "MODEL_MISMATCH")
+
+    def test_effective_identity_match_completes(self):
+        self.base_env["FAKE_CODEX_EFFECTIVE_MODEL"] = "gpt-6.1-sol"
+        self.base_env["FAKE_CODEX_EFFECTIVE_EFFORT"] = "high"
+        job_path = self.start()
+        proc = self.wait(job_path)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        job = self.job_json(job_path)
+        self.assertEqual(job["status"], "COMPLETE")
+        self.assertEqual(job["effective_model"], "gpt-6.1-sol")
+        with open(os.path.join(self.run, "99-run-metrics.json")) as f:
+            metrics = json.load(f)
+        self.assertEqual(metrics["invocations"][0]["effective_model"],
+                         "gpt-6.1-sol")
+
+    def test_no_identity_evidence_enforces_nothing(self):
+        # degraded telemetry (partial_jsonl has no turn_context) -> the
+        # mismatch gate is inert; the run classifies on its own merits
+        job_path = self.start(mode="partial_jsonl")
+        proc = self.wait(job_path)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        job = self.job_json(job_path)
+        self.assertIsNone(job["effective_model"])
+        self.assertIsNone(job["effective_effort"])
 
 
 # ---------------------------------------------------------------------------

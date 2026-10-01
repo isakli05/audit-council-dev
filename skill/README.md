@@ -1,7 +1,7 @@
 # audit-council
 
 A personal Claude Code skill that runs a bounded, read-only, two-model adversarial audit:
-Claude Opus 5 and Codex (GPT-5.6 Sol, xhigh reasoning) independently audit a repository,
+Claude Opus 5.5 and Codex (GPT-6.1 Sol, high reasoning) independently audit a repository,
 falsify each other's findings, resolve what evidence permits, and emit one
 provenance-preserving final report.
 

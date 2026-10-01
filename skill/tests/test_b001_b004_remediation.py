@@ -48,6 +48,13 @@ SCHEMAS = os.path.join(SKILL_DIR, "schemas")
 sys.path.insert(0, SCRIPTS)
 sys.path.insert(0, HERE)
 
+# AUCDEV-024 hermeticity: an ambient host Claude model redirect (e.g.
+# ANTHROPIC_MODEL) must never gate these run-lifecycle tests — the ambient
+# conflict gate itself has dedicated tests that set these vars explicitly.
+import model_selection  # noqa: E402
+for _var in model_selection.CLAUDE_SELECTION_ENV_VARS:
+    os.environ.pop(_var, None)
+
 import audit_council  # noqa: E402
 import codex_runner  # noqa: E402
 import repo_fingerprint  # noqa: E402

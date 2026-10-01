@@ -39,8 +39,8 @@ class TestAttemptAccounting(Harness):
         self.assertEqual(inv["status"], "COMPLETE")
         self.assertEqual(inv["artifact_status"], "CANONICAL_VALID")
         self.assertTrue(inv["successful_stage_counted"])
-        self.assertEqual(inv["model"], "gpt-5.6-sol")
-        self.assertEqual(inv["reasoning_effort"], "xhigh")
+        self.assertEqual(inv["model"], "gpt-6.1-sol")
+        self.assertEqual(inv["reasoning_effort"], "high")
         self.assertEqual(inv["fresh_or_resumed"], "fresh")
         self.assertEqual(inv["attempt_number"], 1)
         self.assertIsNotNone(inv["tokens"])  # usage exposed by fake codex

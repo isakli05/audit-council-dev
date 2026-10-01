@@ -120,7 +120,7 @@ def contract(**over):
 
 def independent_audit(**over):
     doc = {
-        "model": "claude-opus-5",
+        "model": "claude-opus-5-5",
         "repository_fingerprint_sha256": "ab" * 32,
         "findings": [finding()],
         "audit_summary": "one finding",
@@ -456,6 +456,59 @@ class TestRepresentativeInstances(unittest.TestCase):
         bad = independent_audit()
         bad["findings"][0]["severity"] = "BLOCKER"
         self.assertInvalid("independent-audit.schema.json", bad, "enum")
+
+    def test_independent_audit_model_enum_new_and_legacy(self):
+        # AUCDEV-024: new-generation identities validate AND the legacy
+        # identities remain valid historical values (enum is additive)
+        for model in ("claude-opus-5-5", "gpt-6.1-sol",
+                      "claude-opus-5", "gpt-5.6-sol"):
+            self.assertValid("independent-audit.schema.json",
+                             independent_audit(model=model))
+        self.assertInvalid("independent-audit.schema.json",
+                           independent_audit(model="glm-5.3[1m]"), "enum")
+        self.assertInvalid("independent-audit.schema.json",
+                           independent_audit(model="opus"), "enum")
+
+    def test_state_model_selection_provenance(self):
+        # AUCDEV-024: new-era runs freeze a selection record; legacy states
+        # (no model_selection) keep validating
+        import model_selection
+        st = state_doc()
+        st["model_selection"] = {
+            "opus": model_selection.freeze_record(
+                model_selection.resolve("opus"))}
+        self.assertValid("state.schema.json", st)
+        self.assertValid("state.schema.json", state_doc())  # legacy shape
+        bad = state_doc()
+        bad["model_selection"] = {"opus": {
+            "auditor": "opus", "mode": "guess", "source": "x",
+            "model": "claude-opus-5-5", "effort": "high",
+            "frozen_at": "t", "selection_digest": "0" * 64}}
+        self.assertInvalid("state.schema.json", bad, "enum")
+        bad = state_doc()
+        bad["model_selection"] = {"opus": {
+            "auditor": "opus", "mode": "audit-default", "source": "x",
+            "model": "claude-opus-5-5", "effort": "high",
+            "frozen_at": "t", "selection_digest": "nothex"}}
+        self.assertInvalid("state.schema.json", bad, "pattern")
+
+    def test_contract_optional_model_selection(self):
+        # AUCDEV-024: the audit contract MAY freeze model-selection
+        # provenance; historical contracts without it keep validating
+        c = contract()
+        c["model_selection"] = {
+            "opus": {"mode": "audit-default", "model": "claude-opus-5-5",
+                     "effort": "high"},
+            "codex": {"mode": "explicit", "model": "gpt-5.6-sol",
+                      "effort": "xhigh", "source": "cli"},
+        }
+        self.assertValid("audit-contract.schema.json", c)
+        self.assertValid("audit-contract.schema.json", contract())
+        bad = contract()
+        bad["model_selection"] = {"opus": {"mode": "auto",
+                                           "model": "claude-opus-5-5",
+                                           "effort": "high"}}
+        self.assertInvalid("audit-contract.schema.json", bad, "enum")
 
     def test_cross_examination(self):
         bad = cross_examination()

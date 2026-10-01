@@ -4,14 +4,24 @@
 Commands:
   start   --run DIR --phase {independent|cross_examination|adjudication}
          [--session ID] [--prompt FILE] [--codex-bin PATH]
+         [--model MODEL --effort EFFORT | --inherit-model]
   wait    <job-path> [--timeout SEC]
   status  <job-path>
   result  <job-path>
   cancel  <job-path>
   repair  <job-path>
 
+Model selection (AUCDEV-024): with no flags a FRESH stage resolves the
+audit-default gpt-6.1-sol/high and FREEZES it into run state before the
+child spawns; --model/--effort select explicitly (both required); --inherit-
+model resolves the codex user config and fails closed unless it yields
+concrete supported values. Every later stage, resume and repair reuses the
+run-frozen selection exactly — an old resumable run without frozen selection
+FAILS CLOSED rather than guessing, and no resume ever migrates generations.
+
 Exit codes (wait): 0 COMPLETE, 1 FAILED, 2 QUOTA, 3 AUTH_ERROR,
-6 INVALID_OUTPUT, 7 still-RUNNING-after-timeout.
+6 INVALID_OUTPUT, 7 still-RUNNING-after-timeout, 8 MODEL_MISMATCH
+(observable effective model/effort differs from the run-frozen selection).
 `start` exits 3 on budget-governor violation (or forbidden repair repeat).
 
 Stdlib only. No secrets are ever read, logged, or persisted.
@@ -34,13 +44,16 @@ SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)
 
+import model_selection  # noqa: E402  (sibling module; always present at integration)
 import state_store  # noqa: E402  (sibling module; always present at integration)
 import validate_artifact  # noqa: E402  (sibling module; always present at integration)
 
 SCHEMAS_DIR = os.path.join(os.path.dirname(SCRIPTS_DIR), "schemas")
 
-MODEL = "gpt-5.6-sol"
-REASONING_EFFORT = "xhigh"
+# AUCDEV-024 audit-default identities (model_selection owns the policy).
+# Kept as module names for backward compatibility with existing callers.
+MODEL = model_selection.DEFAULT_MODEL["codex"]
+REASONING_EFFORT = model_selection.DEFAULT_EFFORT["codex"]
 
 PHASE_PROMPT_NAME = {
     "independent": "codex-independent",
@@ -188,14 +201,18 @@ def assert_safe_argv(argv: list) -> None:
 
 
 def compose_argv(codex_bin: str, phase: str, repo_root: str, schema_path: str,
-                 out_path: str, session_id) -> list:
+                 out_path: str, session_id, model: str = MODEL,
+                 effort: str = REASONING_EFFORT) -> list:
+    # AUCDEV-024: BOTH the fresh and the resume argv carry the run-frozen
+    # exact model and reasoning effort explicitly — the codex user config
+    # default is never relied upon (readiness ZP-B3 routing).
     if session_id:
         argv = [
             codex_bin, "exec", "resume", session_id,
-            "--model", MODEL,
+            "--model", model,
             "--json",
             "--output-schema", schema_path,
-            "-c", 'model_reasoning_effort="%s"' % REASONING_EFFORT,
+            "-c", 'model_reasoning_effort="%s"' % effort,
             "-c", 'sandbox_mode="read-only"',  # DIVERGENCE D1: resume has no -s flag
             "-o", out_path,
             "-",
@@ -204,11 +221,11 @@ def compose_argv(codex_bin: str, phase: str, repo_root: str, schema_path: str,
         argv = [
             codex_bin, "exec",
             "-C", repo_root,
-            "--model", MODEL,
+            "--model", model,
             "--sandbox", "read-only",
             "--json",
             "--output-schema", schema_path,
-            "-c", 'model_reasoning_effort="%s"' % REASONING_EFFORT,
+            "-c", 'model_reasoning_effort="%s"' % effort,
             "-o", out_path,
             "-",
         ]
@@ -285,6 +302,69 @@ def bump_stage(state: dict, phase: str) -> dict:
     state.setdefault("codex", {}).setdefault("stage_counts", {})
     state["codex"]["stage_counts"][phase] = state["codex"]["stage_counts"].get(phase, 0) + 1
     return state
+
+
+# ---------------------------------------------------------------------------
+# model selection (AUCDEV-024): resolve-or-use-frozen, pre-inference freeze
+# ---------------------------------------------------------------------------
+
+def _codex_client_version(codex_bin: str):
+    """Best-effort local client version (zero inference; None = unknown).
+
+    stdin is DEVNULL: a --version probe must never consume (or block on)
+    the parent's stdin."""
+    try:
+        proc = subprocess.run([codex_bin, "--version"], capture_output=True,
+                              text=True, timeout=30, check=False,
+                              stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if proc.returncode != 0:
+        return None
+    return ((proc.stdout or "") + (proc.stderr or "")).strip()[:200] or None
+
+
+def resolve_codex_selection(args, state: dict, session_id):
+    """Returns (selection, freeze_record_or_None).
+
+    A run with a frozen selection REUSES it exactly (resume lock): explicit
+    CLI values must MATCH it or the launch fails closed — a mid-run
+    generation/effort switch is never permitted. A resuming run WITHOUT a
+    frozen selection fails closed (an old run predating AUCDEV-024 whose
+    original model/effort cannot be established safely is never guessed).
+    Only a run's FIRST codex stage (no session, no prior jobs) resolves and
+    freezes a new selection."""
+    frozen = model_selection.frozen_selection(state, "codex")
+    if frozen is not None:
+        selection = model_selection.verify_frozen(frozen)  # tamper -> raises
+        cli_model = getattr(args, "model", None)
+        cli_effort = getattr(args, "effort", None)
+        if cli_model is not None and cli_model != selection["model"]:
+            raise model_selection.ModelSelectionError(
+                "RUN_FROZEN_MODEL_CONFLICT",
+                "run-frozen model %r cannot be switched to %r on this run "
+                "(no mid-run generation switch)" % (selection["model"], cli_model))
+        if cli_effort is not None and cli_effort != selection["effort"]:
+            raise model_selection.ModelSelectionError(
+                "RUN_FROZEN_EFFORT_CONFLICT",
+                "run-frozen effort %r cannot be switched to %r on this run"
+                % (selection["effort"], cli_effort))
+        return selection, None
+    codex_state = state.get("codex") or {}
+    resuming = bool(session_id) or bool(codex_state.get("session_id")) \
+        or bool(codex_state.get("jobs"))
+    if resuming:
+        raise model_selection.ModelSelectionError(
+            "RESUME_WITHOUT_FROZEN_SELECTION",
+            "this run predates model-selection provenance freezing and no "
+            "frozen model/effort can be established safely; refusing to "
+            "resume rather than guess (AUCDEV-024 fail-closed)")
+    selection = model_selection.resolve(
+        "codex",
+        explicit_model=getattr(args, "model", None),
+        explicit_effort=getattr(args, "effort", None),
+        inherit_requested=bool(getattr(args, "inherit_model", False)))
+    return selection, "pending"  # caller freezes with the client version
 
 
 # ---------------------------------------------------------------------------
@@ -368,7 +448,9 @@ def _terminate_launched_job(run_dir: str, job: dict, reason: str) -> None:
 
 
 def launch(run_dir: str, phase: str, argv: list, prompt_path: str, out_path: str,
-           schema_path: str, session_id, job_id: str, extra_job: dict) -> str:
+           schema_path: str, session_id, job_id: str, extra_job: dict,
+           model: str = MODEL, effort: str = REASONING_EFFORT,
+           selection: dict | None = None) -> str:
     logs_dir = os.path.join(run_dir, "logs")
     jobs_dir = os.path.join(logs_dir, "jobs")
     os.makedirs(jobs_dir, exist_ok=True)
@@ -407,8 +489,12 @@ def launch(run_dir: str, phase: str, argv: list, prompt_path: str, out_path: str
         "session": session_id,
         "resumed": bool(session_id),
         "fresh_or_resumed": "resumed" if session_id else "fresh",
-        "model": MODEL,
-        "reasoning_effort": REASONING_EFFORT,
+        "model": model,
+        "reasoning_effort": effort,
+        "model_selection": {
+            "mode": (selection or {}).get("mode", "audit-default"),
+            "source": (selection or {}).get("source", "audit-default"),
+        },
         "attempt_number": 1,  # cmd_start overrides via extra_job
         "started_at": utc_now(),
         "started_at_monotonic": time.monotonic(),
@@ -665,11 +751,31 @@ def cmd_start(args) -> int:
         session_id = args.session
         if session_id is None and phase != "independent":
             session_id = state.get("codex", {}).get("session_id")
+
+        # AUCDEV-024: resolve the codex model selection under the same
+        # serialization boundary and — for a run's first codex stage — stage
+        # the provenance freeze INTO the R-B002 launch transaction below
+        # (spawn + authoritative persistence are one serialized mutation;
+        # a persistence failure terminates the child, so no inference can
+        # complete without the frozen selection becoming durable).
+        try:
+            codex_sel, needs_freeze = resolve_codex_selection(args, state,
+                                                              session_id)
+        except model_selection.ModelSelectionError as exc:
+            print("error: %s" % exc, file=sys.stderr)
+            return 3
+        if needs_freeze:
+            state.setdefault("model_selection", {})["codex"] = \
+                model_selection.freeze_record(
+                    codex_sel, client_version=_codex_client_version(codex_bin))
+
         job_id = "%s-%s" % (phase, uuid.uuid4().hex[:8])
         out_path = os.path.join(run_dir, "logs",
                                 "%s.%s.final.json" % (phase, job_id))
         argv = compose_argv(codex_bin, phase, repo_root, schema_path,
-                            out_path, session_id)
+                            out_path, session_id,
+                            model=codex_sel["model"],
+                            effort=codex_sel["effort"])
         # A0 confinement spike (docs/A0-CODEX-CONFINEMENT.md): wrap every
         # launch (fresh AND resume) in the bubblewrap OS boundary — repo
         # ro, run dir rw, ~/.codex rw, toolchain+system ro, /tmp tmpfs,
@@ -725,7 +831,9 @@ def cmd_start(args) -> int:
                           "mechanism": "bwrap-ro-bind-/dev/null",
                           "scope": "first-pass independence (B-003): the peer "
                                    "first-pass artifact is unreadable inside "
-                                   "the sandbox"}} if _blind else {})})
+                                   "the sandbox"}} if _blind else {})},
+                     model=codex_sel["model"], effort=codex_sel["effort"],
+                     selection=codex_sel)
         job_path = os.path.join(run_dir, "logs", "jobs", "%s.json" % job_id)
 
         # stage_counts is bumped only when the stage COMPLETES successfully
@@ -873,6 +981,57 @@ def parse_jsonl_metrics(jsonl_path: str):
     return session_id, turns, tokens, degraded
 
 
+def parse_effective_identity(jsonl_path: str):
+    """Best-effort EFFECTIVE model/effort from codex --json events.
+
+    Returns (model, effort); (None, None) whenever the client exposes no
+    trustworthy identity evidence. Only string values under identity-bearing
+    fields are honored: `model_slug` anywhere, or `model`/`effort` inside
+    turn_context-style events. The result is NEVER used to select anything —
+    only to FAIL CLOSED when it observably differs from the frozen selection
+    (readiness ZP-B3 routing; undocumented codex internals are not assumed)."""
+    model = None
+    effort = None
+
+    def scan(node):
+        nonlocal model, effort
+        if isinstance(node, dict):
+            etype = str(node.get("type") or node.get("event") or "")
+            ctx = "turn_context" in etype
+            slug = node.get("model_slug")
+            if model is None and isinstance(slug, str):
+                model = slug
+            if ctx:
+                m = node.get("model")
+                if model is None and isinstance(m, str):
+                    model = m
+                for key in ("effort", "reasoning_effort",
+                            "model_reasoning_effort"):
+                    e = node.get(key)
+                    if effort is None and isinstance(e, str):
+                        effort = e
+                        break
+            for value in node.values():
+                scan(value)
+        elif isinstance(node, list):
+            for item in node:
+                scan(item)
+
+    try:
+        with open(jsonl_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    scan(json.loads(line))
+                except ValueError:
+                    continue
+    except OSError:
+        pass
+    return model, effort
+
+
 def _record_usage(job: dict, parsed=None) -> None:
     """Persist turn/usage telemetry on the job record for EVERY terminal
     outcome (COMPLETE, INVALID_OUTPUT, QUOTA, AUTH_ERROR, FAILED). Usage that
@@ -952,6 +1111,8 @@ def rebuild_metrics(run_dir: str) -> dict:
             "model": rec.get("model", MODEL),
             "reasoning_effort": rec.get("reasoning_effort",
                                         REASONING_EFFORT),
+            "effective_model": rec.get("effective_model"),
+            "effective_effort": rec.get("effective_effort"),
         })
     usage_known = [i for i in invocations if i["tokens"] is not None]
     agg = {
@@ -1038,6 +1199,37 @@ def classify_and_finalize(run_dir: str, job: dict, exit_code) -> tuple:
         # resume can still target the explicit original session (spec §8)
         _update_state_after_wait(run_dir, job, extract_session_id(job["stdout_path"]))
         return status, cli
+
+    # exit 0 — AUCDEV-024 G (readiness ZP-B2/ZP-B3 routing): any mechanically
+    # OBSERVABLE effective model/effort that differs from the run-frozen
+    # selection invalidates the attempt BEFORE any success classification;
+    # the run may never silently continue under a different model. Absent
+    # identity evidence (older client, degraded telemetry) is recorded as
+    # null and enforces nothing ("where mechanically obtainable").
+    eff_model, eff_effort = parse_effective_identity(job["stdout_path"])
+    job["effective_model"] = eff_model
+    job["effective_effort"] = eff_effort
+    if (eff_model is not None and eff_model != job.get("model")) or \
+            (eff_effort is not None and eff_effort != job.get("reasoning_effort")):
+        job["status"] = "MODEL_MISMATCH"
+        job["exit_code"] = exit_code
+        job["error"] = ("effective model identity %r/%r differs from the "
+                        "run-frozen selection %r/%r — attempt invalidated "
+                        "(AUCDEV-024 fail-closed boundary)"
+                        % (eff_model, eff_effort, job.get("model"),
+                           job.get("reasoning_effort")))
+        job["completed_at"] = utc_now()
+        _finalize_elapsed(job)
+        job["artifact_status"] = "INVALID_MODEL_SELECTION"
+        _record_usage(job)  # inference happened; usage must be accounted
+        session_id, _turns, _tok, _deg = parse_jsonl_metrics(job["stdout_path"])
+        if session_id:
+            job["session_id"] = session_id
+        atomic_write_json(os.path.join(run_dir, "logs", "jobs",
+                                       "%s.json" % job["job_id"]), job)
+        rebuild_metrics(run_dir)
+        _update_state_after_wait(run_dir, job, session_id or None)
+        return "MODEL_MISMATCH", 8
 
     # exit 0: output must exist, parse, wire->canonical normalize, validate
     out_path = job["output_path"]
@@ -1149,7 +1341,8 @@ def _poll_interval() -> float:
 
 # terminal status -> CLI exit code (for idempotent re-wait/re-status)
 _TERMINAL_CLI = {"COMPLETE": 0, "INVALID_OUTPUT": 6, "QUOTA": 2,
-                 "AUTH_ERROR": 3, "FAILED": 1, "CANCELLED": 0}
+                 "AUTH_ERROR": 3, "FAILED": 1, "CANCELLED": 0,
+                 "MODEL_MISMATCH": 8}
 
 
 def cmd_wait(args) -> int:
@@ -1313,6 +1506,22 @@ def cmd_repair(args) -> int:
         print("error: no codex session id available; cannot resume for repair", file=sys.stderr)
         return 3
 
+    # AUCDEV-024: repair resumes the SAME thread and must reuse the
+    # run-frozen exact model/effort; a run predating selection freezing
+    # fails closed rather than guessing its original generation.
+    frozen_sel = model_selection.frozen_selection(state, "codex")
+    if frozen_sel is None:
+        print("error: MODEL_SELECTION:RESUME_WITHOUT_FROZEN_SELECTION: "
+              "repair requires a run-frozen model selection; this run "
+              "predates AUCDEV-024 freezing and its original model/effort "
+              "cannot be established safely", file=sys.stderr)
+        return 3
+    try:
+        codex_sel = model_selection.verify_frozen(frozen_sel)
+    except model_selection.ModelSelectionError as exc:
+        print("error: %s" % exc, file=sys.stderr)
+        return 3
+
     base_prompt = job["prompt_path"]
     repair_prompt = os.path.join(run_dir, "prompts", "%s.repair.md" % phase)
     with open(base_prompt, "r", encoding="utf-8") as f:
@@ -1333,7 +1542,9 @@ def cmd_repair(args) -> int:
     # codex argv lives in job["codex_argv"]. Repair re-wraps identically.
     codex_bin = (job.get("codex_argv") or job.get("argv") or ["codex"])[0]
     base_argv = compose_argv(codex_bin, phase, "", job["schema_path"],
-                             out_path, session_id)
+                             out_path, session_id,
+                             model=codex_sel["model"],
+                             effort=codex_sel["effort"])
     import codex_sandbox
     _binding_path = os.path.join(run_dir, "01-environment-binding.json")
     _allowed_roots = []
@@ -1354,7 +1565,9 @@ def cmd_repair(args) -> int:
     _blind = _independence_blind_paths(run_dir, phase)
     new_job = launch(run_dir, phase, argv_exec,
                      repair_prompt, out_path, job["schema_path"], session_id, job_id,
-                     {"repair_of": job["job_id"], "repair": True,
+                     model=codex_sel["model"], effort=codex_sel["effort"],
+                     selection=codex_sel,
+                     extra_job={"repair_of": job["job_id"], "repair": True,
                       "attempt_number": attempt_number,
                       "codex_argv": base_argv,
                       "sandbox": {"wrapper": "bwrap" if sandbox_active else None,
@@ -1417,6 +1630,16 @@ def main(argv=None) -> int:
     p.add_argument("--session", default=None)
     p.add_argument("--prompt", default=None)
     p.add_argument("--codex-bin", default=None)
+    p.add_argument("--model", default=None,
+                   help="explicit concrete supported codex model (requires "
+                        "--effort; AUCDEV-024 explicit mode, no fallback)")
+    p.add_argument("--effort", default=None,
+                   help="explicit concrete supported reasoning effort "
+                        "(requires --model)")
+    p.add_argument("--inherit-model", action="store_true",
+                   help="explicitly request inherit mode: resolve the codex "
+                        "user config; fails closed unless it yields concrete "
+                        "supported model AND effort")
     p.set_defaults(func=cmd_start)
 
     p = sub.add_parser("wait")

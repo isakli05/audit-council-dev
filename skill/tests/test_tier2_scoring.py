@@ -4,6 +4,7 @@ from sealed truth, executed through the REAL pipeline. Proves the scoring
 machinery + pipeline honesty end to end; no model calls."""
 from __future__ import annotations
 
+import os
 import sys
 import tempfile
 import unittest
@@ -13,6 +14,13 @@ EVAL = Path(__file__).resolve().parent.parent / "eval"
 SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(EVAL))
 sys.path.insert(0, str(SCRIPTS))
+
+# AUCDEV-024 hermeticity: an ambient host Claude model redirect (e.g.
+# ANTHROPIC_MODEL) must never gate these scripted run tests — the ambient
+# conflict gate itself has dedicated tests that set these vars explicitly.
+import model_selection  # noqa: E402
+for _var in model_selection.CLAUDE_SELECTION_ENV_VARS:
+    os.environ.pop(_var, None)
 
 import tier2_scoring  # noqa: E402
 

@@ -54,7 +54,7 @@ reviewer's work:
 Return ONLY one JSON object matching the provided --output-schema (independent-audit
 shape):
 
-- "model": "gpt-5.6-sol"
+- "model": "gpt-6.1-sol"
 - "repository_fingerprint_sha256": "{{fingerprint_sha256}}"
 - "audit_summary": concise narrative of what you examined and concluded
 - "findings": array, each with:

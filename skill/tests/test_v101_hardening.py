@@ -23,6 +23,15 @@ AC = [PYTHON, os.path.join(SCRIPTS, "audit_council.py")]
 FROZEN = "f" * 64
 WRONG = "a" * 64  # syntactically valid, semantically wrong
 
+# AUCDEV-024 hermeticity: an ambient host Claude model redirect (e.g.
+# ANTHROPIC_MODEL) must never gate these run-lifecycle tests — the ambient
+# conflict gate itself has dedicated tests that set these vars explicitly.
+import sys  # noqa: E402
+sys.path.insert(0, SCRIPTS)
+import model_selection  # noqa: E402
+for _var in model_selection.CLAUDE_SELECTION_ENV_VARS:
+    os.environ.pop(_var, None)
+
 
 def run_cli(args, stdin_text=None, env=None):
     return subprocess.run(AC + args, input=stdin_text, capture_output=True,
@@ -105,7 +114,7 @@ class Fixture(unittest.TestCase):
             "evidence": [{"kind": "OBSERVED_FACT", "path": "a.txt"}],
             "provenance": {"discovered_by": "OPUS"},
         }
-        art = {"model": "claude-opus-5",
+        art = {"model": "claude-opus-5-5",
                "repository_fingerprint_sha256": fingerprint,
                "findings": [finding], "audit_summary": "s"}
         return run_cli(["advance", "--run", run_dir, "--to",

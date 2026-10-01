@@ -151,10 +151,10 @@ def _scripted_artifacts(truth: dict, fingerprint: str,
                                       "the idiom is deliberately safe"}]})
 
     artifacts = {
-        "opus": {"model": "claude-opus-5",
+        "opus": {"model": "claude-opus-5-5",
                  "repository_fingerprint_sha256": fingerprint,
                  "findings": opus_findings, "audit_summary": "scripted"},
-        "codex": {"model": "gpt-5.6-sol",
+        "codex": {"model": "gpt-6.1-sol",
                   "repository_fingerprint_sha256": fingerprint,
                   "findings": codex_findings, "audit_summary": "scripted"},
         "opus_cex": {"examiner": "CODEX", "examined": "OPUS",

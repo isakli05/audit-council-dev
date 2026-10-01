@@ -19,6 +19,7 @@ from typing import Any
 
 import env_binding
 import evidence_store
+import model_selection
 import repo_fingerprint
 import state_store
 import validate_artifact
@@ -42,6 +43,13 @@ FINGERPRINT_FIELDS: dict[str, tuple[str, ...]] = {
     "10-opus-independent.json": ("repository_fingerprint_sha256",),
     "20-codex-independent.json": ("repository_fingerprint_sha256",),
     "90-final-findings.json": ("repository_fingerprint_sha256",),
+}
+
+# AUCDEV-024: independent-audit artifacts whose `model` field must equal the
+# run-frozen selection of that auditor (legacy runs: check inert)
+MODEL_IDENTITY_FIELDS: dict[str, str] = {
+    "10-opus-independent.json": "opus",
+    "20-codex-independent.json": "codex",
 }
 
 # F-A-12 / AUCDEV-017: the first-pass artifacts whose checkpoint produces a
@@ -284,12 +292,45 @@ def _preflight_codex(failures: list[dict[str, str]]) -> None:
     models_cache = Path.home() / ".codex" / "models_cache.json"
     if models_cache.is_file():
         try:
-            if "gpt-5.6-sol" not in models_cache.read_text(errors="replace"):
+            default_model = model_selection.DEFAULT_MODEL["codex"]
+            if default_model not in models_cache.read_text(errors="replace"):
                 failures.append({
                     "check": "codex-model",
-                    "reason": "gpt-5.6-sol not found in codex models cache"})
+                    "reason": f"{default_model} not found in codex models "
+                              f"cache"})
         except OSError:
             pass
+
+
+def _resolve_claude_selection(failures: list[dict[str, str]], args) -> dict | None:
+    """AUCDEV-024 preflight: resolve the Auditor A (interactive Claude)
+    selection and refuse to proceed when an ambient model redirect could
+    silently override it (readiness blocker ZP-B2 routed to a fail-closed
+    precheck). Env var VALUES are never printed — names only."""
+    try:
+        selection = model_selection.resolve(
+            "opus",
+            explicit_model=getattr(args, "claude_model", None),
+            explicit_effort=getattr(args, "claude_effort", None),
+            inherit_requested=bool(getattr(args, "inherit_claude_model",
+                                           False)))
+    except model_selection.ModelSelectionError as exc:
+        failures.append({"check": "claude-model-selection",
+                         "reason": str(exc)})
+        return None
+    if selection["mode"] != "inherit":
+        conflicts = model_selection.claude_ambient_conflicts(
+            selection["model"], selection["effort"])
+        if conflicts:
+            failures.append({
+                "check": "claude-model-environment",
+                "reason": f"ambient Claude model-selection env vars "
+                          f"{conflicts} conflict with the resolved Audit "
+                          f"Council selection ({selection['model']} / "
+                          f"{selection['effort']}); launch the session with "
+                          f"explicit --model/--effort and a sanitized model "
+                          f"environment (values are never printed)"})
+    return selection
 
 
 def cmd_preflight(args: argparse.Namespace) -> int:
@@ -362,7 +403,15 @@ def cmd_preflight(args: argparse.Namespace) -> int:
     if not args.skip_codex:
         _preflight_codex(failures)
 
-    _emit({"ok": not failures, "failures": failures})
+    claude_selection = _resolve_claude_selection(failures, args)
+
+    _emit({"ok": not failures, "failures": failures,
+           **({"claude_selection": {
+                  "mode": claude_selection["mode"],
+                  "source": claude_selection["source"],
+                  "model": claude_selection["model"],
+                  "effort": claude_selection["effort"]}}
+              if claude_selection is not None else {})})
     return EXIT_OK if not failures else EXIT_FAIL
 
 
@@ -429,13 +478,43 @@ def cmd_init_run(args: argparse.Namespace) -> int:
             _fail(f"brief {args.brief!r} missing or empty (use --brief-inline "
                   f"to pass brief text on stdin)")
             return EXIT_FAIL
-    return _init_run_core(repo, args.brief, brief_source, inline_content)
+    return _init_run_core(repo, args.brief, brief_source, inline_content,
+                          claude_model=getattr(args, "claude_model", None),
+                          claude_effort=getattr(args, "claude_effort", None),
+                          inherit_claude_model=bool(getattr(
+                              args, "inherit_claude_model", False)))
 
 
 def _init_run_core(repo: str, brief_arg: str | None, brief_source: str,
                    inline_content: bytes | None = None,
                    run_id: str | None = None,
-                   quiet: bool = False) -> int:
+                   quiet: bool = False,
+                   claude_model: str | None = None,
+                   claude_effort: str | None = None,
+                   inherit_claude_model: bool = False) -> int:
+    # AUCDEV-024: resolve and gate the Auditor A selection BEFORE anything is
+    # created — an ambient Claude model redirect that could silently override
+    # the explicit selection fails closed here with ZERO inference (variable
+    # names only; values are never printed).
+    try:
+        claude_sel = model_selection.resolve(
+            "opus", explicit_model=claude_model,
+            explicit_effort=claude_effort,
+            inherit_requested=inherit_claude_model)
+    except model_selection.ModelSelectionError as exc:
+        _fail(str(exc))
+        return EXIT_FAIL
+    if claude_sel["mode"] != "inherit":
+        conflicts = model_selection.claude_ambient_conflicts(
+            claude_sel["model"], claude_sel["effort"])
+        if conflicts:
+            _fail(f"MODEL_SELECTION:AMBIENT_CONFLICT: ambient Claude "
+                  f"model-selection env vars {conflicts} conflict with the "
+                  f"resolved selection ({claude_sel['model']} / "
+                  f"{claude_sel['effort']}); refusing to create the run — "
+                  f"launch the audit session with explicit --model/--effort "
+                  f"and a sanitized model environment (zero inference)")
+            return EXIT_FAIL
     parent = state_store.runs_root(repo)
     os.makedirs(parent, exist_ok=True)
     existing = set(os.listdir(parent)) if os.path.isdir(parent) else set()
@@ -510,6 +589,11 @@ def _init_run_core(repo: str, brief_arg: str | None, brief_source: str,
     state = state_store.new_state(
         run_id, repo, fingerprint["fingerprint_sha256"],
         env_binding_digest=binding["binding_digest"])
+    # AUCDEV-024: freeze the Auditor A selection as immutable pre-inference
+    # provenance inside the checksummed run state (the codex side freezes its
+    # own record at its first stage launch).
+    state["model_selection"] = {
+        "opus": model_selection.freeze_record(claude_sel)}
     atomic_write_json(os.path.join(run_dir, state_store.STATE_NAME), state)
 
     open(os.path.join(run_dir, state_store.CHECKSUMS_NAME), "a").close()
@@ -569,7 +653,11 @@ def cmd_prepare(args: argparse.Namespace) -> int:
     target_root = record.get("worktree_root") or repo
     rc = _init_run_core(target_root, brief, "inline" if inline else "file",
                         sys.stdin.buffer.read() if inline else None,
-                        run_id=run_id, quiet=True)
+                        run_id=run_id, quiet=True,
+                        claude_model=getattr(args, "claude_model", None),
+                        claude_effort=getattr(args, "claude_effort", None),
+                        inherit_claude_model=bool(getattr(
+                            args, "inherit_claude_model", False)))
     if rc != EXIT_OK:
         return rc
     run_dir = os.path.join(state_store.runs_root(target_root), run_id)
@@ -855,6 +943,35 @@ def _fingerprint_mismatches(run_dir: str, name: str, doc: dict) -> list[str]:
     return []  # F-A-13: honor the list return contract on the success path
 
 
+def _model_identity_mismatches(run_dir: str, name: str, doc: dict) -> list[str]:
+    """AUCDEV-024: an independent-audit artifact must carry the model
+    identity of its run-frozen auditor selection — a checkpointed artifact
+    claiming another generation is an INVALID silent-migration attempt.
+    Inert on legacy runs that predate selection freezing (their identities
+    are immutable historical values and are never relabelled)."""
+    auditor = MODEL_IDENTITY_FIELDS.get(name)
+    if not auditor or not isinstance(doc, dict):
+        return []
+    try:
+        state = state_store.load_state(run_dir)
+    except StateError:
+        return []
+    frozen = model_selection.frozen_selection(state, auditor)
+    if frozen is None:
+        return []
+    try:
+        selection = model_selection.verify_frozen(frozen)
+    except model_selection.ModelSelectionError as exc:
+        return [f"INVALID_ARTIFACT: frozen {auditor} model selection fails "
+                f"verification: {exc}"]
+    claimed = doc.get("model")
+    if claimed != selection["model"]:
+        return [f"INVALID_ARTIFACT: {name} claims model {claimed!r} but the "
+                f"run-frozen {auditor} selection is {selection['model']!r} "
+                f"(AUCDEV-024: no silent generation switch)"]
+    return []
+
+
 def cmd_advance(args: argparse.Namespace) -> int:
     run_dir = os.path.abspath(args.run)
     target = args.to
@@ -988,6 +1105,9 @@ def cmd_advance(args: argparse.Namespace) -> int:
     if not errors:
         # semantic repository-identity invariant (v1.0.1 Issue 1)
         errors = _fingerprint_mismatches(run_dir, name, load_json(artifact))
+    if not errors:
+        # AUCDEV-024 auditor model-identity invariant
+        errors = _model_identity_mismatches(run_dir, name, load_json(artifact))
     if errors:
         state_store.bump_phase_attempt(run_dir, target)
         _fail(f"artifact invalid: {errors}")
@@ -1185,6 +1305,34 @@ def cmd_resume_check(args: argparse.Namespace) -> int:
         _fail(f"state.json invalid: {schema_errors}")
         return EXIT_FAIL
 
+    # 1.5 AUCDEV-024: the frozen Auditor A selection must still hold in the
+    # live session environment — an ambient Claude model redirect that could
+    # silently override the frozen selection fails closed BEFORE any resumed
+    # inference (readiness ZP-B2; variable names only, values never printed).
+    frozen_opus = model_selection.frozen_selection(state, "opus")
+    if frozen_opus is not None:
+        try:
+            opus_sel = model_selection.verify_frozen(frozen_opus)
+        except model_selection.ModelSelectionError as exc:
+            _emit({"ok": False, "stage": "model-selection",
+                   "error": str(exc),
+                   "completeness_state": "INVALID_MODEL_SELECTION"})
+            return EXIT_ENV
+        if opus_sel["mode"] != "inherit":
+            conflicts = model_selection.claude_ambient_conflicts(
+                opus_sel["model"], opus_sel["effort"])
+            if conflicts:
+                _emit({"ok": False, "stage": "model-selection",
+                       "error": "INVALID_MODEL_SELECTION:AMBIENT_CONFLICT: "
+                                f"ambient Claude model-selection env vars "
+                                f"{conflicts} conflict with the run-frozen "
+                                f"selection ({opus_sel['model']} / "
+                                f"{opus_sel['effort']}); sanitize the launch "
+                                f"environment before resuming (zero "
+                                f"inference)",
+                       "completeness_state": "INVALID_MODEL_SELECTION"})
+                return EXIT_ENV
+
     # 2. checksums
     mismatches = state_store.verify_all(run_dir)
     if mismatches:
@@ -1258,6 +1406,13 @@ def cmd_resume_check(args: argparse.Namespace) -> int:
             try:
                 errors = _fingerprint_mismatches(run_dir, name,
                                                  load_json(path))
+            except (json.JSONDecodeError, OSError) as exc:
+                errors = [f"{name} unreadable: {exc}"]
+        if not errors:
+            # AUCDEV-024 auditor model-identity check on completed artifacts
+            try:
+                errors = _model_identity_mismatches(run_dir, name,
+                                                    load_json(path))
             except (json.JSONDecodeError, OSError) as exc:
                 errors = [f"{name} unreadable: {exc}"]
         if errors:
@@ -1459,17 +1614,65 @@ PUBLIC_CONTRACT: dict[str, Any] = {
     "environment_modes": ["AUTO", "CURRENT", "RELEASE", "HISTORICAL"],
     "model_roles": {
         "opus": {
-            "model": "claude-opus-5",
+            "model": "claude-opus-5-5",
+            "effort": "high",
             "role": "primary interactive orchestrator + independent auditor",
             "independent_pass": True,
         },
         "codex": {
-            "model": "gpt-5.6-sol",
-            "reasoning_effort": "xhigh",
+            "model": "gpt-6.1-sol",
+            "reasoning_effort": "high",
             "role": "independent second auditor via codex exec",
             "read_only_sandbox": True,
             "independent_pass": True,
         },
+    },
+    "model_selection": {
+        "modes": ["audit-default", "inherit", "explicit"],
+        "precedence": "explicit > explicitly requested inherit > audit-default",
+        "no_silent_fallback": True,
+        "audit_default": {
+            "opus": {"model": "claude-opus-5-5", "effort": "high"},
+            "codex": {"model": "gpt-6.1-sol", "reasoning_effort": "high"},
+        },
+        "supported_models": {
+            "opus": ["claude-opus-5-5", "claude-opus-5"],
+            "codex": ["gpt-6.1-sol", "gpt-5.6-sol"],
+        },
+        "supported_efforts": {
+            "opus": ["high", "medium", "low"],
+            "codex": ["high", "medium", "low", "minimal", "xhigh"],
+        },
+        "inherit": (
+            "ONLY when explicitly requested; must resolve to concrete exact "
+            "identities BEFORE any inference; unresolved/ambiguous/symbolic "
+            "inherit fails closed with zero inference (codex source: "
+            "top-level model + model_reasoning_effort keys of the codex "
+            "user config; claude source: ANTHROPIC_MODEL + "
+            "CLAUDE_CODE_EFFORT_LEVEL)"),
+        "claude_launch_contract": (
+            "the interactive audit session must be launched with the exact "
+            "model claude-opus-5-5 and explicit effort high and a sanitized "
+            "model environment (no conflicting ANTHROPIC_MODEL / "
+            "ANTHROPIC_DEFAULT_*_MODEL / CLAUDE_CODE_*_MODEL / "
+            "CLAUDE_CODE_EFFORT_LEVEL); preflight, run creation and "
+            "resume-check fail closed on any conflict — variable names "
+            "only, values never printed"),
+        "resume_lock": (
+            "resume, later stages and repair reuse the run-frozen exact "
+            "model and effort; a resumed run never migrates claude-opus-5 "
+            "-> claude-opus-5-5, gpt-5.6-sol -> gpt-6.1-sol or xhigh -> "
+            "high; an old resumable codex run without a frozen selection "
+            "fails closed rather than guessing"),
+        "mismatch": (
+            "any mechanically observable effective model/effort mismatch "
+            "invalidates the attempt at an explicit fail-closed boundary "
+            "(codex runner exit 8 MODEL_MISMATCH); absent identity evidence "
+            "enforces nothing"),
+        "legacy": (
+            "claude-opus-5 / gpt-5.6-sol / xhigh remain valid historical "
+            "values; historical artifacts validate and are never "
+            "relabelled"),
     },
     "independence_rules": [
         "first-pass independence barrier: neither auditor sees the other's "
@@ -1557,7 +1760,8 @@ PUBLIC_CONTRACT: dict[str, Any] = {
     },
     "runtime_capabilities": {
         "codex_invocation": ("direct codex exec (fresh) / codex exec resume "
-                             "<explicit-id>"),
+                             "<explicit-id>; BOTH paths pass the run-frozen "
+                             "explicit --model and reasoning effort"),
         "auth": "subscription only; PAYG keys fail preflight",
         "claude_path_confinement": (
             "pre-tool mechanically denied: skill-scoped PreToolUse hook "
@@ -1677,6 +1881,16 @@ def build_parser() -> argparse.ArgumentParser:
                    help="read the audit brief text from stdin and "
                         "materialize it as the run-owned immutable copy")
     p.add_argument("--skip-codex", action="store_true")
+    p.add_argument("--claude-model", default=None,
+                   help="explicit concrete supported Auditor A model "
+                        "(requires --claude-effort; AUCDEV-024)")
+    p.add_argument("--claude-effort", default=None,
+                   help="explicit concrete supported Auditor A effort "
+                        "(requires --claude-model)")
+    p.add_argument("--inherit-claude-model", action="store_true",
+                   help="explicitly request inherit mode for Auditor A "
+                        "(ANTHROPIC_MODEL + CLAUDE_CODE_EFFORT_LEVEL; "
+                        "fails closed unless both resolve concretely)")
     p.set_defaults(func=cmd_preflight)
 
     p = sub.add_parser("init-run")
@@ -1685,6 +1899,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--brief-inline", action="store_true",
                    help="read the audit brief text from stdin and "
                         "materialize it as the run-owned immutable copy")
+    p.add_argument("--claude-model", default=None,
+                   help="explicit concrete supported Auditor A model "
+                        "(requires --claude-effort; AUCDEV-024)")
+    p.add_argument("--claude-effort", default=None,
+                   help="explicit concrete supported Auditor A effort "
+                        "(requires --claude-model)")
+    p.add_argument("--inherit-claude-model", action="store_true",
+                   help="explicitly request inherit mode for Auditor A")
     p.set_defaults(func=cmd_init_run)
 
     p = sub.add_parser(
@@ -1704,6 +1926,14 @@ def build_parser() -> argparse.ArgumentParser:
                    metavar="PATH[,PATH...]",
                    help="HISTORICAL: repo-relative evidence files to stage "
                         "(deny-listed paths are always refused)")
+    p.add_argument("--claude-model", default=None,
+                   help="explicit concrete supported Auditor A model "
+                        "(requires --claude-effort; AUCDEV-024)")
+    p.add_argument("--claude-effort", default=None,
+                   help="explicit concrete supported Auditor A effort "
+                        "(requires --claude-model)")
+    p.add_argument("--inherit-claude-model", action="store_true",
+                   help="explicitly request inherit mode for Auditor A")
     p.set_defaults(func=cmd_prepare)
 
     p = sub.add_parser("freeze-contract")

@@ -25,6 +25,13 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 FIFTH_OPUS_V1 = FIXTURES / "fifth-opus-independent-v1.json"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+# AUCDEV-024 hermeticity: an ambient host Claude model redirect (e.g.
+# ANTHROPIC_MODEL) must never gate these run-lifecycle tests — the ambient
+# conflict gate itself has dedicated tests that set these vars explicitly.
+import model_selection  # noqa: E402
+for _var in model_selection.CLAUDE_SELECTION_ENV_VARS:
+    os.environ.pop(_var, None)
 from test_schema_validation import contract  # noqa: E402
 
 import state_store  # noqa: E402
@@ -79,6 +86,10 @@ class TestV1ArtifactCompat(unittest.TestCase):
         os.unlink(os.path.join(run_dir, "01-environment-binding.json"))
         state = state_store.load_state(run_dir)
         state.pop("env_binding_digest", None)
+        # AUCDEV-024: a genuine v1-era run also predates model-selection
+        # freezing — remove it with the binding (legacy identities are then
+        # valid historical values and the identity gate is inert)
+        state.pop("model_selection", None)
         state_store.save_state(run_dir, state)
         # drop the binding's line from the checksum ledger (simulating a
         # run created before v2 ever wrote one)
@@ -104,6 +115,9 @@ class TestV1ArtifactCompat(unittest.TestCase):
         # the REAL Fifth v1 opus artifact, fingerprint rebased to this run
         v1_doc = json.loads(FIFTH_OPUS_V1.read_text())
         self.assertIn("lines", json.dumps(v1_doc))  # genuinely v1
+        # AUCDEV-024: the legacy identity stays exactly as history recorded
+        # it — never relabelled, still schema-valid
+        self.assertEqual(v1_doc["model"], "claude-opus-5")
         v1_doc["repository_fingerprint_sha256"] = st["repo_fingerprint_sha256"]
         proc = self._cli("advance", "--run", run_dir, "--to",
                          "OPUS_INDEPENDENT_COMPLETE", "--artifact",

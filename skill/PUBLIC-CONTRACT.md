@@ -53,9 +53,41 @@ verdict.
 
 ## Model roles and independence
 
-- **Opus** (`claude-opus-5`): primary interactive orchestrator + independent auditor; one independent pass.
-- **Codex** (`gpt-5.6-sol`, reasoning `xhigh`): independent second auditor via direct `codex exec` (fresh) or
-  `codex exec resume <explicit-id>`, read-only sandbox; subscription auth only — PAYG keys fail preflight.
+- **Opus** (`claude-opus-5-5`, effort `high`): primary interactive orchestrator + independent auditor; one independent pass.
+- **Codex** (`gpt-6.1-sol`, reasoning `high`): independent second auditor via direct `codex exec` (fresh) or
+  `codex exec resume <explicit-id>` — both paths pass the run-frozen explicit `--model` and reasoning effort —
+  read-only sandbox; subscription auth only — PAYG keys fail preflight.
+
+### Model selection (AUCDEV-024)
+
+Modes: `audit-default`, `inherit`, `explicit`; precedence EXACTLY
+`explicit > explicitly requested inherit > audit-default`; `no_silent_fallback` is `true`.
+
+- **audit-default** — Opus `claude-opus-5-5` / `high`; Codex `gpt-6.1-sol` / `high`.
+- **inherit** — only when explicitly requested; must resolve to concrete exact identities
+  BEFORE any inference; unresolved/ambiguous/symbolic inherit fails closed with zero
+  inference. Codex source: top-level `model` + `model_reasoning_effort` keys of the codex
+  user config. Claude source: `ANTHROPIC_MODEL` + `CLAUDE_CODE_EFFORT_LEVEL`.
+- **explicit** — caller supplies both a concrete supported model and effort; validated
+  and frozen before inference.
+- Supported models: Opus `claude-opus-5-5`, `claude-opus-5`; Codex `gpt-6.1-sol`,
+  `gpt-5.6-sol`. Supported efforts: Opus `high`, `medium`, `low`; Codex `high`, `medium`,
+  `low`, `minimal`, `xhigh` (legacy).
+- **Claude launch contract** — the interactive audit session must be launched with the
+  exact model `claude-opus-5-5` and explicit effort `high` (the client default is
+  `medium`, so effort must never be omitted) and a sanitized model environment (no
+  conflicting `ANTHROPIC_MODEL` / `ANTHROPIC_DEFAULT_*_MODEL` / `CLAUDE_CODE_*_MODEL` /
+  `CLAUDE_CODE_EFFORT_LEVEL`); preflight, run creation and resume-check fail closed on
+  any conflict — variable names only, values never printed.
+- **Resume lock** — resume, later stages and repair reuse the run-frozen exact model and
+  effort; a resumed run never migrates `claude-opus-5` -> `claude-opus-5-5`,
+  `gpt-5.6-sol` -> `gpt-6.1-sol` or `xhigh` -> `high`; an old resumable codex run without
+  a frozen selection fails closed rather than guessing.
+- **Mismatch** — any mechanically observable effective model/effort mismatch invalidates
+  the attempt at an explicit fail-closed boundary (codex runner exit 8 `MODEL_MISMATCH`);
+  absent identity evidence enforces nothing.
+- **Legacy** — `claude-opus-5` / `gpt-5.6-sol` / `xhigh` remain valid historical values;
+  historical artifacts validate and are never relabelled.
 
 Independence rules: a first-pass barrier means neither auditor sees the other's findings before both
 independent audits complete — MECHANICAL on the codex side (the sandboxed codex independent stage cannot

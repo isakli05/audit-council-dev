@@ -31,8 +31,9 @@ Contract. Neither model sees the other's output before both passes are complete.
 
 ## Output artifact
 
-`independent-audit.schema.json` shape — required: `model` (`claude-opus-5` for the Opus
-artifact, `gpt-5.6-sol` for Codex), `repository_fingerprint_sha256` (from
+`independent-audit.schema.json` shape — required: `model` (`claude-opus-5-5` for the Opus
+artifact, `gpt-6.1-sol` for Codex — each auditor's run-frozen selection; legacy
+`claude-opus-5` / `gpt-5.6-sol` remain valid historical values), `repository_fingerprint_sha256` (from
 `01-repository-state.json`), `findings[]`, `audit_summary`; optional `requirement_coverage[]`
 (requirement, covered, note), `limitations[]`.
 
@@ -58,7 +59,8 @@ the JSON, and pipes it to `advance --to OPUS_INDEPENDENT_COMPLETE --artifact
 `codex_runner.py start --run "$RUN" --phase independent` renders
 `${CLAUDE_SKILL_DIR}/prompts/codex-independent.md` with the contract/brief, writes the
 prompt to `prompts/codex-independent.md`, and launches a FRESH read-only
-`codex exec` (gpt-5.6-sol, xhigh, `--output-schema`). Opus then runs a bounded wait loop
+`codex exec` (the run-frozen model/effort — audit-default gpt-6.1-sol, high — with
+`--output-schema`). Opus then runs a bounded wait loop
 (`wait --timeout 540`, repeat while exit 7 RUNNING). On COMPLETE, the runner has validated
 the `-o` file against `independent-audit.schema.json` and persisted the Codex thread ID
 into `state.json`. Opus advances `--to CODEX_INDEPENDENT_COMPLETE` (piping the validated

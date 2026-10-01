@@ -31,6 +31,13 @@ STATE_SCHEMA = SCHEMAS_DIR / "state.schema.json"
 
 sys.path.insert(0, str(SCRIPTS_DIR))
 
+# AUCDEV-024 hermeticity: an ambient host Claude model redirect (e.g.
+# ANTHROPIC_MODEL) must never gate these run-lifecycle tests — the ambient
+# conflict gate itself has dedicated tests that set these vars explicitly.
+import model_selection  # noqa: E402
+for _var in model_selection.CLAUDE_SELECTION_ENV_VARS:
+    os.environ.pop(_var, None)
+
 import budgets  # noqa: E402
 import validate_artifact  # noqa: E402
 
@@ -122,6 +129,48 @@ class TestDriftAgainstSources(PublicContractBase):
         artifacts = self.doc["artifact_semantics"]["canonical_artifacts"]
         for name in REQUIRED_CANONICAL_ARTIFACTS:
             self.assertIn(name, artifacts)
+
+
+class TestModelSelectionContractDrift(PublicContractBase):
+    """AUCDEV-024 (K): machine contract, policy module and human mirror
+    agree on selection semantics."""
+
+    def test_model_roles_equal_policy_defaults(self):
+        roles = self.doc["model_roles"]
+        self.assertEqual(roles["opus"]["model"],
+                         model_selection.DEFAULT_MODEL["opus"])
+        self.assertEqual(roles["opus"]["effort"],
+                         model_selection.DEFAULT_EFFORT["opus"])
+        self.assertEqual(roles["codex"]["model"],
+                         model_selection.DEFAULT_MODEL["codex"])
+        self.assertEqual(roles["codex"]["reasoning_effort"],
+                         model_selection.DEFAULT_EFFORT["codex"])
+
+    def test_model_selection_section_mirrors_policy_module(self):
+        section = self.doc["model_selection"]
+        self.assertEqual(section["modes"], list(model_selection.MODES))
+        self.assertEqual(section["precedence"],
+                         "explicit > explicitly requested inherit > "
+                         "audit-default")
+        self.assertTrue(section["no_silent_fallback"])
+        self.assertEqual(section["supported_models"]["opus"],
+                         list(model_selection.SUPPORTED_MODELS["opus"]))
+        self.assertEqual(section["supported_models"]["codex"],
+                         list(model_selection.SUPPORTED_MODELS["codex"]))
+        self.assertEqual(section["supported_efforts"]["opus"],
+                         list(model_selection.SUPPORTED_EFFORTS["opus"]))
+        self.assertEqual(section["supported_efforts"]["codex"],
+                         list(model_selection.SUPPORTED_EFFORTS["codex"]))
+
+    def test_model_identities_documented_in_md(self):
+        for needle in ("claude-opus-5-5", "gpt-6.1-sol", "MODEL_MISMATCH",
+                       "explicit > explicitly requested inherit > "
+                       "audit-default"):
+            self.assertIn(needle, self.md)
+        # legacy identities remain documented historical values
+        self.assertIn("claude-opus-5", self.md)
+        self.assertIn("gpt-5.6-sol", self.md)
+        self.assertIn("xhigh", self.md)
 
 
 class TestPublicSurface(PublicContractBase):

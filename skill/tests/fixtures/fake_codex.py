@@ -55,6 +55,31 @@ USAGE_FIRST = _CTRL.get("USAGE_FIRST") or os.environ.get(
     "FAKE_CODEX_USAGE_FIRST")
 SLEEP = _CTRL.get("SLEEP") or os.environ.get("FAKE_CODEX_SLEEP")
 
+_ARGV = sys.argv[1:]
+
+
+def argv_model(argv):
+    """AUCDEV-024: echo the --model identity the runner selected."""
+    for i, a in enumerate(argv):
+        if a == "--model" and i + 1 < len(argv):
+            return argv[i + 1]
+    return "gpt-6.1-sol"
+
+
+def argv_effort(argv):
+    for a in argv:
+        if a.startswith("model_reasoning_effort="):
+            return a.split("=", 1)[1].strip('"')
+    return "high"
+
+
+# effective-identity overrides for the MODEL_MISMATCH scenarios: default is
+# to echo the requested argv identity (no mismatch)
+EFFECTIVE_MODEL = _CTRL.get("EFFECTIVE_MODEL") or os.environ.get(
+    "FAKE_CODEX_EFFECTIVE_MODEL")
+EFFECTIVE_EFFORT = _CTRL.get("EFFECTIVE_EFFORT") or os.environ.get(
+    "FAKE_CODEX_EFFECTIVE_EFFORT")
+
 
 def out_path_from_argv(argv):
     for i, a in enumerate(argv):
@@ -89,7 +114,7 @@ def valid_output(kind):
             "rationale": "r",
         }]}
     doc = {
-        "model": "gpt-5.6-sol",
+        "model": argv_model(_ARGV),
         "repository_fingerprint_sha256": FINGERPRINT or "deadbeefdeadbeef",
         "audit_summary": "fake independent audit",
         "findings": [],
@@ -103,6 +128,11 @@ def emit_events(partial=False):
         w('{"type":"thread.started","thread_id":"%s"' % SESSION)  # truncated line
         return
     w('{"type":"thread.started","thread_id":"%s"}\n' % SESSION)
+    # AUCDEV-024: codex --json exposes effective identity evidence through
+    # turn_context-style events (model + effort)
+    w('{"type":"turn_context","model":"%s","effort":"%s"}\n'
+      % (EFFECTIVE_MODEL or argv_model(_ARGV),
+         EFFECTIVE_EFFORT or argv_effort(_ARGV)))
     w('{"type":"turn.completed","usage":{"input_tokens":100,'
       '"cached_input_tokens":50,"output_tokens":200,'
       '"reasoning_output_tokens":80}}\n')
@@ -149,7 +179,7 @@ def main():
     if mode == "malformed_json":
         if outp:
             with open(outp, "w") as f:
-                f.write('{"model": "gpt-5.6-sol", "broken": ')
+                f.write('{"model": "%s", "broken": ' % argv_model(_ARGV))
         emit_events()
         return 0
     if mode == "partial_jsonl":
