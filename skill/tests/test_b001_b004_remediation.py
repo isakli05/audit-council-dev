@@ -54,6 +54,12 @@ sys.path.insert(0, HERE)
 import model_selection  # noqa: E402
 for _var in model_selection.CLAUDE_SELECTION_ENV_VARS:
     os.environ.pop(_var, None)
+# AUCDEV024-CR-IMPL-002 hermeticity: these run-lifecycle tests simulate the
+# sanctioned audit session — pin the observable per-turn effective effort
+# to the audit-default Auditor-A effort (the effective-effort gate has its
+# own dedicated tests that set/remove this surface explicitly).
+os.environ[model_selection.CLAUDE_EFFECTIVE_EFFORT_ENV] = \
+    model_selection.DEFAULT_EFFORT["opus"]
 
 import audit_council  # noqa: E402
 import codex_runner  # noqa: E402
@@ -555,7 +561,21 @@ class TestRB002LaunchTransaction(unittest.TestCase):
         return os.path.join(jobs_dir, records[0])
 
     def test_rb002_persistence_failure_terminates_spawned_child(self):
+        real_save = codex_runner.save_state
+        calls = {"n": 0}
+
         def failing_save(run_dir, state):
+            # AUCDEV024-CR-IMPL-001: the FIRST authoritative save is now the
+            # PRE-SPAWN selection freeze — it must succeed (a freeze-save
+            # failure means ZERO children and has its own dedicated tests in
+            # test_codex_runner_mock.TestPreSpawnFreeze). This test injects
+            # the failure at the POST-SPAWN job persistence boundary, the
+            # R-B002 semantics it exists to prove: kill-on-persistence-
+            # failure after the paid child has started.
+            calls["n"] += 1
+            if calls["n"] == 1:
+                real_save(run_dir, state)
+                return
             raise OSError("simulated authoritative persistence failure")
 
         with open(os.path.join(self.run_dir, "fake-codex-control"), "w") as fh:

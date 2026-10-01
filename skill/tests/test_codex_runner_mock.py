@@ -8,6 +8,8 @@ If the sibling scripts/state_store.py and validate_artifact.py do not exist yet
 skill tree and put on sys.path/PYTHONPATH; the shipped code imports the real
 modules unconditionally once they exist.
 """
+import contextlib
+import io
 import json
 import os
 import shutil
@@ -15,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 PYTHON = "python3"
 
@@ -600,6 +603,113 @@ class TestModelSelection(Harness):
         job = self.job_json(job_path)
         self.assertIsNone(job["effective_model"])
         self.assertIsNone(job["effective_effort"])
+
+
+# ---------------------------------------------------------------------------
+# AUCDEV024-CR-IMPL-001: pre-spawn DURABLE codex selection freeze
+# ---------------------------------------------------------------------------
+
+class TestPreSpawnFreeze(Harness):
+    """A run's FIRST codex selection freeze must be AUTHORITATIVELY
+    persisted to run state BEFORE the inference-capable child spawns:
+    killing a child after a post-spawn persistence failure proves nothing
+    about pre-spawn provenance. A freeze-persistence failure therefore
+    means ZERO launches — and a normal first launch has the frozen
+    selection durable on disk before Popen is entered."""
+
+    def _start_inprocess(self):
+        """Drive codex_runner.main in-process so persistence/spawn can be
+        instrumented; the child (fake codex) is still really spawned."""
+        env = dict(self.base_env)
+        self._write_fake_codex_control(env)
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.dict(os.environ, env), \
+                contextlib.redirect_stdout(out), \
+                contextlib.redirect_stderr(err):
+            rc = codex_runner.main(
+                ["start", "--run", self.run, "--phase", "independent",
+                 "--codex-bin", FAKE_CODEX])
+        return rc, out.getvalue(), err.getvalue()
+
+    def _probing_popen(self, snapshots):
+        """Wrap subprocess.Popen: on the launch() child (the /bin/sh
+        wrap-script invocation — the ONLY inference-capable spawn) snapshot
+        the on-disk run state BEFORE delegating to the real Popen."""
+        real_popen = subprocess.Popen
+
+        def probing_popen(argv, *a, **k):
+            if list(argv[:3]) == ["/bin/sh", "-c", codex_runner.WRAP_SCRIPT]:
+                with open(os.path.join(self.run, "state.json")) as fh:
+                    at_spawn = json.load(fh)
+                snapshots.append(at_spawn.get("model_selection", {})
+                                          .get("codex"))
+            return real_popen(argv, *a, **k)
+
+        return probing_popen
+
+    def test_freeze_persist_failure_zero_launch(self):
+        saves = {"n": 0}
+
+        def failing_save(run_dir, state):
+            saves["n"] += 1
+            raise OSError("injected selection-freeze persistence failure")
+
+        launches = {"n": 0}
+        real_launch = codex_runner.launch
+
+        def counting_launch(*a, **k):
+            launches["n"] += 1
+            return real_launch(*a, **k)
+
+        with mock.patch.object(codex_runner, "save_state", failing_save), \
+                mock.patch.object(codex_runner, "launch", counting_launch):
+            rc, _out, err = self._start_inprocess()
+        self.assertEqual(rc, 3)
+        self.assertIn("CODEX_FREEZE_PERSIST_FAILED", err)
+        self.assertEqual(saves["n"], 1)      # only the pre-spawn freeze save
+        self.assertEqual(launches["n"], 0)   # ZERO children started
+        # nothing was durably frozen and no job record exists
+        self.assertNotIn("model_selection", self.state())
+        jobs_dir = os.path.join(self.run, "logs", "jobs")
+        self.assertEqual(os.listdir(jobs_dir) if os.path.isdir(jobs_dir)
+                         else [], [])
+
+    def test_normal_first_launch_freeze_durable_before_spawn(self):
+        snapshots = []
+        with mock.patch("subprocess.Popen", self._probing_popen(snapshots)):
+            rc, out, err = self._start_inprocess()
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(len(snapshots), 1)  # exactly one child spawn
+        frozen_at_spawn = snapshots[0]
+        # the frozen selection was DURABLE on disk before Popen was entered
+        self.assertIsNotNone(frozen_at_spawn)
+        self.assertEqual((frozen_at_spawn["model"],
+                          frozen_at_spawn["effort"]),
+                         ("gpt-6.1-sol", "high"))
+        model_selection.verify_frozen(frozen_at_spawn)  # digest intact
+        # post-spawn job persistence keeps the SAME frozen record
+        frozen_after = self.state()["model_selection"]["codex"]
+        self.assertEqual(frozen_after["selection_digest"],
+                         frozen_at_spawn["selection_digest"])
+        # reap the launched fake child through the real wait path
+        self.wait(out.strip(), timeout=30)
+
+    def test_later_launch_reuses_frozen_record_exactly(self):
+        job1 = self.start()
+        self.wait(job1, timeout=30)
+        first = self.state()["model_selection"]["codex"]
+        # move to the cross-examination entry phase; its session comes from
+        # state — the second launch must reuse the frozen record verbatim
+        state = self.state()
+        state["phase"] = STAGE_ENTRY_PHASE["cross_examination"]
+        self.write_state(state)
+        job2 = self.start(phase="cross_examination")
+        second = self.state()["model_selection"]["codex"]
+        job = self.job_json(job2)
+        self.assertEqual((job["model"], job["reasoning_effort"]),
+                         ("gpt-6.1-sol", "high"))
+        self.assertEqual(second, first)  # identical record, never re-frozen
+        self.wait(job2, timeout=30)
 
 
 # ---------------------------------------------------------------------------

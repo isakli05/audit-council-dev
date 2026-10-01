@@ -109,6 +109,12 @@ INFERENCE_PHASES = {
 }
 
 INSTRUCTION_FILE_NAMES = ("CLAUDE.md", "AGENTS.md")
+
+# Phases from which NO further inference is possible (post-adjudication
+# accounting only). AUCDEV024-CR-IMPL-003 scopes the frozen-selection
+# resume requirement to runs that can still resume inference.
+_NO_INFERENCE_PHASES = ("FINALIZED", "COMPLETE")
+
 README_GLOB = "README*"
 
 
@@ -330,7 +336,46 @@ def _resolve_claude_selection(failures: list[dict[str, str]], args) -> dict | No
                           f"{selection['effort']}); launch the session with "
                           f"explicit --model/--effort and a sanitized model "
                           f"environment (values are never printed)"})
+    effective_failure = _claude_effective_effort_failure(
+        selection["effort"])
+    if effective_failure is not None:
+        failures.append({"check": "claude-effective-effort",
+                         "reason": effective_failure})
     return selection
+
+
+def _claude_effective_effort_failure(frozen_effort: str) -> str | None:
+    """AUCDEV024-CR-IMPL-002: mechanically bind the OBSERVABLE effective
+    Claude effort (readiness-probe surface CLAUDE_EFFORT — the active
+    effort for the current turn AFTER any client downgrade/clamp) to the
+    resolved/frozen Auditor-A effort before a run is accepted as
+    inference-ready. Returns a failure message or None.
+
+    The observation is never faked from requested CLI values, SKILL
+    frontmatter, the frozen state itself or provider defaults; absent or
+    mismatched effective effort FAILS CLOSED; the observed value is never
+    printed (names/tokens only, same policy as the ambient gate)."""
+    violation = model_selection.claude_effective_effort_violation(
+        frozen_effort)
+    if violation is None:
+        return None
+    if violation == "EFFECTIVE_EFFORT_UNOBSERVABLE":
+        detail = (
+            "the per-turn effective Claude effort surface "
+            f"({model_selection.CLAUDE_EFFECTIVE_EFFORT_ENV}, Claude Code "
+            "2.1.281 readiness-probe surface) is not observable in this "
+            "session; effective effort "
+            f"{frozen_effort!r} cannot be mechanically established (zero "
+            "inference; observed values are never printed)")
+    else:
+        detail = (
+            "the observable effective Claude effort "
+            f"({model_selection.CLAUDE_EFFECTIVE_EFFORT_ENV}) does NOT "
+            f"equal the resolved Auditor-A effort {frozen_effort!r}; a "
+            "silent downgrade/clamp is never accepted — relaunch the audit "
+            "session at the required effective effort (zero inference; "
+            "observed values are never printed)")
+    return f"MODEL_SELECTION:{violation}: {detail}"
 
 
 def cmd_preflight(args: argparse.Namespace) -> int:
@@ -515,6 +560,15 @@ def _init_run_core(repo: str, brief_arg: str | None, brief_source: str,
                   f"launch the audit session with explicit --model/--effort "
                   f"and a sanitized model environment (zero inference)")
             return EXIT_FAIL
+    # AUCDEV024-CR-IMPL-002: the run is accepted as inference-ready only
+    # when the OBSERVABLE effective Claude effort equals the resolved
+    # effort (absent/unobservable or mismatched fails closed; zero side
+    # effects — nothing has been created yet at this point).
+    effective_failure = _claude_effective_effort_failure(
+        claude_sel["effort"])
+    if effective_failure is not None:
+        _fail(f"{effective_failure}; refusing to create the run")
+        return EXIT_FAIL
     parent = state_store.runs_root(repo)
     os.makedirs(parent, exist_ok=True)
     existing = set(os.listdir(parent)) if os.path.isdir(parent) else set()
@@ -1332,6 +1386,35 @@ def cmd_resume_check(args: argparse.Namespace) -> int:
                                 f"inference)",
                        "completeness_state": "INVALID_MODEL_SELECTION"})
                 return EXIT_ENV
+        # AUCDEV024-CR-IMPL-002: resumed inference is accepted only when
+        # the OBSERVABLE effective Claude effort still equals the run-
+        # frozen effort (a silent downgrade since the freeze fails closed).
+        effective_failure = _claude_effective_effort_failure(
+            opus_sel["effort"])
+        if effective_failure is not None:
+            _emit({"ok": False, "stage": "model-selection",
+                   "error": "INVALID_" + effective_failure,
+                   "completeness_state": "INVALID_MODEL_SELECTION"})
+            return EXIT_ENV
+    elif state.get("phase") not in _NO_INFERENCE_PHASES:
+        # AUCDEV024-CR-IMPL-003: a run that can still resume inference MUST
+        # carry its frozen Auditor-A selection — an old resumable run
+        # without sufficient frozen model/effort provenance FAILS CLOSED
+        # rather than guessing or silently migrating a legacy generation
+        # (never invented from version/date/default; the historical state
+        # file itself is never rewritten). Schema compatibility for
+        # historical artifacts and operational resume permission are
+        # separate concerns: a legacy state WITHOUT model_selection still
+        # validates as a historical artifact.
+        _emit({"ok": False, "stage": "model-selection",
+               "error": "MODEL_SELECTION:RESUME_WITHOUT_FROZEN_SELECTION: "
+                        "this run can resume inference but carries no "
+                        "frozen Auditor-A model/effort provenance (it "
+                        "predates AUCDEV-024 selection freezing); refusing "
+                        "to resume rather than guess or silently migrate a "
+                        "legacy generation",
+               "completeness_state": "INVALID_MODEL_SELECTION"})
+        return EXIT_ENV
 
     # 2. checksums
     mismatches = state_store.verify_all(run_dir)

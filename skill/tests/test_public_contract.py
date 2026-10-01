@@ -37,6 +37,12 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 import model_selection  # noqa: E402
 for _var in model_selection.CLAUDE_SELECTION_ENV_VARS:
     os.environ.pop(_var, None)
+# AUCDEV024-CR-IMPL-002 hermeticity: these run-lifecycle tests simulate the
+# sanctioned audit session — pin the observable per-turn effective effort
+# to the audit-default Auditor-A effort (the effective-effort gate has its
+# own dedicated tests that set/remove this surface explicitly).
+os.environ[model_selection.CLAUDE_EFFECTIVE_EFFORT_ENV] = \
+    model_selection.DEFAULT_EFFORT["opus"]
 
 import budgets  # noqa: E402
 import validate_artifact  # noqa: E402

@@ -32,6 +32,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import model_selection  # noqa: E402
 for _var in model_selection.CLAUDE_SELECTION_ENV_VARS:
     os.environ.pop(_var, None)
+# AUCDEV024-CR-IMPL-002 hermeticity: these run-lifecycle tests simulate the
+# sanctioned audit session — pin the observable per-turn effective effort
+# to the audit-default Auditor-A effort (the effective-effort gate has its
+# own dedicated tests that set/remove this surface explicitly).
+os.environ[model_selection.CLAUDE_EFFECTIVE_EFFORT_ENV] = \
+    model_selection.DEFAULT_EFFORT["opus"]
 from test_schema_validation import contract  # noqa: E402
 
 import state_store  # noqa: E402
@@ -131,9 +137,19 @@ class TestV1ArtifactCompat(unittest.TestCase):
         self.assertIn('"lines"', on_disk)
         self.assertNotIn("line_ranges", on_disk)
 
-        # resume-check validates it through the same in-memory reader
+        # AUCDEV024-CR-IMPL-003: this v1-era run sits at a phase that CAN
+        # resume inference and carries no frozen Auditor-A selection —
+        # resume-check now FAILS CLOSED rather than guessing the original
+        # model/effort (the accepted AUCDEV-024 rule, mechanically enforced
+        # at the resume gate; the v1 artifact itself was already accepted
+        # by `advance` above and its bytes stay unchanged)
         proc = self._cli("resume-check", "--run", run_dir)
-        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertEqual(proc.returncode, 10, proc.stdout + proc.stderr)
+        doc = json.loads(proc.stdout)
+        self.assertFalse(doc["ok"])
+        self.assertEqual(doc["stage"], "model-selection")
+        self.assertIn("MODEL_SELECTION:RESUME_WITHOUT_FROZEN_SELECTION",
+                      doc["error"])
 
     def test_finalized_v1_run_bytes_never_rewritten(self):
         # a directory of v1 artifacts stays byte-identical after ANY v2 read

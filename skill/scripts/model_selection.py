@@ -30,6 +30,12 @@ selectable explicitly and required when resuming runs frozen with them — but
 historical artifacts are never relabelled and resumes never migrate
 generations (objective §7).
 
+The Auditor-A (Claude) selection is additionally bound to the OBSERVABLE
+per-turn effective effort (CLAUDE_EFFORT, after any client downgrade/clamp;
+AUCDEV024-CR-IMPL-002): an absent or mismatched effective effort fails
+closed before preflight, run creation or resume accepts inference-readiness
+— never silently downgraded, never faked from requested values.
+
 Stdlib only. Values of environment variables are never logged by this
 module (callers surface variable NAMES only).
 """
@@ -332,3 +338,49 @@ def claude_ambient_conflicts(model: str, effort: str,
         if value is not None and value != effort:
             conflicts.append(var)
     return conflicts
+
+
+# ---------------------------------------------------------------------------
+# Claude effective-effort gate (AUCDEV024-CR-IMPL-002)
+# ---------------------------------------------------------------------------
+
+# The per-turn EFFECTIVE Claude effort surface established for the installed
+# client (Claude Code 2.1.281) by the AUCDEV-024 zero-provider readiness
+# probe (gate CLAUDE-07): CLAUDE_EFFORT is "the active effort level for the
+# current turn ... after any silent downgrade for the selected model",
+# exposed to hook commands and Bash. It is the ONLY mechanically honored
+# effective-effort evidence — requested CLI values, SKILL frontmatter, the
+# frozen state itself and provider defaults are never accepted (using any
+# of those would FAKE the observation, not make it).
+CLAUDE_EFFECTIVE_EFFORT_ENV = "CLAUDE_EFFORT"
+
+
+def claude_effective_effort(environ=None) -> str | None:
+    """The observable effective effort token (normalized); None if the
+    surface is absent/blank (unobservable). Values are never logged."""
+    env = os.environ if environ is None else environ
+    value = env.get(CLAUDE_EFFECTIVE_EFFORT_ENV)
+    if value is None:
+        return None
+    value = value.strip().lower()
+    return value or None
+
+
+def claude_effective_effort_violation(effort: str,
+                                      environ=None) -> str | None:
+    """CR-IMPL-002 gate: None when the observable effective effort equals
+    `effort`; otherwise a stable reason token.
+
+    "EFFECTIVE_EFFORT_UNOBSERVABLE" — the surface is absent, so nothing
+        mechanically establishes the effective effort (fail closed).
+    "EFFECTIVE_EFFORT_MISMATCH"    — the session observably runs at a
+        different effort (silent downgrade/clamp); never accepted and
+        never silently downgraded to.
+    The observed value is compared but NEVER returned (names-only policy,
+    same as the ambient-conflict gate)."""
+    effective = claude_effective_effort(environ)
+    if effective is None:
+        return "EFFECTIVE_EFFORT_UNOBSERVABLE"
+    if effective != effort.strip().lower():
+        return "EFFECTIVE_EFFORT_MISMATCH"
+    return None

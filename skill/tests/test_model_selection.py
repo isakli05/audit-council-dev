@@ -31,9 +31,12 @@ from test_schema_validation import contract, independent_audit  # noqa: E402
 
 AUDIT_COUNCIL = str(SCRIPTS_DIR / "audit_council.py")
 
-# hermetic default: no ambient Claude redirect leaks into these tests
+# hermetic default: no ambient Claude redirect leaks into these tests, and
+# no ambient effective-effort observation leaks either (the CR-IMPL-002
+# gate has dedicated tests that set/remove this surface explicitly)
 _CLEAN_ENV = {k: v for k, v in os.environ.items()
-              if k not in model_selection.CLAUDE_SELECTION_ENV_VARS}
+              if k not in model_selection.CLAUDE_SELECTION_ENV_VARS
+              and k != "CLAUDE_EFFORT"}
 
 
 def clean_env(**over) -> dict:
@@ -313,6 +316,44 @@ class TestAmbientConflictGate(unittest.TestCase):
 # artifact identity
 # ---------------------------------------------------------------------------
 
+class TestEffectiveEffortGateUnit(unittest.TestCase):
+    """AUCDEV024-CR-IMPL-002: the observable per-turn EFFECTIVE Claude
+    effort (readiness-probe surface CLAUDE_EFFORT, reflecting the effort
+    the session ACTUALLY runs at after any client downgrade/clamp) must
+    mechanically equal the resolved/frozen Auditor-A effort. Absent or
+    mismatched fails closed; the observed value is never echoed back."""
+
+    def test_effective_effort_equal_passes(self):
+        self.assertIsNone(model_selection.claude_effective_effort_violation(
+            "high",
+            environ={model_selection.CLAUDE_EFFECTIVE_EFFORT_ENV: "high"}))
+
+    def test_effective_effort_mismatch_fails_closed(self):
+        violation = model_selection.claude_effective_effort_violation(
+            "high",
+            environ={model_selection.CLAUDE_EFFECTIVE_EFFORT_ENV: "medium"})
+        self.assertEqual(violation, "EFFECTIVE_EFFORT_MISMATCH")
+        self.assertNotIn("medium", violation)  # tokens only, never the value
+
+    def test_effective_effort_missing_fails_closed(self):
+        self.assertEqual(
+            model_selection.claude_effective_effort_violation(
+                "high", environ={}),
+            "EFFECTIVE_EFFORT_UNOBSERVABLE")
+
+    def test_blank_surface_is_unobservable(self):
+        self.assertEqual(
+            model_selection.claude_effective_effort_violation(
+                "high",
+                environ={model_selection.CLAUDE_EFFECTIVE_EFFORT_ENV: "  "}),
+            "EFFECTIVE_EFFORT_UNOBSERVABLE")
+
+    def test_comparison_is_case_normalized(self):
+        self.assertIsNone(model_selection.claude_effective_effort_violation(
+            "high",
+            environ={model_selection.CLAUDE_EFFECTIVE_EFFORT_ENV: "HIGH"}))
+
+
 class CliBase(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -334,10 +375,13 @@ class CliBase(unittest.TestCase):
         self._tmp.cleanup()
 
     def cli(self, *args, stdin=None, env=None):
+        # default session surface: the sanctioned audit posture (audit-
+        # default Auditor A = claude-opus-5-5/high with effective high)
         return subprocess.run(
             [PYTHON, AUDIT_COUNCIL, *args], input=stdin,
             capture_output=True, check=False,
-            env=env or clean_env(AUDIT_COUNCIL_CACHE_HOME=self.cache))
+            env=env or clean_env(AUDIT_COUNCIL_CACHE_HOME=self.cache,
+                                 CLAUDE_EFFORT="high"))
 
     def init_run(self, *extra, env=None):
         proc = self.cli("init-run", "--repo", self.repo,
@@ -381,6 +425,7 @@ class TestPreflightGate(CliBase):
         proc = self.cli("preflight", "--repo", self.repo,
                         "--brief", self.brief, "--skip-codex",
                         env=clean_env(AUDIT_COUNCIL_CACHE_HOME=self.cache,
+                                      CLAUDE_EFFORT="high",
                                       ANTHROPIC_MODEL="glm-5.3[1m]"))
         self.assertEqual(proc.returncode, 1)
         doc = json.loads(proc.stdout)
@@ -394,6 +439,7 @@ class TestPreflightGate(CliBase):
         proc = self.cli("preflight", "--repo", self.repo,
                         "--brief", self.brief, "--skip-codex",
                         env=clean_env(AUDIT_COUNCIL_CACHE_HOME=self.cache,
+                                      CLAUDE_EFFORT="high",
                                       CLAUDE_CODE_EFFORT_LEVEL="max"))
         self.assertEqual(proc.returncode, 1)
         checks = {f["check"] for f in json.loads(proc.stdout)["failures"]}
@@ -403,6 +449,7 @@ class TestPreflightGate(CliBase):
         proc = self.cli("preflight", "--repo", self.repo,
                         "--brief", self.brief, "--skip-codex",
                         env=clean_env(AUDIT_COUNCIL_CACHE_HOME=self.cache,
+                                      CLAUDE_EFFORT="high",
                                       ANTHROPIC_MODEL="claude-opus-5-5",
                                       CLAUDE_CODE_EFFORT_LEVEL="high"))
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
@@ -453,7 +500,10 @@ class TestInitRunFreeze(CliBase):
 
     def test_init_explicit_selection_frozen(self):
         run_dir = self.init_run("--claude-model", "claude-opus-5",
-                                "--claude-effort", "low")
+                                "--claude-effort", "low",
+                                env=clean_env(
+                                    AUDIT_COUNCIL_CACHE_HOME=self.cache,
+                                    CLAUDE_EFFORT="low"))
         frozen = self.state(run_dir)["model_selection"]["opus"]
         self.assertEqual(frozen["mode"], "explicit")
         self.assertEqual((frozen["model"], frozen["effort"]),
@@ -475,6 +525,7 @@ class TestInitRunFreeze(CliBase):
         run_dir = self.init_run()
         proc = self.cli("resume-check", "--run", run_dir,
                         env=clean_env(AUDIT_COUNCIL_CACHE_HOME=self.cache,
+                                      CLAUDE_EFFORT="high",
                                       CLAUDE_CODE_SUBAGENT_MODEL="glm-5.3[1m]"))
         self.assertEqual(proc.returncode, 10, proc.stdout + proc.stderr)
         doc = json.loads(proc.stdout)
@@ -482,6 +533,173 @@ class TestInitRunFreeze(CliBase):
         self.assertEqual(doc["stage"], "model-selection")
         self.assertIn("AMBIENT_CONFLICT", doc["error"])
         self.assertNotIn("glm-5.3[1m]", doc["error"])  # names only
+
+
+class TestEffectiveEffortGate(CliBase):
+    """AUCDEV024-CR-IMPL-002 at the CLI surfaces: preflight, init-run (and
+    thereby prepare) and resume-check refuse inference-readiness unless the
+    observable effective Claude effort equals the resolved/frozen effort —
+    never a value faked from requested CLI flags, SKILL frontmatter, the
+    frozen state itself or provider defaults."""
+
+    def test_preflight_effective_high_passes(self):
+        proc = self.cli("preflight", "--repo", self.repo,
+                        "--brief", self.brief, "--skip-codex")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        doc = json.loads(proc.stdout)
+        self.assertTrue(doc["ok"])
+
+    def test_preflight_effective_medium_fails_closed(self):
+        proc = self.cli("preflight", "--repo", self.repo,
+                        "--brief", self.brief, "--skip-codex",
+                        env=clean_env(AUDIT_COUNCIL_CACHE_HOME=self.cache,
+                                      CLAUDE_EFFORT="medium"))
+        self.assertEqual(proc.returncode, 1)
+        doc = json.loads(proc.stdout)
+        self.assertFalse(doc["ok"])
+        checks = {f["check"] for f in doc["failures"]}
+        self.assertIn("claude-effective-effort", checks)
+        reasons = " ".join(f["reason"] for f in doc["failures"])
+        self.assertIn("EFFECTIVE_EFFORT_MISMATCH", reasons)
+        self.assertNotIn("medium", reasons)  # observed value never printed
+
+    def test_preflight_effective_missing_fails_closed(self):
+        proc = self.cli("preflight", "--repo", self.repo,
+                        "--brief", self.brief, "--skip-codex",
+                        env=clean_env(AUDIT_COUNCIL_CACHE_HOME=self.cache,
+                                      CLAUDE_EFFORT=None))
+        self.assertEqual(proc.returncode, 1)
+        doc = json.loads(proc.stdout)
+        checks = {f["check"] for f in doc["failures"]}
+        self.assertIn("claude-effective-effort", checks)
+        reasons = " ".join(f["reason"] for f in doc["failures"])
+        self.assertIn("EFFECTIVE_EFFORT_UNOBSERVABLE", reasons)
+
+    def test_init_run_effective_mismatch_refuses_before_creation(self):
+        out_parent = os.path.join(self.repo, "audit-output")
+        before = os.listdir(out_parent) if os.path.isdir(out_parent) else []
+        proc = self.cli("init-run", "--repo", self.repo, "--brief", self.brief,
+                        env=clean_env(AUDIT_COUNCIL_CACHE_HOME=self.cache,
+                                      CLAUDE_EFFORT="medium"))
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("MODEL_SELECTION:EFFECTIVE_EFFORT_MISMATCH",
+                      proc.stdout.decode())
+        after = os.listdir(out_parent) if os.path.isdir(out_parent) else []
+        self.assertEqual(after, before)  # zero side effects
+
+    def test_init_run_explicit_effort_bound_to_effective(self):
+        # the gate is exact equality against the RESOLVED effort (not a
+        # high-only rule): an explicit low selection runs at effective low
+        run_dir = self.init_run("--claude-model", "claude-opus-5-5",
+                                "--claude-effort", "low",
+                                env=clean_env(
+                                    AUDIT_COUNCIL_CACHE_HOME=self.cache,
+                                    CLAUDE_EFFORT="low"))
+        frozen = self.state(run_dir)["model_selection"]["opus"]
+        self.assertEqual((frozen["model"], frozen["effort"]),
+                         ("claude-opus-5-5", "low"))
+
+    def test_resume_check_effective_mismatch_fails_closed(self):
+        run_dir = self.init_run()
+        proc = self.cli("resume-check", "--run", run_dir,
+                        env=clean_env(AUDIT_COUNCIL_CACHE_HOME=self.cache,
+                                      CLAUDE_EFFORT="medium"))
+        self.assertEqual(proc.returncode, 10, proc.stdout + proc.stderr)
+        doc = json.loads(proc.stdout)
+        self.assertFalse(doc["ok"])
+        self.assertEqual(doc["stage"], "model-selection")
+        self.assertIn("EFFECTIVE_EFFORT_MISMATCH", doc["error"])
+        self.assertEqual(doc["completeness_state"],
+                         "INVALID_MODEL_SELECTION")
+
+    def test_resume_frozen_legacy_high_effective_mismatch_fails_closed(self):
+        run_dir = self.init_run("--claude-model", "claude-opus-5",
+                                "--claude-effort", "high",
+                                env=clean_env(
+                                    AUDIT_COUNCIL_CACHE_HOME=self.cache,
+                                    CLAUDE_EFFORT="high"))
+        frozen = self.state(run_dir)["model_selection"]["opus"]
+        self.assertEqual((frozen["model"], frozen["effort"]),
+                         ("claude-opus-5", "high"))
+        proc = self.cli("resume-check", "--run", run_dir,
+                        env=clean_env(AUDIT_COUNCIL_CACHE_HOME=self.cache,
+                                      CLAUDE_EFFORT="medium"))
+        self.assertEqual(proc.returncode, 10, proc.stdout + proc.stderr)
+        doc = json.loads(proc.stdout)
+        self.assertFalse(doc["ok"])
+        self.assertIn("EFFECTIVE_EFFORT_MISMATCH", doc["error"])
+        # the frozen legacy identity is never migrated by the failure
+        frozen_after = self.state(run_dir)["model_selection"]["opus"]
+        self.assertEqual((frozen_after["model"], frozen_after["effort"]),
+                         ("claude-opus-5", "high"))
+
+
+class TestResumeWithoutFrozenSelection(CliBase):
+    """AUCDEV024-CR-IMPL-003: a run that can resume inference MUST carry
+    its frozen Auditor-A selection — an old resumable run without frozen
+    model/effort provenance FAILS CLOSED (never guessed, never silently
+    migrated). Schema compatibility for historical state files and
+    operational resume permission are separate concerns."""
+
+    def _strip_model_selection(self, run_dir):
+        with open(os.path.join(run_dir, "state.json")) as fh:
+            state = json.load(fh)
+        state.pop("model_selection", None)
+        with open(os.path.join(run_dir, "state.json"), "w") as fh:
+            json.dump(state, fh)
+
+    def test_resumable_state_without_frozen_opus_fails_closed(self):
+        run_dir = self.init_run()
+        self._strip_model_selection(run_dir)
+        proc = self.cli("resume-check", "--run", run_dir)
+        self.assertEqual(proc.returncode, 10, proc.stdout + proc.stderr)
+        doc = json.loads(proc.stdout)
+        self.assertFalse(doc["ok"])
+        self.assertEqual(doc["stage"], "model-selection")
+        self.assertIn("MODEL_SELECTION:RESUME_WITHOUT_FROZEN_SELECTION",
+                      doc["error"])
+        self.assertEqual(doc["completeness_state"],
+                         "INVALID_MODEL_SELECTION")
+        # nothing was rewritten: the state stays exactly as history left it
+        with open(os.path.join(run_dir, "state.json")) as fh:
+            self.assertNotIn("model_selection", fh.read())
+
+    def test_historical_state_without_model_selection_remains_schema_valid(self):
+        import validate_artifact
+        run_dir = self.init_run()
+        self._strip_model_selection(run_dir)
+        errors = validate_artifact.validate_file(
+            os.path.join(run_dir, "state.json"),
+            str(SKILL_DIR / "schemas" / "state.schema.json"))
+        self.assertEqual(errors, [])  # historical artifact, still valid
+
+    def test_terminal_complete_state_without_frozen_selection_not_gated(self):
+        # a COMPLETE run cannot resume inference: the fail-closed gate must
+        # not fire (other completeness problems are a separate concern)
+        import state_store
+        run_dir = self.init_run()
+        with open(os.path.join(run_dir, "state.json")) as fh:
+            state = json.load(fh)
+        state.pop("model_selection", None)
+        state["phase"] = "COMPLETE"
+        state_store.save_state(run_dir, state)  # ledger kept consistent
+        proc = self.cli("resume-check", "--run", run_dir)
+        self.assertNotEqual(proc.returncode, 10, proc.stdout + proc.stderr)
+        self.assertNotIn("RESUME_WITHOUT_FROZEN_SELECTION",
+                         proc.stdout.decode())
+
+    def test_frozen_legacy_opus_run_resumes_exactly_as_frozen(self):
+        run_dir = self.init_run("--claude-model", "claude-opus-5",
+                                "--claude-effort", "high",
+                                env=clean_env(
+                                    AUDIT_COUNCIL_CACHE_HOME=self.cache,
+                                    CLAUDE_EFFORT="high"))
+        proc = self.cli("resume-check", "--run", run_dir)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        frozen = self.state(run_dir)["model_selection"]["opus"]
+        # resumed exactly as frozen — no generation migration ever
+        self.assertEqual((frozen["model"], frozen["effort"]),
+                         ("claude-opus-5", "high"))
 
 
 class TestArtifactIdentityGate(CliBase):

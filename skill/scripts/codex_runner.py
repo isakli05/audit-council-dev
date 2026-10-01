@@ -753,11 +753,16 @@ def cmd_start(args) -> int:
             session_id = state.get("codex", {}).get("session_id")
 
         # AUCDEV-024: resolve the codex model selection under the same
-        # serialization boundary and — for a run's first codex stage — stage
-        # the provenance freeze INTO the R-B002 launch transaction below
-        # (spawn + authoritative persistence are one serialized mutation;
-        # a persistence failure terminates the child, so no inference can
-        # complete without the frozen selection becoming durable).
+        # serialization boundary. For a run's FIRST codex stage the frozen
+        # provenance record is AUTHORITATIVELY PERSISTED BEFORE the child
+        # can spawn (AUCDEV024-CR-IMPL-001): killing a child after a
+        # post-spawn persistence failure proves nothing about pre-spawn
+        # provenance, so the freeze must already be durable when the
+        # inference-capable process starts. A freeze-persistence failure
+        # here means ZERO children were started. A later launch failure may
+        # legitimately leave the run selection frozen (durable provenance
+        # before spawn is preferable to spawning without it); later attempts
+        # reuse the frozen selection exactly.
         try:
             codex_sel, needs_freeze = resolve_codex_selection(args, state,
                                                               session_id)
@@ -768,6 +773,14 @@ def cmd_start(args) -> int:
             state.setdefault("model_selection", {})["codex"] = \
                 model_selection.freeze_record(
                     codex_sel, client_version=_codex_client_version(codex_bin))
+            try:
+                save_state(run_dir, state)
+            except Exception as exc:  # noqa: BLE001 — fail closed, zero spawns
+                print("error: MODEL_SELECTION:CODEX_FREEZE_PERSIST_FAILED: "
+                      "the pre-spawn authoritative persistence of the frozen "
+                      "codex selection failed; ZERO children were started: "
+                      "%s" % exc, file=sys.stderr)
+                return 3
 
         job_id = "%s-%s" % (phase, uuid.uuid4().hex[:8])
         out_path = os.path.join(run_dir, "logs",
