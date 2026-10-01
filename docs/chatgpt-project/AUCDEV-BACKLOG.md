@@ -2406,6 +2406,70 @@ append-only. Canonical report:
   contain its own final hash); NEXT (grants nothing): FRESH CONTROL
   ROOM READBACK of this implementation candidate and its generated-LAST
   handoff at the exact result SHA.
+- PCH6-B implementation Control Room readback status (2026-10-01;
+  ACCEPTED_MECHANICS_WITH_RECORD_PRECISION_RESIDUALS over exact
+  implementation candidate `730d2b29f7c0e7d33af3451b6d9205ec27c143ed`
+  (root tree `2585796efd5cb6902226cfff785bb901297a15e3`, sole parent
+  `068f5e29904f446bf832138fd64c8833b9037cb7`) by record-only publication
+  authority
+  `AUCDEV-023-PCH6-B-STRUCTURAL-REMEDIATION-IMPLEMENTATION-CONTROL-ROOM-READBACK-20261001-01`;
+  this session executed ZERO source/test implementation and ZERO tests):
+  one-commit exactly-ten-path geometry verified with per-path
+  base->candidate blob identities and NO eleventh path (MANIFEST.json,
+  README.md, ebs/launch.py, test_exec03_real_validator_lifecycle.py,
+  test_final_execution_lifecycle.py, test_final_launch_seam.py,
+  test_static.py, NEW implementation record, BACKLOG, CURRENT-STATE);
+  generated-last handoff verified DATA-ONLY (outer SHA-256
+  `8a70b1a11b4239587edcd424b9053c9c1674066920a44e04760fc5405e6b36ce` /
+  1082714 B; 31 regular members = 30 payload + SHA256SUMS; every member
+  regular / mode 0600 / flat / unique; SHA256SUMS 30/30 PASS; exact
+  payload-set equality TRUE; the Git blob identities independently
+  computed from all TEN committed-file members EQUAL the live candidate
+  blobs); source-remediation mechanics verified (PCH6-CR-BSD-001 =
+  `_validate_report_target_binding` with the shared strict parser and
+  the fixed REPORT_TARGET_COMMIT_MISMATCH / REPORT_TARGET_BINDING_
+  UNPARSEABLE tokens, called immediately AFTER `_run_validator` PASS /
+  envelope acceptance and immediately BEFORE freeze_snapshot on the SAME
+  immutable snapshot, settling through the existing REPORT_INVALID path
+  with the validator argv/result schema unchanged; PCH6-B-SD-002 =
+  methodology_not_a_string NEGATIVES row + dedicated
+  METHODOLOGY_NOT_A_STRING full-lifecycle regression through the REAL
+  frozen validator materialization and the CURRENT EBS lifecycle); held
+  identities byte-identical (binding.py, real_validator_materialization,
+  frozen validator payload/size, qualification-harness, skill);
+  MANIFEST final-byte binding verified (33 rows; non-circular
+  package_sha256 independently re-derived; exact serialization; exactly
+  six changed rows; semantic metadata delta NONE); LOC readback 3057 <=
+  3060 with launch.py 1685 -> 1726 (+41) the ONLY production change and
+  the historical 3016 ceiling preserved; submitted deterministic test
+  evidence (35 / 62 / 156 / 13 / FULL 524 passed under the ZERO-network
+  environment) accepted at IMPLEMENTATION-EVIDENCE STRENGTH ONLY — the
+  Control Room did NOT rerun the suite, NOT independent audit evidence,
+  NOT audit PASS; IMPLRB-001 (AUCDEV023-CR-PCH6B-IMPLRB-001) recorded
+  OPEN as a record-precision residual: the canonical implementation
+  record section 13 carries only T-1 plus "No other failed observation
+  occurred" while its own generated-last handoff records T-1..T-4;
+  corrected APPEND-ONLY by the readback record (implementation record
+  NOT rewritten); one SCOPEP-002 short-form typo where the established
+  identifier is SCOPEPUB-002 recorded append-only; T-5 (post-packaging
+  sha256-vs-sha1 formula error) OPERATOR_REPORTED / NOT independently
+  observed; IMPLRB-002 (AUCDEV023-CR-PCH6B-IMPLRB-002) recorded
+  INFORMATIONAL / NONBLOCKING / CLOSED by the independent archive
+  census (index claims 29 payload + 0 B SHA256SUMS; actual 30 payload +
+  2751 B); PCH6-B-SD-001 RETAINED / OPEN / zero implementation;
+  PCH6-B-SD-002 and PCH6-CR-BSD-001 IMPLEMENTED AS CANDIDATE /
+  CONTROL_ROOM_MECHANICS_ACCEPTED / AWAITING FRESH INDEPENDENT AUDIT /
+  NOT CLOSED / NOT established as cause of the historical failure;
+  ROOT_CAUSE_NOT_ESTABLISHED unchanged with no causal conversion and NO
+  finding closed; AUCDEV-023 and AUCDEV-024 both remain P1 / READY /
+  NOT DONE with the independent-auditor provenance / authority gate
+  OPEN; counts UNCHANGED READY 10 / OPEN 7 / BLOCKED 3 = 20 open; P0 2
+  / P1 8 / P2 11 = 21 queue rows; IN_PROGRESS 0; 3 DEFERRED / 8
+  ACCEPTED_RESIDUAL / 5 DONE; no queue-row status transition; no
+  backlog item marked DONE; NEXT (grants nothing): Control Room
+  verification of this readback publication and, if accepted, resolution
+  of the standing independent-auditor provenance / authority gate before
+  any fresh independent audit of the candidate).
 
 ### AUCDEV-024 — Auditor Model Selection Policy & Model Generation Migration
 
@@ -3206,3 +3270,5 @@ means `AUDIT-COUNCIL-V2-KNOWN-LIMITATIONS.md`. Links to deeper authority are in
 2026-10-01 (AUCDEV-023 PCH6-B IMPLEMENTATION SCOPE-AMENDMENT PUBLICATION CONTROL ROOM VERIFICATION — PARTIALLY_ACCEPTED over exact publication `c8f96c1656b3768e0b9c0ef60f399e26ae91ed27` by record-only publication verification authority `AUCDEV-023-PCH6-B-STRUCTURAL-REMEDIATION-IMPLEMENTATION-SCOPE-AMENDMENT-PUBLICATION-CONTROL-ROOM-VERIFICATION-20261001-01` (this session is the RECORD-ONLY CONTROL ROOM VERIFICATION PUBLISHER of the independently reached Control Room verification decision — NOT the Control Room decision-maker, NOT a remediation implementer, NOT Auditor-A/B, NOT an /audit-council executor, NOT a provider/model/frontier executor, NOT a qualification authority, NOT an installation authority; ZERO provider/model/frontier calls, ZERO client inference calls, ZERO auditor execution, ZERO wrapper/driver invocation, ZERO test execution, ZERO source/test/MANIFEST/README modification, ZERO package-manager fetch, ZERO credential-content access, ZERO sealed-substance access; the input handoff archive was handled DATA-ONLY with zero members executed or extracted for execution): live Git geometry, handoff archive integrity, canonical blob equality, protected-tree equality and ten-path scope semantics ACCEPTED; SCOPEPUB-001 (canonical honest-iteration record incomplete: committed canonical section 11 contains ONLY T-1/T-2 while the commit message records T-1..T-4 and the handoff FINAL-RETURN claims all four are in section 11; recorded append-only; the published scope-amendment record NOT edited; no intent speculation) and SCOPEPUB-002 (handoff validation-output completeness limitation: FileNotFoundError CURRENT-base.md under the precommit-gate and staged-rotation-re-assertion sections with corrected rerun outputs absent; failed output NOT converted to PASS; the Git geometry/blob/protected-tree facts and the substantive scope decision NOT invalidated) recorded OPEN as publication-evidence findings; T-5/T-6 OPERATOR_REPORTED post-publication packaging iterations with final archive integrity independently verified; EXPANDED TEN-PATH IMPLEMENTATION AUTHORITY HELD (no candidate SHA exists; no implementation has occurred; PCH6-B-SD-001 retained/open; PCH6-B-SD-002 and PCH6-CR-BSD-001 selected/not closed; ROOT_CAUSE_NOT_ESTABLISHED unchanged; no finding closed); counts UNCHANGED (READY 10 / OPEN 7 / BLOCKED 3 = 20 open; P0 2 / P1 8 / P2 11 = 21 queue rows; IN_PROGRESS 0; 3 DEFERRED / 8 ACCEPTED_RESIDUAL / 5 DONE; no backlog item marked DONE; no queue-row status transition); AUCDEV-023 and AUCDEV-024 both remain P1 / READY / NOT DONE with the independent-auditor provenance / authority gate OPEN; qualification NONE; installation NONE; canonical record `docs/chatgpt-project/AUCDEV-023-PCH6-B-STRUCTURAL-REMEDIATION-IMPLEMENTATION-SCOPE-AMENDMENT-PUBLICATION-CONTROL-ROOM-VERIFICATION.md`; NEXT ACTION EXACTLY ONE: INDEPENDENT CONTROL ROOM VERIFICATION OF THIS SCOPE-AMENDMENT PUBLICATION VERIFICATION/CORRECTION RECORD BEFORE THE EXPANDED TEN-PATH IMPLEMENTATION AUTHORITY IS RELEASED — grants nothing)
 
 2026-10-01 (AUCDEV-023 PCH6-B BOUNDED STRUCTURAL REMEDIATION IMPLEMENTATION — IMPLEMENTED_AS_CANDIDATE over authorized exact base `068f5e29904f446bf832138fd64c8833b9037cb7` by implementation authority `AUCDEV-023-PCH6-B-STRUCTURAL-REMEDIATION-IMPLEMENTATION-20261001-02`: exactly TEN tracked paths (launch.py, test_exec03_real_validator_lifecycle.py, README.md, NEW implementation record, CURRENT-STATE, BACKLOG, MANIFEST.json, test_final_execution_lifecycle.py, test_final_launch_seam.py, test_static.py) with NO eleventh; PCH6-CR-BSD-001 = Supervisor-side exact semantic report-target binding after validator PASS before freeze on the SAME immutable snapshot (strict parser, fixed tokens, existing REPORT_INVALID settlement); PCH6-B-SD-002 = deterministic methodology_not_a_string regression through the REAL frozen validator materialization and CURRENT EBS lifecycle; production LOC 3057 <= 3060 (3016 preserved); MANIFEST final-byte regenerated with semantic metadata preserved EXACTLY; ZERO-NETWORK local tests 35/62/156/13 and FULL 524 passed; held files/trees verified unchanged; PCH6-B-SD-001 untouched; findings NOT closed by implementer; ROOT_CAUSE_NOT_ESTABLISHED unchanged; result candidate SHA / staged write-tree in the commit message / FINAL-RETURN / generated-LAST handoff awaiting the fresh Control Room readback canonical pin — grants nothing beyond the candidate)
+
+2026-10-01 (AUCDEV-023 PCH6-B STRUCTURAL REMEDIATION IMPLEMENTATION CONTROL ROOM READBACK — ACCEPTED_MECHANICS_WITH_RECORD_PRECISION_RESIDUALS over exact implementation candidate `730d2b29f7c0e7d33af3451b6d9205ec27c143ed` (sole parent `068f5e29904f446bf832138fd64c8833b9037cb7`) by record-only publication authority `AUCDEV-023-PCH6-B-STRUCTURAL-REMEDIATION-IMPLEMENTATION-CONTROL-ROOM-READBACK-20261001-01`: one-commit exactly-ten-path geometry verified with NO eleventh path; generated-last handoff verified data-only (31 regular members = 30 payload + SHA256SUMS; SHA256SUMS 30/30 PASS; payload-set equality TRUE; ten committed-file member Git blob identities EQUAL live); source mechanics for PCH6-CR-BSD-001 and PCH6-B-SD-002 verified against the live candidate bytes; held identities and MANIFEST final-byte binding verified (semantic metadata delta NONE); LOC 3057 <= 3060 verified; submitted deterministic test evidence 35 / 62 / 156 / 13 / FULL 524 passed accepted at implementation-evidence strength ONLY (NOT rerun by the Control Room, NOT audit PASS); IMPLRB-001 recorded OPEN record-precision residual corrected append-only (canonical iteration accounting incomplete; SCOPEP-002 short-form typo; T-5 operator-reported NOT independently observed); IMPLRB-002 recorded INFORMATIONAL / NONBLOCKING / CLOSED by independent census; PCH6-B-SD-001 RETAINED / OPEN; PCH6-B-SD-002 and PCH6-CR-BSD-001 implemented-as-candidate / awaiting fresh independent audit / NOT CLOSED; ROOT_CAUSE_NOT_ESTABLISHED unchanged; AUCDEV-023 and AUCDEV-024 both remain P1 / READY / NOT DONE with the independent-auditor provenance / authority gate OPEN; NO audit PASS, NO qualification, NO installation — grants nothing)
