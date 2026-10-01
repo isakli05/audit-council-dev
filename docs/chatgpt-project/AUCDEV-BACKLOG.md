@@ -2790,6 +2790,82 @@ append-only. Canonical report:
   design — implementation only, granting NO event-package preparation, NO
   event instantiation, NO attempt authority, NO `/audit-council`, NO
   provider/model/auditor execution, NO qualification, NO installation).
+- Candidate-specific bootstrap-authority bounded implementation status
+  (2026-10-02; IMPLEMENTED_AS_CANDIDATE over exact base
+  `63e842e392320b74a7fac923ae140984b28079dd` by implementation authority
+  `AUCDEV-023-PCH6B-730D2B29-BOOTSTRAP-AUTHORITY-
+  IMPLEMENTATION-20261002-01`): the Control-Room-accepted PATH-B design was
+  implemented EXACTLY — NEW `bootstrap-authority/` with thirteen package
+  paths (MANIFEST generated LAST, README, seven production modules, four
+  test files) + the canonical implementation record + the CURRENT/BACKLOG
+  rotations = sixteen tracked paths with NO seventeenth. Target-independent
+  TCB: zero production import of candidate bootstrap-supervisor /
+  qualification-harness / skill code; four EXACT pre-target blob reuses
+  (`cf563d2178…` statemachine, `03de6f663d…` accounting, `37e6b5bb43…`
+  custody, `18f1cc600c…` reportcustody from
+  `068f5e29904f446bf832138fd64c8833b9037cb7`) with per-file published
+  provenance; NEW `binding.py`/`runtime.py` (not byte-identical to any
+  historical/candidate binding/launch blob). Exact frozen target binding
+  (repository `isakli05/audit-council-dev`, commit
+  `730d2b29f7c0e7d33af3451b6d9205ec27c143ed`, root tree `2585796efd…`,
+  REQUIRED bootstrap-supervisor subtree `3056e57725…`, qualification-harness
+  `5b8d5e5465…`, skill `efd8c2e48e…`, remediation parent `068f5e2990…`),
+  design-reserved event/attempt identities as binding CONSTANTS ONLY (event
+  NOT instantiated, attempts NOT granted), governance-frozen selections
+  AUDITOR A claude-opus-5-5/high CLAUDE_FIRSTPARTY + AUDITOR B
+  gpt-6.1-sol/high CODEX_CHATGPT_OAUTH with NO
+  fallback/inherit/auto/generation substitution (refused at parse AND at the
+  fresh CLIENT_SELECTION_PREFLIGHT gate), eight static gates as frozen
+  evidence shape + three dynamic gates as exact executable descriptors
+  executed fresh exactly once in order, event-package manifest contract with
+  exact transport projection, package self-identity at every construction
+  (raw manifest pin + non-circular package identity + per-file rows +
+  payload-set equality + semantic values, no caller root), process-bound
+  one-shot PREPARED->GATES_PASSED->CONSUMED_PRE_EXEC->EXEC_ATTEMPTED-
+  >REPORT_*->TERMINAL with O_EXCL attempt+binding-digest-specific hash-
+  chained accounting and no public grant/consume/resume/retry split, sealed
+  credential custody (pipe / fully sealed memfd; ordinary files refused;
+  non-dumpable before read; no credential byte ever persisted), verified-
+  held launcher + auditor executables with execveat(AT_EMPTY_PATH)/fexecve
+  identity-preserving execution and re-hash before gates and before exec,
+  sealed invocation-spec argv transport (no caller argv/model/env/timeout
+  override), own-session process-group timeout kill, and the report
+  lifecycle: ONE immutable snapshot -> SAME-custody screen -> frozen SHAPE-
+  ONLY structural validator -> the authority's OWN independent semantic
+  report binding (exact target_commit/event/role/attempt equality, FIXED
+  safe tokens REPORT_BINDING_UNPARSEABLE / REPORT_TARGET_COMMIT_MISMATCH /
+  REPORT_EVENT_ID_MISMATCH / REPORT_AUDITOR_ROLE_MISMATCH /
+  REPORT_ATTEMPT_ID_MISMATCH, submitted wrong values and report prose NEVER
+  in durable reasons) -> 0444 O_EXCL freeze under pre-opened operator
+  custody; missing stays REPORT_MISSING and stdout/stderr never reconstruct
+  a report; post-consumption failures stay terminal (distinct
+  PostConsumptionTerminalAccountingError, never a success). Production LOC
+  3000 <= 3000 (235/573/211/35/119/1725/102). Deterministic ZERO-provider /
+  ZERO-network tests: import PASS; binding 50/50; runtime 21/21; static
+  33/33; FULL 104/104 (BA-01..BA-59) under PIP_NO_INDEX=1 / UV_OFFLINE=1
+  with already-local Python 3.14.7 + pre-existing pytest 9.1.1 bytes; honest
+  iteration accounting T-1..T-8 in the canonical record
+  (instrument/fixture/test-side and two pre-test implementation-precision
+  items; first outputs preserved). Held governance preserved: AUCDEV-023 P1
+  / READY / NOT DONE; AUCDEV-024 P1 / READY / NOT DONE with the independent-
+  auditor provenance / authority gate OPEN (NOT_SATISFIED, not relabeled);
+  PCH6-B-SD-002 + PCH6-CR-BSD-001 remain IMPLEMENTED_AS_CANDIDATE /
+  AWAITING_FRESH_INDEPENDENT_AUDIT / NOT CLOSED; PCH6-B-SD-001 RETAINED /
+  OPEN; ROOT_CAUSE_NOT_ESTABLISHED unchanged; historical PCH6 authority
+  CONSUMED / TERMINAL / CLOSED / NO_RERUN (engagements 2/2 USED historical
+  truth, non-transferable); new lineage PROPOSED 2 / USED 0 (this
+  implementation consumed ZERO); sealed substance UNREAD; no /audit-council
+  execution; NO audit execution, NO audit PASS, QUALIFICATION NONE,
+  INSTALLATION NONE; queue recounted base == staged on every dimension
+  (READY 10 / OPEN 7 / BLOCKED 3 = 20 open; P0 2 / P1 8 / P2 11 = 21 queue
+  rows; IN_PROGRESS 0; 3 DEFERRED / 8 ACCEPTED_RESIDUAL / 5 DONE; no queue-
+  row status transition; no backlog item marked DONE); NEXT (grants
+  nothing): FRESH CONTROL ROOM READBACK of this implementation candidate and
+  its generated-LAST handoff BEFORE any event-package preparation is
+  authorized — this implementation grants NO event-package preparation
+  authority, NO event instantiation, NO attempt authority, NO `/audit-
+  council`, NO provider/model/auditor execution, NO qualification, NO
+  installation).
 
 ### AUCDEV-024 — Auditor Model Selection Policy & Model Generation Migration
 
@@ -3598,3 +3674,5 @@ means `AUDIT-COUNCIL-V2-KNOWN-LIMITATIONS.md`. Links to deeper authority are in
 2026-10-02 (AUCDEV-023 PCH6-B CANDIDATE-SPECIFIC INDEPENDENT-AUDITOR BOOTSTRAP GOVERNANCE / AUTHORITY TRANSITION PREPARATION — PATH B OPERATOR-SELECTED / TRANSITION_PREPARED_FOR_CONTROL_ROOM_READBACK over exact base `0307009636bba43b20bd14e92fd9f91a901d7b10` by record-only design-preparation publication authority `AUCDEV-023-PCH6B-730D2B29-CANDIDATE-SPECIFIC-AUDITOR-BOOTSTRAP-GOVERNANCE-TRANSITION-PREPARATION-20261002-01`: operator verbatim PATH-B decision recorded; fresh audit target frozen at candidate `730d2b29f7c0e7d33af3451b6d9205ec27c143ed` (root tree `2585796efd5cb6902226cfff785bb901297a15e3`; bootstrap-supervisor `3056e577259ab0b0b0472f82ebc306506f3e084c` = AUDIT SUBJECT / NOT AUTHORITY; qualification-harness `5b8d5e5465923740470ff63ed9b8683f257a3787`; skill `efd8c2e48edbb25795b3aacb1ce3c23fde10082a`; remediation parent `068f5e29904f446bf832138fd64c8833b9037cb7`); legacy PCH6 authority NOT revived; legacy EBS REFERENCE_ONLY (frozen historical binding `d4d584ffa47ad2848268ba947247f81a845b2322` + predates semantic target binding); NEW target-independent bootstrap-authority implementation REQUIRED and NOT authorized (`bootstrap-authority/` NOT created); two external first passes, design-frozen selections `claude-opus-5-5`/high and `gpt-6.1-sol`/high; proposed engagement budget 2 / used 0; design event/attempt identities reserved only, collision checks all zero, event NOT instantiated, attempt authorities NOT granted; fresh GATE-W′ and client/isolation gates still required; independent-auditor provenance gate remains NOT_SATISFIED; SD-002 / CR-BSD-001 awaiting fresh independent audit / NOT CLOSED; SD-001 RETAINED / OPEN; ROOT_CAUSE_NOT_ESTABLISHED unchanged; counts UNCHANGED READY 10 / OPEN 7 / BLOCKED 3 = 20 open; P0 2 / P1 8 / P2 11 = 21 queue rows; IN_PROGRESS 0; 3 DEFERRED / 8 ACCEPTED_RESIDUAL / 5 DONE; NO audit execution, NO audit PASS, NO qualification, NO installation — grants nothing)
 
 2026-10-02 (AUCDEV-023 PCH6-B CANDIDATE-SPECIFIC INDEPENDENT-AUDITOR BOOTSTRAP GOVERNANCE / AUTHORITY TRANSITION — CONTROL ROOM READBACK — ACCEPTED AT DESIGN-READBACK STRENGTH over exact base `78b5bc37290ea443611e20fc6813e5f481eaab74` (sole parent `0307009636bba43b20bd14e92fd9f91a901d7b10` = the PATH-B transition preparation) by record-only publication authority `AUCDEV-023-PCH6B-730D2B29-CANDIDATE-SPECIFIC-AUDITOR-BOOTSTRAP-GOVERNANCE-TRANSITION-CONTROL-ROOM-READBACK-20261002-01`: the Control Room accepted the PATH-B transition preparation at design-readback strength with live publication identity / one-commit three-path geometry / generated-LAST integrity independently verified, target-authority separation and legacy-EBS non-reuse accepted with both mechanical reasons re-derived, the new target-independent `bootstrap-authority/` design and exact target binding requirements accepted (FAIL CLOSED before inference on any mismatch), independent report-target acceptance required (exact `first_pass_report.target_commit` equality enforced by the authority plane itself; held shape-only validator `6aff0e7eda0b16f9885bc7a7200bba7b6bcea42a9c5e9af2ef6ceb19848dd071` / 7228 B MAY be a pinned structural component NEVER the sole binding authority), two external first passes with governance-frozen selections (`claude-opus-5-5`/high; `gpt-6.1-sol`/high) and proposed budget 2/used-0 accepted, design identities REMAIN RESERVED ONLY, PATHB-RB-001 recorded INFORMATIONAL / NONBLOCKING; `bootstrap-authority/` implementation remains NOT AUTHORIZED and the namespace remains ABSENT; event NOT instantiated; attempts NOT granted; independent-auditor provenance gate remains NOT_SATISFIED; PCH6-B-SD-002 / PCH6-CR-BSD-001 remain IMPLEMENTED_AS_CANDIDATE / AWAITING_FRESH_INDEPENDENT_AUDIT / NOT CLOSED; PCH6-B-SD-001 RETAINED / OPEN; ROOT_CAUSE_NOT_ESTABLISHED unchanged; NO audit execution, NO audit PASS, NO qualification, NO installation; NEXT (grants nothing): operator decision on whether to authorize the bounded implementation of the Control-Room-accepted new target-independent `bootstrap-authority/` for candidate `730d2b29f7c0e7d33af3451b6d9205ec27c143ed` under this accepted PATH-B design — implementation only, granting no event-package preparation, no event instantiation, no attempt authority, no `/audit-council`, no provider/model/auditor execution, no qualification, no installation)
+
+2026-10-02 (AUCDEV-023 PCH6-B CANDIDATE-SPECIFIC TARGET-INDEPENDENT BOOTSTRAP AUTHORITY — BOUNDED IMPLEMENTATION — IMPLEMENTED_AS_CANDIDATE over authorized exact base `63e842e392320b74a7fac923ae140984b28079dd` by implementation authority `AUCDEV-023-PCH6B-730D2B29-BOOTSTRAP-AUTHORITY-IMPLEMENTATION-20261002-01`: NEW `bootstrap-authority/` per the accepted PATH-B design; sixteen tracked paths; four EXACT pre-target blob reuses; NEW binding/runtime; exact 730d2b29 target binding; semantic report binding implemented; one-shot accounting; zero-provider tests 104/104; LOC 3000 <= 3000; event package NOT prepared; event NOT instantiated; attempts NOT granted; engagements USED 0; findings NOT closed; provenance gate NOT_SATISFIED; qualification NONE; installation NONE; NEXT (grants nothing): FRESH CONTROL ROOM READBACK of this candidate and its generated-LAST handoff before ANY event-package preparation is authorized)

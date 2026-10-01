@@ -1,0 +1,395 @@
+"""BA-26..BA-50: dynamic-gate execution, one-shot accounting,
+credential/exec boundary, and the report lifecycle incl. the authority
+plane's own independent semantic report binding.  All synthetic,
+zero-provider, zero-network; the REAL executing authority package is
+verified in place by every construction (self-identity)."""
+from __future__ import annotations
+
+import inspect
+import json
+import os
+import stat
+from pathlib import Path
+
+import pytest
+
+from bootstrap_authority import runtime as bar
+from bootstrap_authority.accounting import AccountingStore
+from bootstrap_authority.custody import get_dumpable
+from bootstrap_authority.statemachine import (CONSUMED_PRE_EXEC,
+                                              EXEC_ATTEMPTED, GATES_PASSED,
+                                              PREPARED, REPORT_FROZEN,
+                                              REPORT_INVALID,
+                                              REPORT_MISSING,
+                                              REPORT_SCREEN_FAIL,
+                                              TERMINAL,
+                                              TERMINAL_PREEXEC_STOP)
+from conftest import build_world, make_report, make_report_for_role
+
+WRONG_TARGET = "0123456789abcdef0123456789abcdef01234567"
+
+
+# --- full success path (also BA-30/36/37/39/42/43 evidence) -------------
+
+
+def test_full_success_pipe(world_a):
+    result = world_a.run()
+    assert result.report_state == REPORT_FROZEN
+    assert not result.timed_out and not result.exec_failed
+    frozen = world_a.output_root / world_a.binding.output_identity["name"]
+    expected = make_report_for_role("AUDITOR_A")
+    assert frozen.read_bytes() == expected                  # BA-43
+    assert stat.S_IMODE(frozen.stat().st_mode) == 0o444
+    assert result.report_sha256 == __import__("hashlib").sha256(
+        expected).hexdigest()
+    record = world_a.inspect_record()
+    # BA-30: GATES_PASSED -> CONSUMED_PRE_EXEC durably BEFORE EXEC
+    assert record["states"] == [PREPARED, GATES_PASSED,
+                                CONSUMED_PRE_EXEC, EXEC_ATTEMPTED,
+                                REPORT_FROZEN, TERMINAL]
+    gates_record = record["records"][1]
+    for gate in ("client_selection", "network_readiness",
+                 "resource_gate"):
+        assert f"{gate}_result" in gates_record
+    facts = record["records"][2]
+    assert facts["target_commit"] == world_a.binding.target["commit"]
+    assert facts["model"] == "claude-opus-5-5"
+    # BA-37: non-dumpable established before the credential read
+    assert get_dumpable() == 0
+    # BA-39: no caller argv/model/environment override reached the child
+    meta = result.metadata
+    # the kernel rewrites argv[0] for shebang launchers (script path);
+    # the no-override property is argv[1:] + the exact environment
+    assert meta["argv"][1:] == ["--role", "AUDITOR_A",
+                                "--attempt",
+                                world_a.binding.attempt_id,
+                                "--event", world_a.binding.event_id]
+    # the authority passed EXACTLY PATH+LANG; LC_CTYPE is injected by
+    # the CPython interpreter itself under the C locale, and NOTHING
+    # from the caller (PYTHONPATH, model vars, overrides) may appear
+    assert set(meta["env"]) <= {"PATH", "LANG", "LC_CTYPE"}
+    assert meta["env"]["PATH"] == "/usr/bin:/bin"
+    assert meta["env"]["LANG"] == "C"
+    assert "PYTHONPATH" not in meta["env"]
+    assert meta["invocation"] == world_a.binding.auditor_invocation
+    assert meta["auditor_fd_sha256"] == world_a.binding.auditor_selection[
+        "client_executable"]["sha256"]
+    assert meta["cred_fd_link"].startswith("/memfd:")
+    # BA-36 (pipe): no credential persistence anywhere in the output tree
+    for path in world_a.output_root.rglob("*"):
+        if path.is_file():
+            assert world_a.credential not in path.read_bytes(), path
+
+
+
+def test_full_success_role_b_memfd(world_b):
+    result = world_b.run(source="memfd")
+    assert result.report_state == REPORT_FROZEN
+    assert get_dumpable() == 0
+
+
+# --- BA-26: exact dynamic gate order, each exactly once -----------------
+
+
+def test_ba26_gate_order_and_once(world_a):
+    world_a.run()
+    lines = world_a.order_file.read_text().splitlines()
+    assert lines == ["CLIENT_SELECTION_PREFLIGHT", "NETWORK_READINESS",
+                     "RESOURCE_GATE"]
+
+
+def test_ba26_tampered_gate_artifact_refused_at_open(tmp_path):
+    world = build_world(tmp_path, "AUDITOR_A")
+    gate_path = world.event_root / "gates" / "resource_gate.py"
+    gate_path.write_bytes(gate_path.read_bytes() + b"# drift\n")
+    with pytest.raises(bar.AuthorityRefused, match="resource_gate"):
+        world.authority()          # construction fails closed: the walk
+        # refusal fires first (the tampered artifact no longer matches
+        # its manifest row) before the gate descriptor is even opened
+
+
+# --- BA-27: preflight mismatch fails BEFORE consumption ------------------
+
+
+def test_ba27_preflight_model_mismatch(tmp_path):
+    world = build_world(tmp_path, "AUDITOR_A",
+                        preflight_tweak={"model": "claude-haiku-4-5"})
+    with pytest.raises(bar.AuthorityRefused,
+                       match="CLIENT_SELECTION_PREFLIGHT_BOUND_MISMATCH"):
+        world.run()
+    record = world.inspect_record()
+    assert record["last_state"] == TERMINAL_PREEXEC_STOP
+    assert CONSUMED_PRE_EXEC not in record["states"]
+
+
+# --- BA-28: gates receive no credential fd ------------------------------
+
+
+def test_ba28_no_credential_fd_to_gates(world_a):
+    world_a.run()
+    record = world_a.inspect_record()
+    gates_record = record["records"][1]
+    network = json.loads(gates_record["network_readiness_result"])
+    for link in network["checks"]["route"]["detail"]["fd_inventory"]:
+        assert "/memfd:" not in link, link
+
+
+# --- BA-29: O_EXCL prevents a second authority process ------------------
+
+
+def test_ba29_second_authority_process_refused(tmp_path):
+    world = build_world(tmp_path, "AUDITOR_A",
+                        launcher_mode="none")
+    assert world.run().report_state == REPORT_MISSING
+    with pytest.raises(bar.AuthorityRefused,
+                       match="RECORD_CREATE_REFUSED"):
+        world.run()                      # a SECOND process would refuse
+    # a DIFFERENT binding digest lands on a different record (name)
+    other = build_world(tmp_path / "other", "AUDITOR_B",
+                        launcher_mode="none")
+    assert other.run().report_state == REPORT_MISSING
+
+
+# --- BA-31: no public consume/resume/retry split -------------------------
+
+
+def test_ba31_no_public_split_surface():
+    forbidden = ("grant", "consume", "resume", "retry", "adopt_report",
+                 "finish", "mint_attempt", "create_event")
+    for name in forbidden:
+        assert not hasattr(bar.BootstrapAuthority, name), name
+    params = list(inspect.signature(
+        bar.BootstrapAuthority.run_attempt).parameters)
+    assert params == ["self", "credential_source_fd", "launcher_path",
+                      "auditor_executable_path", "report_staging_path",
+                      "output_root"]
+
+
+# --- BA-32: exec failure remains spent/terminal ---------------------------
+
+
+def test_ba32_exec_failure_spent(tmp_path):
+    world = build_world(tmp_path, "AUDITOR_A", launcher_mode="broken")
+    result = world.run()
+    assert result.exec_failed is True
+    record = world.inspect_record()
+    assert record["states"] == [PREPARED, GATES_PASSED,
+                                CONSUMED_PRE_EXEC, EXEC_ATTEMPTED,
+                                TERMINAL]
+    terminal_reason = record["records"][-1]["terminal_reason"]
+    assert terminal_reason.startswith("EXEC_FAILED_AFTER_CONSUMPTION")
+    with pytest.raises(bar.AuthorityError):
+        world.run()                       # no second operation exists
+
+
+# --- BA-33: timeout kills the exact attempt process group -----------------
+
+
+def test_ba33_timeout_kills_group(tmp_path):
+    world = build_world(tmp_path, "AUDITOR_A", launcher_mode="sleep",
+                        wall_timeout=3)
+    result = world.run()
+    assert result.timed_out is True
+    assert result.report_state == ""
+    record = world.inspect_record()
+    assert record["last_state"] == TERMINAL
+    assert record["records"][-1]["terminal_reason"] == \
+        "TIMEOUT_AFTER_CONSUMPTION"
+    sleep_child = int(world.sleep_pid_file.read_text())
+    # a SIGKILLed-but-not-yet-reaped process is still signalable, so
+    # poll a bounded window for the actual reap (reparented to init)
+    import time
+    deadline = time.monotonic() + 3.0
+    alive = True
+    while time.monotonic() < deadline:
+        try:
+            os.kill(sleep_child, 0)
+        except OSError:
+            alive = False
+            break
+        time.sleep(0.05)
+    assert alive is False, \
+        "the spawned attempt-group member survived the timeout kill"
+
+
+# --- BA-34: post-consumption accounting failure never success --------------
+
+
+def test_ba34_accounting_failure_not_success(world_a, monkeypatch):
+    original = AccountingStore.append
+
+    def failing_append(self, state, extra=None):
+        if state == TERMINAL:
+            raise RuntimeError("SYNTHETIC-DURABLE-FAILURE")
+        return original(self, state, extra)
+
+    monkeypatch.setattr(AccountingStore, "append", failing_append)
+    with pytest.raises(
+            bar.PostConsumptionTerminalAccountingError):
+        world_a.run()
+    monkeypatch.undo()
+    record = world_a.inspect_record()
+    assert record["last_state"] == REPORT_FROZEN   # honest incompleteness
+    assert TERMINAL not in record["states"]
+
+
+# --- BA-35: ordinary credential file refused -------------------------------
+
+
+def test_ba35_ordinary_file_credential_refused(tmp_path):
+    world = build_world(tmp_path, "AUDITOR_A")
+    cred = tmp_path / "cred.txt"
+    cred.write_bytes(world.credential)
+    fd = os.open(cred, os.O_RDONLY)
+    try:
+        with pytest.raises(bar.AuthorityRefused, match="PREEXEC"):
+            world.authority().run_attempt(fd, world.launcher_path,
+                                          world.auditor_path,
+                                          world.staging,
+                                          world.output_root)
+    finally:
+        os.close(fd)
+    record = world.inspect_record()
+    assert record["last_state"] == TERMINAL_PREEXEC_STOP
+    assert cred.read_bytes() == world.credential     # never consumed
+
+
+# --- BA-38: launcher/auditor identity mismatch fails pre-consumption ------
+
+
+def test_ba38_launcher_mismatch(tmp_path):
+    world = build_world(tmp_path, "AUDITOR_A")
+    tampered = tmp_path / "tampered-launcher"
+    tampered.write_bytes(b"#!/bin/sh\nexit 0\n")
+    os.chmod(tampered, 0o755)
+    with pytest.raises(bar.AuthorityRefused,
+                       match="LAUNCHER_DIGEST_MISMATCH"):
+        world.run(launcher_path=tampered)
+    record = world.inspect_record()
+    assert record["last_state"] == TERMINAL_PREEXEC_STOP
+    assert CONSUMED_PRE_EXEC not in record["states"]
+
+
+def test_ba38_auditor_mismatch(tmp_path):
+    world = build_world(tmp_path, "AUDITOR_A")
+    tampered = tmp_path / "tampered-auditor"
+    tampered.write_bytes(b"#!/bin/sh\nexit 0\n")
+    os.chmod(tampered, 0o755)
+    with pytest.raises(bar.AuthorityRefused,
+                       match="PREEXEC_EXECUTABLE_IDENTITY_FAIL"):
+        world.run(auditor_path=tampered)
+    assert world.inspect_record()["last_state"] == \
+        TERMINAL_PREEXEC_STOP
+
+
+# --- BA-40: missing report stays REPORT_MISSING -----------------------------
+
+
+def test_ba40_missing_report(tmp_path):
+    world = build_world(tmp_path, "AUDITOR_A", launcher_mode="none")
+    result = world.run()
+    assert result.report_state == REPORT_MISSING
+    assert not list(world.output_root.glob("*.json"))
+    record = world.inspect_record()
+    assert record["last_state"] == TERMINAL
+
+
+# --- BA-41: credential-contaminated report screened before persistence -----
+
+
+def test_ba41_screen_fail(tmp_path):
+    world = build_world(tmp_path, "AUDITOR_A", launcher_mode="contam")
+    result = world.run()
+    assert result.report_state == REPORT_SCREEN_FAIL
+    assert not world.staging.exists()               # discarded staging
+    assert not list(world.output_root.glob("*.json"))  # never persisted
+    record = world.inspect_record()
+    assert world.credential not in json.dumps(record).encode()
+
+
+# --- BA-42..BA-50: report binding outcomes ----------------------------------
+
+
+def _binding_mismatch_world(tmp_path, report_kwargs, token):
+    world = build_world(tmp_path, "AUDITOR_A",
+                        report=make_report(None, **report_kwargs))
+    result = world.run()
+    assert result.report_state == REPORT_INVALID
+    record = world.inspect_record()
+    terminal = record["records"][-2]
+    assert terminal["state"] == REPORT_INVALID
+    assert terminal["terminal_reason"] == token       # BA-49: token only
+    assert record["last_state"] == TERMINAL           # BA-50
+    assert not list(world.output_root.glob("*.json"))  # no freeze
+    with pytest.raises(bar.AuthorityError):
+        world.run()                                   # no retry (BA-50)
+    return record
+
+
+def test_ba44_wrong_target(tmp_path):
+    from bootstrap_authority.binding import EVENT_ID, FROZEN_TARGET, \
+        RESERVED_ATTEMPT_IDS
+    record = _binding_mismatch_world(
+        tmp_path,
+        {"target_commit": WRONG_TARGET,
+         "event_id": EVENT_ID, "auditor_role": "AUDITOR_A",
+         "attempt_id": RESERVED_ATTEMPT_IDS["AUDITOR_A"]},
+        "REPORT_TARGET_COMMIT_MISMATCH")
+    # BA-49: the submitted wrong value never enters the record
+    assert WRONG_TARGET not in json.dumps(record)
+
+
+def test_ba45_wrong_event(tmp_path):
+    from bootstrap_authority.binding import FROZEN_TARGET, \
+        RESERVED_ATTEMPT_IDS
+    record = _binding_mismatch_world(
+        tmp_path,
+        {"event_id": "AUCDEV-023-OTHER-EVENT-01",
+         "target_commit": FROZEN_TARGET["commit"],
+         "auditor_role": "AUDITOR_A",
+         "attempt_id": RESERVED_ATTEMPT_IDS["AUDITOR_A"]},
+        "REPORT_EVENT_ID_MISMATCH")
+    assert "AUCDEV-023-OTHER-EVENT-01" not in json.dumps(record)
+
+
+def test_ba46_wrong_role(tmp_path):
+    from bootstrap_authority.binding import EVENT_ID, FROZEN_TARGET, \
+        RESERVED_ATTEMPT_IDS
+    _binding_mismatch_world(
+        tmp_path,
+        {"auditor_role": "AUDITOR_B",
+         "target_commit": FROZEN_TARGET["commit"], "event_id": EVENT_ID,
+         "attempt_id": RESERVED_ATTEMPT_IDS["AUDITOR_A"]},
+        "REPORT_AUDITOR_ROLE_MISMATCH")
+
+
+def test_ba47_wrong_attempt(tmp_path):
+    from bootstrap_authority.binding import EVENT_ID, FROZEN_TARGET
+    _binding_mismatch_world(
+        tmp_path,
+        {"attempt_id": "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01"
+                       "-AUDITOR-Z-99",
+         "target_commit": FROZEN_TARGET["commit"], "event_id": EVENT_ID,
+         "auditor_role": "AUDITOR_A"},
+        "REPORT_ATTEMPT_ID_MISMATCH")
+
+
+def test_ba48_unparseable_dup_key_report(tmp_path):
+    # a duplicate-key report passes the SHAPE-ONLY synthetic validator
+    # (permissive json) but the authority's OWN strict reparse refuses
+    from bootstrap_authority.binding import EVENT_ID, FROZEN_TARGET, \
+        RESERVED_ATTEMPT_IDS
+    body = ('{"attempt_id": "%s", "attempt_id": "%s", '
+            '"auditor_role": "AUDITOR_A", "event_id": "%s", '
+            '"findings": "[]", "target_commit": "%s"}\n'
+            % (RESERVED_ATTEMPT_IDS["AUDITOR_A"],
+               RESERVED_ATTEMPT_IDS["AUDITOR_A"], EVENT_ID,
+               FROZEN_TARGET["commit"]))
+    world = build_world(tmp_path, "AUDITOR_A",
+                        report=body.encode())
+    result = world.run()
+    assert result.report_state == REPORT_INVALID
+    record = world.inspect_record()
+    assert record["records"][-2]["terminal_reason"] == \
+        "REPORT_BINDING_UNPARSEABLE"
+    assert not list(world.output_root.glob("*.json"))

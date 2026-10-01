@@ -1,0 +1,125 @@
+{
+  "design_attempt_ids": {
+    "AUDITOR_A": "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01-AUDITOR-A-01",
+    "AUDITOR_B": "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01-AUDITOR-B-01"
+  },
+  "design_event_id": "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01",
+  "files": [
+    {
+      "bytes": 8289,
+      "path": "README.md",
+      "sha256": "a91fe5d487213ac853cb5ce6727d9b03a0536ce3247435e29dca0ac37ce39acf"
+    },
+    {
+      "bytes": 1972,
+      "path": "bootstrap_authority/__init__.py",
+      "sha256": "536e130fe52153e3634cbf1eee20c6d2778027f262f17c2da044e4ee64836ec7"
+    },
+    {
+      "bytes": 9077,
+      "path": "bootstrap_authority/accounting.py",
+      "sha256": "d970e399ecdd772f998d7d5271db64b019213e7620033743a641bfa915aca47c"
+    },
+    {
+      "bytes": 25908,
+      "path": "bootstrap_authority/binding.py",
+      "sha256": "a95882da67d5adc8bb421b2a2b7b4dd8c50542fd3dae95f9db991fd551aaca6e"
+    },
+    {
+      "bytes": 7341,
+      "path": "bootstrap_authority/custody.py",
+      "sha256": "f1c1d0f7cba21225e977c49fc86c5d32824766a0eddebe6b1761b0111c11f5ca"
+    },
+    {
+      "bytes": 4613,
+      "path": "bootstrap_authority/reportcustody.py",
+      "sha256": "e83b5d53d607f9e2a046146165cdf23de9319abe1e330e87ef1d4edf11826f59"
+    },
+    {
+      "bytes": 83589,
+      "path": "bootstrap_authority/runtime.py",
+      "sha256": "4f288912d6e9d0187888e82f493f9141c41275adebf609014e5806fa743fdee7"
+    },
+    {
+      "bytes": 3868,
+      "path": "bootstrap_authority/statemachine.py",
+      "sha256": "f60fcb9108d353a11f3ff8916780b3e91108a1d2c2d278e0b2c40e2b6643c57a"
+    },
+    {
+      "bytes": 19892,
+      "path": "tests/conftest.py",
+      "sha256": "c48f518b21c34742f07ff832da85ef4414fb3695738dd764e3301d336900c3e8"
+    },
+    {
+      "bytes": 14917,
+      "path": "tests/test_binding.py",
+      "sha256": "39a1e3dd0b8516ae24c0144f0da21331444a01e7b6b869c5256c97b5f277899b"
+    },
+    {
+      "bytes": 15944,
+      "path": "tests/test_runtime.py",
+      "sha256": "01070051cffec7f1b32b9f7ec515194e456ac3d20ed9130b51df994b74678b35"
+    },
+    {
+      "bytes": 15376,
+      "path": "tests/test_static.py",
+      "sha256": "1a97d72aca4c6f4f177b2d7afd191203385dae724b8070c5d30ff9141f14224f"
+    }
+  ],
+  "package": "bootstrap-authority",
+  "package_sha256": "d09f197f62161cad1027ace23a027c6a6f27b98cde8f8a142e97ddbeac6c5150",
+  "policy_id": "AUCDEV-023-PCH6B-CAND730D2B29-TARGET-INDEPENDENT-BOOTSTRAP-AUTHORITY-V1",
+  "qualification_claim": "NONE",
+  "runtime_dependencies": [
+    "CPython >= 3.11 (stdlib only; no third-party runtime deps)"
+  ],
+  "schema": "AUCDEV-023-BOOTSTRAP-AUTHORITY-PACKAGE-MANIFEST-V1",
+  "source_provenance": {
+    "bootstrap_authority/__init__.py": {
+      "kind": "NEW_AUTHORITY_SPECIFIC",
+      "origin": "THIS_BOUNDED_IMPLEMENTATION"
+    },
+    "bootstrap_authority/accounting.py": {
+      "kind": "EXACT_PRETARGET_BLOB_REUSE",
+      "source_commit": "068f5e29904f446bf832138fd64c8833b9037cb7",
+      "source_git_blob": "03de6f663db283cf99f6a98e26e752a24457c52a",
+      "source_path": "bootstrap-supervisor/ebs/accounting.py"
+    },
+    "bootstrap_authority/binding.py": {
+      "kind": "NEW_AUTHORITY_SPECIFIC",
+      "origin": "THIS_BOUNDED_IMPLEMENTATION"
+    },
+    "bootstrap_authority/custody.py": {
+      "kind": "EXACT_PRETARGET_BLOB_REUSE",
+      "source_commit": "068f5e29904f446bf832138fd64c8833b9037cb7",
+      "source_git_blob": "37e6b5bb4365c7b29ba3632fe95362d5a7e16c09",
+      "source_path": "bootstrap-supervisor/ebs/custody.py"
+    },
+    "bootstrap_authority/reportcustody.py": {
+      "kind": "EXACT_PRETARGET_BLOB_REUSE",
+      "source_commit": "068f5e29904f446bf832138fd64c8833b9037cb7",
+      "source_git_blob": "18f1cc600c684e520b72026e0b4cdf8ba6287cb9",
+      "source_path": "bootstrap-supervisor/ebs/reportcustody.py"
+    },
+    "bootstrap_authority/runtime.py": {
+      "kind": "NEW_AUTHORITY_SPECIFIC",
+      "origin": "THIS_BOUNDED_IMPLEMENTATION"
+    },
+    "bootstrap_authority/statemachine.py": {
+      "kind": "EXACT_PRETARGET_BLOB_REUSE",
+      "source_commit": "068f5e29904f446bf832138fd64c8833b9037cb7",
+      "source_git_blob": "cf563d2178907e7666ce661b81ab1bf16fb71201",
+      "source_path": "bootstrap-supervisor/ebs/statemachine.py"
+    }
+  },
+  "status": "IMPLEMENTATION_CANDIDATE_ONLY / NO_EXECUTION_AUTHORITY",
+  "target": {
+    "bootstrap_supervisor_tree": "3056e577259ab0b0b0472f82ebc306506f3e084c",
+    "commit": "730d2b29f7c0e7d33af3451b6d9205ec27c143ed",
+    "qualification_harness_tree": "5b8d5e5465923740470ff63ed9b8683f257a3787",
+    "remediation_parent": "068f5e29904f446bf832138fd64c8833b9037cb7",
+    "repository": "isakli05/audit-council-dev",
+    "root_tree": "2585796efd5cb6902226cfff785bb901297a15e3",
+    "skill_tree": "efd8c2e48edbb25795b3aacb1ce3c23fde10082a"
+  }
+}

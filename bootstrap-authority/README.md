@@ -1,0 +1,159 @@
+# bootstrap-authority — AUCDEV-023 PCH6-B PATH-B candidate-specific target-independent bootstrap authority
+
+**Status: `IMPLEMENTATION_CANDIDATE_ONLY / NO_EXECUTION_AUTHORITY`.**
+**qualification_claim: NONE.** This package is the Control Room
+design-readback-accepted (2026-10-02, over the PATH-B transition
+preparation at `78b5bc3`) NEW authority plane for a *future* fresh
+independent audit of the frozen candidate target
+`730d2b29f7c0e7d33af3451b6d9205ec27c143ed`. It is an implementation
+candidate only: not readback-accepted, not execution-ready, and it has
+NOT prepared an event package, instantiated the design event, granted
+attempt authorities, or consumed any model engagement.
+
+## What this package is
+
+A deliberately minimal replacement authority TCB for the wholly NEW
+PATH-B lineage: controllerless on the authority path, process-bound,
+one-shot, stdlib-only, and strictly **target-independent** — it imports
+NOTHING from, and derives no authority from, the audit target's
+`bootstrap-supervisor/**` (AUDIT SUBJECT / READ-ONLY EVIDENCE ONLY),
+`qualification-harness/**`, or `skill/**`. The candidate may only be
+executed later in a credential-free non-authoritative audit/test domain
+as subject matter. It contains **no substantive audit verdict logic**:
+no PASS/FAIL verdicts, no finding scoring/closure, no qualification or
+installation decisions, no auditor-output reconciliation.
+
+## Layout (exactly thirteen package paths)
+
+| Path | Kind |
+|---|---|
+| `MANIFEST.json` | strict non-circular self-identity manifest (generated last from final bytes) |
+| `README.md` | this file |
+| `bootstrap_authority/__init__.py` | NEW authority-specific |
+| `bootstrap_authority/statemachine.py` | EXACT pre-target blob reuse |
+| `bootstrap_authority/accounting.py` | EXACT pre-target blob reuse |
+| `bootstrap_authority/custody.py` | EXACT pre-target blob reuse |
+| `bootstrap_authority/reportcustody.py` | EXACT pre-target blob reuse |
+| `bootstrap_authority/binding.py` | NEW authority-specific |
+| `bootstrap_authority/runtime.py` | NEW authority-specific |
+| `tests/conftest.py` | synthetic zero-provider fixtures |
+| `tests/test_binding.py` | BA-13..BA-25 binding/gate-contract tests |
+| `tests/test_runtime.py` | BA-26..BA-50 one-shot/credential/report tests |
+| `tests/test_static.py` | BA-01..BA-12, BA-51..BA-59 provenance/identity/governance tests |
+
+No CLI, no provider adapters, no real event package, no credential
+files, no model/client binaries.
+
+## Source provenance (summary)
+
+The four reused primitives are byte-for-byte the pre-candidate EBS
+blobs at `068f5e29904f446bf832138fd64c8833b9037cb7` (pinned per-file
+in `MANIFEST.json` `source_provenance` and re-verified at every
+`BootstrapAuthority` construction):
+
+- `statemachine.py` — blob `cf563d2178907e7666ce661b81ab1bf16fb71201`
+- `accounting.py` — blob `03de6f663db283cf99f6a98e26e752a24457c52a`
+- `custody.py` — blob `37e6b5bb4365c7b29ba3632fe95362d5a7e16c09`
+- `reportcustody.py` — blob `18f1cc600c684e520b72026e0b4cdf8ba6287cb9`
+
+`__init__.py`, `binding.py`, and `runtime.py` are NEW
+authority-specific source (`origin = THIS_BOUNDED_IMPLEMENTATION`).
+Neither historical nor candidate `binding.py`/`launch.py` was copied
+wholesale; the legacy EBS at `068f5e2` is REFERENCE_ONLY (its binding
+pins the historical target `d4d584ff` and its launch boundary predates
+the exact semantic report-target acceptance this authority implements
+natively).
+
+## Binding and identity model
+
+`binding.py` parses ONE strict versioned binding document
+(`AUCDEV-023-CAND730D2B29-BOOTSTRAP-AUTHORITY-BINDING-V1`) binding:
+the PATH-B policy id, the design-reserved event identity
+`AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01`, the exact
+role/attempt pair (AUDITOR_A/-A-01 or AUDITOR_B/-B-01), the FULL
+frozen target (repository, commit `730d2b29…`, root tree, REQUIRED
+bootstrap-supervisor subtree, qualification-harness and skill trees,
+remediation parent `068f5e2`), common-evidence/prompt-contract
+digests, the governance-frozen auditor selection (Auditor A:
+`claude-opus-5-5`/high CLAUDE_FIRSTPARTY; Auditor B:
+`gpt-6.1-sol`/high CODEX_CHATGPT_OAUTH — no fallback/inherit/"auto"),
+the boundary launcher / tool wrapper / dynamic gate / validator
+descriptors, authority- and event-package identity pins, the exact
+auditor invocation argv, and the bounded execution limits. Every
+dimension is covered by `Binding.digest`. Eight STATIC gates are
+frozen PASS evidence; the THREE DYNAMIC gates
+(`CLIENT_SELECTION_PREFLIGHT` → `NETWORK_READINESS` → `RESOURCE_GATE`
+last) exist only as executable descriptors executed fresh exactly
+once — a package-time PASS for them cannot exist in a valid binding.
+
+`runtime.py` enforces, inside the ONE public operation
+`BootstrapAuthority.run_attempt(credential_source_fd, launcher_path,
+auditor_executable_path, report_staging_path, output_root)`:
+self-identity of the executing package (both pinned identities, live
+per-file equality, payload-set equality, semantic values — no
+caller-provided root), event-package identity + transport projection,
+O_EXCL attempt- and binding-digest-specific accounting, non-dumpable
+pipe/sealed-memfd credential custody (ordinary files refused),
+verified-held executables with identity-preserving exec
+(`execveat(AT_EMPTY_PATH)`, fexecve fallback; unavailability fails
+closed), the frozen gate order, durable `GATES_PASSED` →
+`CONSUMED_PRE_EXEC` with no caller control in between, own-session
+bounded child execution with process-group kill on timeout, and the
+report lifecycle: one immutable snapshot → credential screen → frozen
+SHAPE-ONLY structural validator → **the authority's own independent
+semantic report binding** (exact `target_commit` ==
+`730d2b29f7c0e7d33af3451b6d9205ec27c143ed` plus event/role/attempt
+equality; fixed safe tokens only) → 0444 O_EXCL freeze under operator
+custody. Missing stays `REPORT_MISSING`; stdout/stderr never
+reconstruct a report; every post-consumption failure is terminal
+(distinct `PostConsumptionTerminalAccountingError`; never a
+successful result; no retry/resume/revival).
+
+The design-reserved event/attempt identities are binding CONSTANTS
+ONLY. Deterministic temporary test fixtures exercise them as
+SYNTHETIC / NON-AUTHORITATIVE / ZERO-PROVIDER / NON-PERSISTENT
+strings inside test-controlled temporary directories — never as
+canonical event instantiation.
+
+## Production LOC bound
+
+`bootstrap_authority/*.py` (the four reused modules included) is
+bounded at **3000 LOC** (`wc -l`); the candidate reports its actual
+final count in the canonical implementation record and
+`tests/test_static.py` enforces the ceiling. The package must remain
+smaller than the 3057-LOC candidate `bootstrap-supervisor` production
+tree under audit.
+
+## Tests
+
+Zero-provider / zero-network. Run from the repository root with the
+already-local interpreter and pytest (no fetch; `PIP_NO_INDEX=1
+UV_OFFLINE=1`):
+
+```
+PYTHONPATH=bootstrap-authority python3 -m pytest -q bootstrap-authority/tests
+```
+
+`tests/conftest.py` builds synthetic worlds (temporary authority-
+package copies, synthetic event packages, inert gate/launcher/
+auditor/validator scripts, synthetic non-secret credential bytes,
+temporary accounting/output directories). No fixture invokes any
+provider, network route, or real client. The historical frozen
+structural validator (`6aff0e7e…`, 7228 B) MAY be pinned by a future
+event package as a SHAPE-ONLY structural component; tests use inert
+validators with the same result-envelope contract.
+
+## Governance
+
+AUCDEV-023 remains P1 / READY / NOT DONE. The independent-auditor
+provenance gate remains NOT_SATISFIED. PCH6-B-SD-002 and
+PCH6-CR-BSD-001 remain IMPLEMENTED_AS_CANDIDATE /
+AWAITING_FRESH_INDEPENDENT_AUDIT / NOT CLOSED; PCH6-B-SD-001 remains
+RETAINED / OPEN; ROOT_CAUSE_NOT_ESTABLISHED is unchanged. Historical
+PCH6 authority is CONSUMED / TERMINAL / CLOSED / NO_RERUN (model
+engagements 2/2 USED historical truth; non-transferable). This
+lineage's design budget: PROPOSED 2 / USED 0 — this implementation
+consumes ZERO engagements. No audit execution, no audit PASS, no
+qualification, no installation. The next action is a FRESH Control
+Room readback of THIS implementation candidate and its generated-LAST
+handoff before any event-package preparation is authorized.
