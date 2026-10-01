@@ -2546,6 +2546,167 @@ append-only. Canonical report:
   reconciliation, OR PATH B explicitly authorize preparation of a NEW
   candidate-specific bootstrap governance/authority transition without
   reviving or reusing the consumed historical PCH6 event authority).
+- Candidate-specific auditor-bootstrap governance transition preparation
+  status (2026-10-02; PATH B — OPERATOR-SELECTED /
+  TRANSITION_PREPARED_FOR_CONTROL_ROOM_READBACK over exact base
+  `0307009636bba43b20bd14e92fd9f91a901d7b10` (root tree
+  `5269ae79730b1e3317892ab6b34598024122fc82`, sole parent
+  `16f2ec5a0db0506485c08f0994d821936fda1d71` = the accepted readback
+  publication verification) by record-only design-preparation publication
+  authority
+  `AUCDEV-023-PCH6B-730D2B29-CANDIDATE-SPECIFIC-AUDITOR-BOOTSTRAP-GOVERNANCE-TRANSITION-PREPARATION-20261002-01`;
+  this session executed ZERO source/test implementation, ZERO tests, ZERO
+  provider/model/auditor execution and created NO event package): the
+  operator's verbatim PATH-B decision is recorded in the canonical record
+  (`docs/chatgpt-project/AUCDEV-023-PCH6-B-CANDIDATE-SPECIFIC-AUDITOR-BOOTSTRAP-GOVERNANCE-TRANSITION-PREPARATION.md`)
+  and authorizes Control Room transition PREPARATION ONLY with NO execution
+  authority; the fresh independent audit target is FROZEN at the exact
+  implementation candidate `730d2b29f7c0e7d33af3451b6d9205ec27c143ed`
+  (root tree `2585796efd5cb6902226cfff785bb901297a15e3`; remediation parent
+  `068f5e29904f446bf832138fd64c8833b9037cb7`; target bootstrap-supervisor
+  tree `3056e577259ab0b0b0472f82ebc306506f3e084c`;
+  qualification-harness `5b8d5e5465923740470ff63ed9b8683f257a3787`; skill
+  `efd8c2e48edbb25795b3aacb1ce3c23fde10082a`), mechanically re-derived this
+  session as exactly the TEN authorized remediation paths over the parent
+  with launch.py `063b6ce1f4c726bd6ba809f605a115511667fb09` ->
+  `1d6b8d6d5751dbf9a73a84e6b2f1ee594f6ca49e` (+41 production LOC) the only
+  production change; TARGET_BOOTSTRAP_SUPERVISOR_MUST_NOT_BE_AUTHORITY_ROOT —
+  the target's own `730d2b29:bootstrap-supervisor/**` is AUDIT SUBJECT /
+  READ-ONLY EVIDENCE ONLY and MUST NOT mint audit authority, validate its
+  own authority package, hold provider credentials, control one-shot launch
+  authority, perform authoritative event accounting, decide report
+  acceptance for its own independent audit or authorize its auditors
+  (TARGET_AUTHORITY_SEPARATION = MANDATORY /
+  MECHANICALLY_PROVABLE_BEFORE_EVENT_PREPARATION_CAN_BE_ACCEPTED);
+  historical PCH6 event authority remains CONSUMED / TERMINAL / CLOSED /
+  NO_RERUN with event identity, attempt identities, model engagements (2/2
+  USED historical truth), launcher/wrapper/credential/output/retry
+  authorities and the AUCDEV-010 bootstrap-root exception ALL
+  NON-TRANSFERABLE — this transition creates a wholly NEW lineage; legacy
+  EBS at `068f5e2...` (bootstrap-supervisor tree
+  `732b8def9f22d7c466ce77f3d3049da53bfff3d0`) is REFERENCE_ONLY /
+  NOT_ACCEPTABLE_AS_NEW_AUTHORITY for two mechanically established reasons
+  re-derived this session — its binding.py (blob
+  `47eeb5171e9b50b09668aa672b6458c2ea33dd05`, byte-identical at parent and
+  candidate) freezes FROZEN_TARGET.commit
+  `d4d584ffa47ad2848268ba947247f81a845b2322` to the historical target, and
+  its report-acceptance boundary predates the PCH6-CR-BSD-001 semantic
+  target-binding remediation (`_validate_report_target_binding` ZERO
+  occurrences at the parent, present only in the candidate); a NEW
+  target-independent bootstrap authority plane is REQUIRED (proposed
+  `bootstrap-authority/` namespace NOT created in this task; later explicit
+  operator authority required after independent readback of this
+  transition) — stdlib/minimal-TCB, controllerless on the authority path,
+  process-bound one-shot, free of substantive verdict logic, unable to
+  import target bootstrap-supervisor / qualification-harness / skill code,
+  with exact per-file provenance (NEW authority-specific source or exact
+  reused pre-target blob identity with justification) and forbidden from
+  importing candidate code, wholesale-copying its authority implementation
+  or letting the audit target authorize itself; the new authority binding
+  must freeze repository / target_commit / target_root_tree /
+  target_bootstrap_supervisor_tree / target_qualification_harness_tree /
+  target_skill_tree / remediation_parent with FAIL CLOSED PRE-INFERENCE on
+  any mismatch; the authority plane itself must independently enforce
+  first_pass_report.target_commit ==
+  `730d2b29f7c0e7d33af3451b6d9205ec27c143ed` with strict duplicate-key
+  refusal, no permissive fallback parser, no coercion/repair, no submitted
+  wrong target persisted into durable failure reason, immutable report
+  bytes screened/validated/frozen, structurally-valid wrong-target reports
+  failing closed, and the held historical frozen structural validator
+  (SHA-256 `6aff0e7eda0b16f9885bc7a7200bba7b6bcea42a9c5e9af2ef6ceb19848dd071`
+  / 7228 B, identity independently re-derived this session from the
+  target's real_validator_materialization.py blob
+  `65c2ca7319e6da416137688299feb82b7cb80c28`) usable ONLY as a pinned
+  shape-only structural component, NEVER the sole target-binding authority;
+  DESIGN IDENTITIES ONLY reserved with bounded repository/history collision
+  checks ALL ZERO (event
+  `AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01`; attempts
+  `...-AUDITOR-A-01` / `...-AUDITOR-B-01`; authority ID; canonical record
+  path ABSENT at base rc 128 with full-history rows ZERO) — publication does
+  NOT instantiate an event, mint attempt capability, grant execution or
+  consume model engagements; TWO external independent first passes
+  preserved with EXPLICIT design-frozen auditor selections (Auditor A:
+  Claude first-party, `claude-opus-5-5`, effort high; Auditor B: Codex /
+  ChatGPT-OAuth, `gpt-6.1-sol`, effort high; both fresh dedicated execution
+  contexts) that are NOT inherited from candidate runtime, installed
+  unqualified Audit Council, AUCDEV-024 runtime code or ambient/default
+  selection, with the AUCDEV-024 model-selection semantics (record blob
+  `f50a734fd2c92bb4f2af8bd37a14769bdc675742` at base) cited as DESIGN
+  REFERENCE only, zero-inference preflight, mechanically observable
+  model/effort, FAIL CLOSED on mismatch/unavailability/unobservable effort
+  and NO fallback / NO inherit / NO generation substitution / NO silent
+  downgrade; PROPOSED_MODEL_ENGAGEMENTS_AUTHORIZED = 2 (one
+  inference-capable first pass per auditor) / USED 0, with GATES_PASSED ->
+  CONSUMED_PRE_EXEC -> at most one inference-capable exec per attempt,
+  permanently spent regardless of child exit / provider error / missing or
+  invalid report / output failure / timeout, NO automatic
+  retry/resume/revival, no pre-authorized replacement attempts, failed
+  attempts returning the event to Control Room possibly INCOMPLETE, and any
+  replacement engagement requiring a NEW explicit operator decision and new
+  attempt identity; the later separately authorized event-preparation task
+  must freshly establish authority-package byte identity and manifest, the
+  exact target binding, target-authority separation, common evidence
+  manifest, A/B substantive evidence parity, frozen neutral audit contract,
+  role/model/effort/client binding, boundary launcher identity, output
+  identities, operator-custodied accounting/output, credential custody,
+  real-client credential/tool isolation, process-tree cleanup, resource and
+  route/network readiness, GATE-W′ (REQUIRED /
+  MUST_BE_FRESH_FOR_THIS_NEW_AUTHORITY_AND_CLIENT_SET — historical results
+  do NOT transfer), authority-consumption ordering and immutable first-pass
+  custody, with NO real credential materialized until every required
+  pre-inference gate passes; credential custody preserves the adopted R1
+  principle (operator-controlled capability -> non-dumpable
+  target-independent authority -> sealed in-memory custody -> frozen
+  boundary launcher -> role-minimal private ephemeral provider home ->
+  teardown) with credential plaintext never entering the candidate target
+  tree, argv, ordinary environment, common evidence, Git, handoff archive,
+  peer auditor context, persistent ordinary host files or published
+  hashes/logs; first-pass blindness preserved (same common substantive
+  evidence to both auditors; NO peer report disclosure; NO historical
+  sealed substance — the four historical sealed artifacts remain
+  identity-only UNREAD; NO expected findings/severities/recommendation or
+  predetermined conclusion); fresh audit scope = prior findings +
+  remediation diff + held invariants + the changed report-acceptance trust
+  boundary WITHOUT presupposing closure and WITHOUT broadening into an
+  unbounded whole-repository redesign audit, with PCH6-B-SD-001 remaining
+  an OPEN retained finding not represented as remediated merely because it
+  appears in evidence; one canonical immutable first-pass artifact per
+  auditor (future names FIRST-PASS-AUDITOR-A.md / FIRST-PASS-AUDITOR-B.md,
+  final paths/digests bound by the exact event package), missing output
+  remaining MISSING with NO reconstruction from stdout/stderr/session logs,
+  peer substantive access CLOSED until both artifacts are immutable or the
+  event terminally failed incomplete, post-barrier reconciliation defaulting
+  to ZERO MODEL and NO pre-authorized addendum/cross-examination/
+  adjudication; the LATER authority-implementation readback must
+  mechanically establish authority bytes outside the frozen target, no
+  runtime import/authority dependency on the target's bootstrap-supervisor,
+  exact source provenance/inventory, exact target binding incl. the
+  bootstrap-supervisor subtree, strict report-target equality independent
+  of candidate implementation, process-bound one-shot enforcement, durable
+  operator-custodied accounting, self-identity verification, credential
+  custody, no substantive verdict logic, fail-closed malformed/tampered
+  package behavior, deterministic zero-provider tests, target-authority
+  separation negative tests and the candidate never acting as its own
+  authority root; independent-auditor provenance gate remains
+  NOT_SATISFIED (installed Audit Council source
+  `8ae33444f349ce73c1359b963722e2d16acba630`; independently-qualified
+  installed predecessor provenance NOT ESTABLISHED; the accepted 2026-09-18
+  reconciliation prohibits automatic broad re-search — this PATH-B
+  preparation does NOT convert the gate to a satisfied state and is NOT a
+  relabeling); PCH6-B-SD-002 and PCH6-CR-BSD-001 remain IMPLEMENTED AS
+  CANDIDATE / AWAITING FRESH INDEPENDENT AUDIT / NOT CLOSED; PCH6-B-SD-001
+  RETAINED / OPEN; ROOT_CAUSE_NOT_ESTABLISHED unchanged; AUCDEV-023 and
+  AUCDEV-024 both remain P1 / READY / NOT DONE; counts UNCHANGED READY 10
+  / OPEN 7 / BLOCKED 3 = 20 open; P0 2 / P1 8 / P2 11 = 21 queue rows;
+  IN_PROGRESS 0; 3 DEFERRED / 8 ACCEPTED_RESIDUAL / 5 DONE; no queue-row
+  status transition; no backlog item marked DONE; NEXT (grants nothing):
+  independent Control Room readback of this candidate-specific PATH-B
+  bootstrap governance/authority transition preparation BEFORE any
+  bootstrap-authority implementation is authorized — this preparation
+  grants NO implementation authority, NO event-package preparation
+  authority, NO event instantiation, NO attempt authority, NO
+  `/audit-council`, NO provider/model/auditor execution, NO qualification,
+  NO installation).
 
 ### AUCDEV-024 — Auditor Model Selection Policy & Model Generation Migration
 
@@ -3350,3 +3511,5 @@ means `AUDIT-COUNCIL-V2-KNOWN-LIMITATIONS.md`. Links to deeper authority are in
 2026-10-01 (AUCDEV-023 PCH6-B STRUCTURAL REMEDIATION IMPLEMENTATION CONTROL ROOM READBACK — ACCEPTED_MECHANICS_WITH_RECORD_PRECISION_RESIDUALS over exact implementation candidate `730d2b29f7c0e7d33af3451b6d9205ec27c143ed` (sole parent `068f5e29904f446bf832138fd64c8833b9037cb7`) by record-only publication authority `AUCDEV-023-PCH6-B-STRUCTURAL-REMEDIATION-IMPLEMENTATION-CONTROL-ROOM-READBACK-20261001-01`: one-commit exactly-ten-path geometry verified with NO eleventh path; generated-last handoff verified data-only (31 regular members = 30 payload + SHA256SUMS; SHA256SUMS 30/30 PASS; payload-set equality TRUE; ten committed-file member Git blob identities EQUAL live); source mechanics for PCH6-CR-BSD-001 and PCH6-B-SD-002 verified against the live candidate bytes; held identities and MANIFEST final-byte binding verified (semantic metadata delta NONE); LOC 3057 <= 3060 verified; submitted deterministic test evidence 35 / 62 / 156 / 13 / FULL 524 passed accepted at implementation-evidence strength ONLY (NOT rerun by the Control Room, NOT audit PASS); IMPLRB-001 recorded OPEN record-precision residual corrected append-only (canonical iteration accounting incomplete; SCOPEP-002 short-form typo; T-5 operator-reported NOT independently observed); IMPLRB-002 recorded INFORMATIONAL / NONBLOCKING / CLOSED by independent census; PCH6-B-SD-001 RETAINED / OPEN; PCH6-B-SD-002 and PCH6-CR-BSD-001 implemented-as-candidate / awaiting fresh independent audit / NOT CLOSED; ROOT_CAUSE_NOT_ESTABLISHED unchanged; AUCDEV-023 and AUCDEV-024 both remain P1 / READY / NOT DONE with the independent-auditor provenance / authority gate OPEN; NO audit PASS, NO qualification, NO installation — grants nothing)
 
 2026-10-02 (AUCDEV-023 PCH6-B STRUCTURAL REMEDIATION IMPLEMENTATION CONTROL ROOM READBACK PUBLICATION — CONTROL ROOM VERIFICATION — ACCEPTED over exact readback publication `16f2ec5a0db0506485c08f0994d821936fda1d71` (sole parent / implementation candidate `730d2b29f7c0e7d33af3451b6d9205ec27c143ed`) by record-only publication verification authority `AUCDEV-023-PCH6-B-STRUCTURAL-REMEDIATION-IMPLEMENTATION-CONTROL-ROOM-READBACK-PUBLICATION-CONTROL-ROOM-VERIFICATION-20261002-01`: live identity, one-commit three-path geometry, generated-last handoff integrity (27 regular members = 26 payload + SHA256SUMS; SHA256SUMS 26/26 PASS; payload-set equality TRUE; canonical member blobs EQUAL live), canonical blob equality, protected trees unchanged (ZERO source implementation), failed-and-corrected gate evidence preserved, readback disposition CONFIRMED (SD-002 / CR-BSD-001 implemented-as-candidate / awaiting fresh independent audit / NOT CLOSED; SD-001 RETAINED / OPEN; IMPLRB-001 OPEN append-only residual; IMPLRB-002 informational / nonblocking; ROOT_CAUSE_NOT_ESTABLISHED unchanged); NO NEW publication finding; independent-auditor provenance gate remains NOT_SATISFIED with installed-source predecessor provenance NOT ESTABLISHED and the consumed one-event bootstrap authority NON-TRANSFERABLE; future paths EXACTLY TWO (PATH A focused operator-supplied evidence reconciliation; PATH B NEW candidate-specific bootstrap authority); AUCDEV-023 and AUCDEV-024 both remain P1 / READY / NOT DONE; NO audit PASS, NO qualification, NO installation — grants nothing)
+
+2026-10-02 (AUCDEV-023 PCH6-B CANDIDATE-SPECIFIC INDEPENDENT-AUDITOR BOOTSTRAP GOVERNANCE / AUTHORITY TRANSITION PREPARATION — PATH B OPERATOR-SELECTED / TRANSITION_PREPARED_FOR_CONTROL_ROOM_READBACK over exact base `0307009636bba43b20bd14e92fd9f91a901d7b10` by record-only design-preparation publication authority `AUCDEV-023-PCH6B-730D2B29-CANDIDATE-SPECIFIC-AUDITOR-BOOTSTRAP-GOVERNANCE-TRANSITION-PREPARATION-20261002-01`: operator verbatim PATH-B decision recorded; fresh audit target frozen at candidate `730d2b29f7c0e7d33af3451b6d9205ec27c143ed` (root tree `2585796efd5cb6902226cfff785bb901297a15e3`; bootstrap-supervisor `3056e577259ab0b0b0472f82ebc306506f3e084c` = AUDIT SUBJECT / NOT AUTHORITY; qualification-harness `5b8d5e5465923740470ff63ed9b8683f257a3787`; skill `efd8c2e48edbb25795b3aacb1ce3c23fde10082a`; remediation parent `068f5e29904f446bf832138fd64c8833b9037cb7`); legacy PCH6 authority NOT revived; legacy EBS REFERENCE_ONLY (frozen historical binding `d4d584ffa47ad2848268ba947247f81a845b2322` + predates semantic target binding); NEW target-independent bootstrap-authority implementation REQUIRED and NOT authorized (`bootstrap-authority/` NOT created); two external first passes, design-frozen selections `claude-opus-5-5`/high and `gpt-6.1-sol`/high; proposed engagement budget 2 / used 0; design event/attempt identities reserved only, collision checks all zero, event NOT instantiated, attempt authorities NOT granted; fresh GATE-W′ and client/isolation gates still required; independent-auditor provenance gate remains NOT_SATISFIED; SD-002 / CR-BSD-001 awaiting fresh independent audit / NOT CLOSED; SD-001 RETAINED / OPEN; ROOT_CAUSE_NOT_ESTABLISHED unchanged; counts UNCHANGED READY 10 / OPEN 7 / BLOCKED 3 = 20 open; P0 2 / P1 8 / P2 11 = 21 queue rows; IN_PROGRESS 0; 3 DEFERRED / 8 ACCEPTED_RESIDUAL / 5 DONE; NO audit execution, NO audit PASS, NO qualification, NO installation — grants nothing)
