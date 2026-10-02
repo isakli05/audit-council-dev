@@ -3089,6 +3089,43 @@ append-only. Canonical report:
   released or prepared — grants NO closure of frozen-target findings, NO event-package preparation, NO event
   instantiation, NO attempt authority, NO `/audit-council`, NO provider/model/auditor execution, NO
   qualification, NO installation).
+- - Bootstrap-authority BA-RB-001 / BA-RB-002 remediation readback publication Control Room
+  verification status (2026-10-02; ACCEPTED over exact readback publication
+  `b3e0d3441b1df25d6e03644f39ba1ebabec9d02a` (root tree `fd8e3dccc253f4a7482b7a6062dc7eb98930bbdd`,
+  sole parent `b953dd23aa5d7f8e3b855e680b7a503e25fcf1da`) by record-only publication verification
+  authority
+  `AUCDEV-023-PCH6B-730D2B29-BA-RB001-002-REMEDIATION-READBACK-PUBLICATION-CONTROL-ROOM-VERIFICATION-20261002-01`:
+  the independently reached Control Room verification ACCEPTED the readback publication — live
+  publication identity, one-commit three-path geometry, canonical Git blob equality,
+  source/protected-tree hold (bootstrap-authority `21437705…`, bootstrap-supervisor `3056e577…`,
+  qualification-harness `5b8d5e54…`, skill `efd8c2e4…` all byte-identical candidate == publication;
+  remediation records unchanged; ZERO source modification) and generated-LAST handoff integrity (32
+  = 31 payload + SHA256SUMS; 31/31 checksums; exact payload-set equality; canonical members
+  Git-blob-equal; index self-counting; iteration member `23-iteration-accounting.txt` with T-1..T-6
+  consistent) all independently re-derived DATA-ONLY with zero members executed; BA-RB-001 closure
+  CONFIRMED at Control Room remediation-readback strength (attempt-global O_EXCL claim keyed by the
+  exact reserved attempt id alone; binding digest durably in-record and inspection-bound;
+  cross-binding same-attempt regression; no new attempt identity minted); BA-RB-002 closure
+  CONFIRMED (three pre-inference gates strictly before credential materialization; durable
+  GATES_PASSED before `CredentialCustody.ingest`; ingest before durable CONSUMED_PRE_EXEC; failing
+  preflight leaves the synthetic credential source unread; custody primitive unchanged); BA-RB-003
+  closure CONFIRMED by fresh staged-tree-bound evidence (PRE == POST == the exact remediation
+  candidate root `b5794330e979271a4d93b0ac67ac02570fbd3b17` around 108 passed; the Control Room did
+  NOT rerun pytest; submitted deterministic implementation evidence ONLY — NOT independent audit,
+  NOT audit PASS); BA-RB-004 / BA-RB-PUB-001 / BA-RB-PUB-002 / BA-REM-RB-001 / BA-REM-RB-002
+  retained historical informational with historical handoffs NOT repacked; NO new publication
+  finding; event-package preparation no longer blocked by those three findings BUT preparation
+  authority NOT GRANTED (separate explicit operator decision required); event NOT instantiated;
+  attempts NOT granted; engagements USED 0; PCH6-B-SD-002 / PCH6-CR-BSD-001 NOT CLOSED;
+  PCH6-B-SD-001 RETAINED / OPEN; ROOT_CAUSE_NOT_ESTABLISHED unchanged; provenance gate
+  NOT_SATISFIED; NO queue transition (queue recounted base == staged on every dimension; no
+  queue-row status transition; no backlog item marked DONE); NEXT (grants nothing): operator
+  decision on whether to authorize bounded event-package preparation for the fresh independent audit
+  of frozen target `730d2b29f7c0e7d33af3451b6d9205ec27c143ed` using the Control-Room-accepted
+  target-independent bootstrap-authority lineage — an affirmative decision may authorize
+  EVENT-PACKAGE PREPARATION ONLY, granting NO event instantiation, NO attempt execution authority,
+  NO `/audit-council`, NO auditor/provider/model execution, NO engagement consumption, NO audit
+  PASS, NO qualification, NO installation).
 
 ### AUCDEV-024 — Auditor Model Selection Policy & Model Generation Migration
 
@@ -3956,3 +3993,35 @@ installation NONE; canonical record
 docs/chatgpt-project/AUCDEV-023-PCH6-B-BOOTSTRAP-AUTHORITY-BA-RB-001-002-REMEDIATION-CONTROL-ROOM-READBACK.md;
 NEXT (grants nothing): INDEPENDENT CONTROL ROOM VERIFICATION of this readback publication before any
 event-package preparation authority is released or prepared)
+
+2026-10-02 (AUCDEV-023 PCH6-B BOOTSTRAP-AUTHORITY BA-RB-001 / BA-RB-002 REMEDIATION READBACK
+PUBLICATION — CONTROL ROOM VERIFICATION — ACCEPTED over exact readback publication
+`b3e0d3441b1df25d6e03644f39ba1ebabec9d02a` (root tree `fd8e3dccc253f4a7482b7a6062dc7eb98930bbdd`,
+sole parent `b953dd23aa5d7f8e3b855e680b7a503e25fcf1da`) by record-only publication verification
+authority
+`AUCDEV-023-PCH6B-730D2B29-BA-RB001-002-REMEDIATION-READBACK-PUBLICATION-CONTROL-ROOM-VERIFICATION-20261002-01`:
+live publication identity verified; one-commit three-path geometry verified (ADD readback record
+blob `45f2e4b9…`, MODIFY CURRENT blob `cf713031…`, MODIFY BACKLOG blob `4059e223…`; NO fourth path);
+source and protected trees byte-identical candidate == publication with the remediation
+implementation record `dd50acef…` unchanged — ZERO source modification in the readback publication
+and ZERO in this verification; input generated-LAST handoff verified DATA-ONLY in-memory (outer
+SHA-256 `9f158787723420c33c9291f871b1a86ed035bd16c3effc11002f98a4d7136b6a` / 1037901 B; 32 regular
+members = 31 payload + exactly one SHA256SUMS; all 0600 flat unique; SHA256SUMS 31/31 PASS; exact
+payload-set equality; canonical members byte-identical to the live Git blobs; index self-counts
+correctly; iteration member `23-iteration-accounting.txt` T-1..T-6 consistent; ZERO members
+executed); BA-RB-001 / BA-RB-002 closures CONFIRMED at Control Room remediation-readback strength
+and BA-RB-003 closure CONFIRMED by fresh staged-tree-bound evidence (PRE == POST ==
+`b5794330e979271a4d93b0ac67ac02570fbd3b17` == the exact remediation candidate root around 108
+passed; the Control Room did NOT rerun pytest; submitted deterministic implementation evidence ONLY
+— NOT independent audit, NOT audit PASS); BA-RB-004 / BA-RB-PUB-001 / BA-RB-PUB-002 / BA-REM-RB-001
+/ BA-REM-RB-002 retained historical informational with historical handoffs NOT repacked; NO new
+publication finding; event-package preparation no longer blocked by BA-RB-001 / BA-RB-002 /
+BA-RB-003 themselves BUT this verification grants NO preparation authority — a separate explicit
+operator decision remains required; event NOT instantiated; attempts NOT granted; engagements USED
+0; frozen-target PCH6-B-SD-002 / PCH6-CR-BSD-001 NOT CLOSED; PCH6-B-SD-001 RETAINED / OPEN;
+ROOT_CAUSE_NOT_ESTABLISHED unchanged; provenance gate NOT_SATISFIED; NO audit execution, NO audit
+PASS, NO qualification, NO installation; canonical record
+docs/chatgpt-project/AUCDEV-023-PCH6-B-BOOTSTRAP-AUTHORITY-BA-RB-001-002-REMEDIATION-CONTROL-ROOM-READBACK-PUBLICATION-CONTROL-ROOM-VERIFICATION.md;
+NEXT (grants nothing): operator decision on whether to authorize bounded event-package preparation
+for the fresh independent audit of frozen target `730d2b29f7c0e7d33af3451b6d9205ec27c143ed` using
+the Control-Room-accepted target-independent bootstrap-authority lineage — preparation ONLY)
