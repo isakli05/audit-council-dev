@@ -1,4 +1,6 @@
-"""BA-26..BA-50: dynamic-gate execution, one-shot accounting,
+"""BA-26..BA-50 + the BA-RB-001/BA-RB-002 remediation regressions:
+dynamic-gate execution, one-shot attempt-global accounting across
+binding variants, gates-BEFORE-credential-materialization ordering,
 credential/exec boundary, and the report lifecycle incl. the authority
 plane's own independent semantic report binding.  All synthetic,
 zero-provider, zero-network; the REAL executing authority package is
@@ -14,7 +16,8 @@ from pathlib import Path
 import pytest
 
 from bootstrap_authority import runtime as bar
-from bootstrap_authority.accounting import AccountingStore
+from bootstrap_authority.accounting import (AccountingError, AccountingStore,
+                                            inspect_accounting_record)
 from bootstrap_authority.custody import get_dumpable
 from bootstrap_authority.statemachine import (CONSUMED_PRE_EXEC,
                                               EXEC_ATTEMPTED, GATES_PASSED,
@@ -134,20 +137,148 @@ def test_ba28_no_credential_fd_to_gates(world_a):
         assert "/memfd:" not in link, link
 
 
-# --- BA-29: O_EXCL prevents a second authority process ------------------
+# --- BA-RB-002: gates BEFORE credential materialization -----------------
 
 
-def test_ba29_second_authority_process_refused(tmp_path):
+def test_ba_rb002_failing_preflight_leaves_credential_unread(tmp_path):
+    world = build_world(tmp_path, "AUDITOR_A",
+                        preflight_tweak={"model": "claude-haiku-4-5"})
+    r, w = os.pipe()
+    os.write(w, world.credential)
+    os.close(w)
+    try:
+        with pytest.raises(bar.AuthorityRefused,
+                           match="CLIENT_SELECTION_PREFLIGHT_BOUND_MISMATCH"):
+            world.authority().run_attempt(
+                r, world.launcher_path, world.auditor_path,
+                world.staging, world.output_root)
+        # NO credential materialization occurred: every synthetic byte
+        # remains readable from the source pipe
+        assert os.read(r, 65536) == world.credential
+    finally:
+        os.close(r)
+    record = world.inspect_record()
+    assert record["last_state"] == TERMINAL_PREEXEC_STOP
+    assert CONSUMED_PRE_EXEC not in record["states"]
+    assert EXEC_ATTEMPTED not in record["states"]
+    assert world.order_file.read_text().splitlines() == [
+        "CLIENT_SELECTION_PREFLIGHT"]      # stopped at the FIRST gate
+    assert not world.staging.exists()      # no launcher/auditor execution
+    assert not list(world.output_root.glob("*.json"))
+    assert world.credential not in json.dumps(record).encode()
+
+
+def test_ba_rb002_custody_only_after_all_gates_and_durable_gates_passed(
+        world_a, monkeypatch):
+    observed = []
+    real_ingest = bar.CredentialCustody.ingest
+
+    @staticmethod
+    def observing_ingest(source_fd, role):
+        observed.append((
+            world_a.order_file.read_text().splitlines(),
+            inspect_accounting_record(
+                world_a.output_root,
+                bar.accounting_name(world_a.binding),
+                world_a.binding.digest)["states"]))
+        return real_ingest(source_fd, role)
+
+    monkeypatch.setattr(bar.CredentialCustody, "ingest",
+                        observing_ingest)
+    result = world_a.run()
+    assert result.report_state == REPORT_FROZEN
+    assert len(observed) == 1               # custody ingest exactly once
+    gate_order, durable_states = observed[0]
+    assert gate_order == ["CLIENT_SELECTION_PREFLIGHT", "NETWORK_READINESS",
+                          "RESOURCE_GATE"]
+    assert durable_states == [PREPARED, GATES_PASSED]
+    record = world_a.inspect_record()
+    assert record["states"] == [PREPARED, GATES_PASSED,
+                                CONSUMED_PRE_EXEC, EXEC_ATTEMPTED,
+                                REPORT_FROZEN, TERMINAL]
+    assert world_a.credential not in json.dumps(record).encode()
+
+
+# --- BA-29 (BA-RB-001): attempt-global O_EXCL authority claim ----------
+
+
+def test_ba29_same_binding_second_authority_process_refused(tmp_path):
     world = build_world(tmp_path, "AUDITOR_A",
                         launcher_mode="none")
     assert world.run().report_state == REPORT_MISSING
     with pytest.raises(bar.AuthorityRefused,
                        match="RECORD_CREATE_REFUSED"):
         world.run()                      # a SECOND process would refuse
-    # a DIFFERENT binding digest lands on a different record (name)
-    other = build_world(tmp_path / "other", "AUDITOR_B",
+    assert sorted(p.name for p in world.output_root.glob("*.jsonl")) == \
+        [bar.accounting_name(world.binding) + ".jsonl"]
+
+
+def test_ba29_rb001_cross_binding_same_attempt_refused(tmp_path):
+    # BA-RB-001: ONE reserved attempt id -> ONE GLOBAL authority claim.
+    # Two INDEPENDENTLY valid AUDITOR_A bindings (different digests,
+    # each with its own self-consistent synthetic event package) with
+    # the SAME reserved attempt id and the SAME operator custody: the
+    # second claim must fail closed at the attempt-global O_EXCL name,
+    # BEFORE any dynamic gate and BEFORE any credential read.
+    first = build_world(tmp_path / "first", "AUDITOR_A",
                         launcher_mode="none")
-    assert other.run().report_state == REPORT_MISSING
+    second = build_world(tmp_path / "second", "AUDITOR_A",
+                         launcher_mode="none")
+    assert second.binding.attempt_id == first.binding.attempt_id
+    assert second.binding.digest != first.binding.digest
+    second.output_root = first.output_root     # the SAME custody dir
+    assert first.run().report_state == REPORT_MISSING
+    authority_b = second.authority()           # valid on its OWN terms
+    r, w = os.pipe()
+    os.write(w, second.credential)
+    os.close(w)
+    try:
+        with pytest.raises(bar.AuthorityRefused,
+                           match="RECORD_CREATE_REFUSED"):
+            authority_b.run_attempt(
+                r, second.launcher_path, second.auditor_path,
+                second.staging, second.output_root)
+        # the refusal PRECEDES any credential read: every synthetic
+        # byte is still readable from the source pipe
+        assert os.read(r, 65536) == second.credential
+    finally:
+        os.close(r)
+    # the second binding executed ZERO dynamic gates
+    assert not second.order_file.exists()
+    assert first.order_file.read_text().splitlines() == [
+        "CLIENT_SELECTION_PREFLIGHT", "NETWORK_READINESS",
+        "RESOURCE_GATE"]
+    # the ORIGINAL durable record retains the FIRST binding's digest
+    # on EVERY record (the digest stays durable in-record evidence)
+    record = first.inspect_record()
+    assert record["states"] == [PREPARED, GATES_PASSED,
+                                CONSUMED_PRE_EXEC, EXEC_ATTEMPTED,
+                                REPORT_MISSING, TERMINAL]
+    assert all(rec["binding_digest"] == first.binding.digest
+               for rec in record["records"])
+    # inspection stays digest-bound: the second binding's digest
+    # refuses against the first binding's record
+    with pytest.raises(AccountingError, match="RECORD_BINDING_MISMATCH"):
+        inspect_accounting_record(
+            second.output_root, bar.accounting_name(second.binding),
+            second.binding.digest)
+    # NO second same-attempt accounting record exists (under the old
+    # composite name a second <attempt>.<digest>.jsonl WOULD exist)
+    assert sorted(p.name for p in second.output_root.glob("*.jsonl")) == \
+        [bar.accounting_name(first.binding) + ".jsonl"]
+
+
+def test_ba29_rb001_distinct_reserved_attempts_stay_distinct(tmp_path):
+    # the distinct AUDITOR_A / AUDITOR_B reserved attempt ids remain
+    # independent accounting namespaces under one operator custody.
+    a = build_world(tmp_path / "a", "AUDITOR_A", launcher_mode="none")
+    b = build_world(tmp_path / "b", "AUDITOR_B", launcher_mode="none")
+    b.output_root = a.output_root
+    assert a.run().report_state == REPORT_MISSING
+    assert b.run().report_state == REPORT_MISSING
+    assert sorted(p.name for p in a.output_root.glob("*.jsonl")) == sorted(
+        [bar.accounting_name(a.binding) + ".jsonl",
+         bar.accounting_name(b.binding) + ".jsonl"])
 
 
 # --- BA-31: no public consume/resume/retry split -------------------------

@@ -8,7 +8,12 @@ independent audit of the frozen candidate target
 `730d2b29f7c0e7d33af3451b6d9205ec27c143ed`. It is an implementation
 candidate only: not readback-accepted, not execution-ready, and it has
 NOT prepared an event package, instantiated the design event, granted
-attempt authorities, or consumed any model engagement.
+attempt authorities, or consumed any model engagement. The BA-RB-001 /
+BA-RB-002 bounded source remediation is implemented AS A REMEDIATION
+CANDIDATE (attempt-global O_EXCL claim; gates before credential
+materialization) — neither Control Room finding is closed by the
+implementer, and a fresh Control Room readback of the remediation
+candidate is required before any event-package preparation.
 
 ## What this package is
 
@@ -38,7 +43,7 @@ installation decisions, no auditor-output reconciliation.
 | `bootstrap_authority/runtime.py` | NEW authority-specific |
 | `tests/conftest.py` | synthetic zero-provider fixtures |
 | `tests/test_binding.py` | BA-13..BA-25 binding/gate-contract tests |
-| `tests/test_runtime.py` | BA-26..BA-50 one-shot/credential/report tests |
+| `tests/test_runtime.py` | BA-26..BA-50 + BA-RB-001/BA-RB-002 remediation regressions |
 | `tests/test_static.py` | BA-01..BA-12, BA-51..BA-59 provenance/identity/governance tests |
 
 No CLI, no provider adapters, no real event package, no credential
@@ -92,12 +97,21 @@ auditor_executable_path, report_staging_path, output_root)`:
 self-identity of the executing package (both pinned identities, live
 per-file equality, payload-set equality, semantic values — no
 caller-provided root), event-package identity + transport projection,
-O_EXCL attempt- and binding-digest-specific accounting, non-dumpable
-pipe/sealed-memfd credential custody (ordinary files refused),
-verified-held executables with identity-preserving exec
-(`execveat(AT_EMPTY_PATH)`, fexecve fallback; unavailability fails
-closed), the frozen gate order, durable `GATES_PASSED` →
-`CONSUMED_PRE_EXEC` with no caller control in between, own-session
+an **attempt-global O_EXCL authority claim keyed by the exact reserved
+attempt id alone** (BA-RB-001: ONE reserved attempt id = ONE global
+claim, independent of the binding digest, while the exact binding
+digest remains durable, inspection-bound evidence inside every
+accounting record), verified-held executables with identity-preserving
+exec (`execveat(AT_EMPTY_PATH)`, fexecve fallback; unavailability
+fails closed), and the BA-RB-002 security order — fresh dynamic gates
+(`CLIENT_SELECTION_PREFLIGHT` → `NETWORK_READINESS` → `RESOURCE_GATE`
+last) → durable `GATES_PASSED` → **only then** credential
+materialization via non-dumpable pipe/sealed-memfd custody (ordinary
+files refused) → durable `CONSUMED_PRE_EXEC` → immediate launch, with
+no caller control anywhere in between and **no credential byte read
+until every required pre-inference gate has durably passed**: a
+failing pre-inference gate leaves the real credential unread and
+unmaterialized — plus own-session
 bounded child execution with process-group kill on timeout, and the
 report lifecycle: one immutable snapshot → credential screen → frozen
 SHAPE-ONLY structural validator → **the authority's own independent
@@ -155,5 +169,6 @@ engagements 2/2 USED historical truth; non-transferable). This
 lineage's design budget: PROPOSED 2 / USED 0 — this implementation
 consumes ZERO engagements. No audit execution, no audit PASS, no
 qualification, no installation. The next action is a FRESH Control
-Room readback of THIS implementation candidate and its generated-LAST
-handoff before any event-package preparation is authorized.
+Room readback of THIS BA-RB-001 / BA-RB-002 remediation candidate and
+its generated-LAST handoff before any event-package preparation is
+authorized.

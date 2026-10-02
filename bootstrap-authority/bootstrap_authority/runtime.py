@@ -11,12 +11,13 @@ hash-chained O_EXCL accounting, the sealed credential custody, and
 the report snapshot/freeze discipline; everything else here is NEW.
 
 Primary launch authority is NON-EXPORTABLE AUTHORITY PROCESS STATE
-plus state-machine control flow: the whole attempt lifecycle — custody
-admission, package/event identity verification, static byte
-identities, the THREE fresh dynamic gates in frozen order
-(CLIENT_SELECTION_PREFLIGHT -> NETWORK_READINESS -> RESOURCE_GATE
-LAST), durable GATES_PASSED -> CONSUMED_PRE_EXEC, the irreversible
-in-process spend, and the IMMEDIATE fork/exec attempt — happens inside
+plus state-machine control flow: the whole attempt lifecycle —
+package/event identity verification, static byte identities, the
+THREE fresh dynamic gates in frozen order (CLIENT_SELECTION_PREFLIGHT
+-> NETWORK_READINESS -> RESOURCE_GATE LAST), durable GATES_PASSED,
+credential custody strictly AFTER those gates (BA-RB-002), durable
+CONSUMED_PRE_EXEC, the irreversible in-process spend, and the
+IMMEDIATE fork/exec attempt — happens inside
 ONE public authority operation `BootstrapAuthority.run_attempt(
 credential_source_fd, launcher_path, auditor_executable_path,
 report_staging_path, output_root)`: no grant/consume/resume/retry/
@@ -28,11 +29,12 @@ pins (full semantics in verify_own_package / verify_event_package;
 package root derived from THIS module's own source location).
 
 The authority OWNS the sealed credential custody (SOURCE fd only,
-non-dumpable pipe/sealed-memfd ingest BEFORE any gate, role derived
-ONLY from the binding; the SAME held custody serves the child's
-CRED_FD and the report leak screen; no credential byte is ever
-logged, hashed into evidence, included in errors, persisted, or
-returned).  The frozen boundary launcher and the LIVE auditor
+non-dumpable pipe/sealed-memfd ingest strictly AFTER every required
+pre-inference gate has durably passed, role derived ONLY from the
+binding; the SAME held custody serves the child's CRED_FD and the
+report leak screen; no credential byte is ever logged, hashed into
+evidence, included in errors, persisted, or returned).  The frozen
+boundary launcher and the LIVE auditor
 executable are each opened ONCE, hashed as the ALREADY-OPEN fd
 against the binding's exact SHA-256, HELD, re-hashed before gate
 acceptance and again immediately before the post-consumption exec,
@@ -198,11 +200,12 @@ class PostConsumptionTerminalAccountingError(AuthorityError):
 
 
 def accounting_name(binding) -> str:
-    """Attempt-specific AND binding-digest-specific accounting record
-    name: `<reserved attempt id>.<full binding digest>` (123 chars,
-    inside the accounting name grammar; a different binding digest for
-    the same attempt therefore lands on a DIFFERENT O_EXCL record)."""
-    return f"{binding.attempt_id}.{binding.digest}"
+    """Attempt-GLOBAL O_EXCL authority-claim name (BA-RB-001): the
+    exact reserved attempt id ALONE — ONE reserved attempt id = ONE
+    global authority claim, independent of the binding digest; the
+    exact digest remains durably recorded and inspection-bound inside
+    every record of the claim."""
+    return binding.attempt_id
 
 
 def _char_array(items) -> "ctypes.Array":
@@ -1076,8 +1079,9 @@ class BootstrapAuthority:
     verified open fds HELD.  The event-package root is a MANDATORY
     constructor input; no attach/revival constructor exists; the
     attempt's accounting record is created O_EXCL inside run_attempt
-    (attempt-specific AND binding-digest-specific), so no second
-    authority process can obtain authority for the same attempt."""
+    (attempt-GLOBAL, keyed by the exact reserved attempt id alone per
+    BA-RB-001), so no second authority process can obtain authority
+    for the same reserved attempt under ANY other valid binding."""
 
     def __init__(self, binding, event_package_root) -> None:
         if not isinstance(binding, Binding):
@@ -1208,12 +1212,12 @@ class BootstrapAuthority:
                     output_root) -> AttemptResult:
         """THE single public authority operation: the COMPLETE one-shot
         attempt lifecycle in ONE caller-uninterruptible call — output
-        custody pre-open + O_EXCL attempt/binding-digest-specific
-        accounting (PREPARED), custody, sealed frozen-argv spec,
-        launcher + LIVE auditor executable verified/HELD, the THREE
-        dynamic gates fresh in frozen order (RESOURCE_GATE LAST),
-        held-fd re-hash, durable GATES_PASSED -> CONSUMED_PRE_EXEC,
-        irreversible spend, IMMEDIATE fork/exec (own session),
+        custody pre-open + attempt-global O_EXCL accounting (PREPARED),
+        sealed frozen-argv spec, launcher/auditor verified and HELD,
+        the THREE dynamic gates fresh in frozen order (RESOURCE_GATE
+        LAST), held-fd re-hash, durable GATES_PASSED, THEN credential
+        custody (BA-RB-002), durable CONSUMED_PRE_EXEC, irreversible
+        spend, IMMEDIATE fork/exec (own session),
         EXEC_ATTEMPTED, deadline-bounded wait, report snapshot ->
         SAME-custody screen -> structural validator -> the authority's
         OWN semantic report binding -> freeze of the exact bound bytes
@@ -1250,46 +1254,42 @@ class BootstrapAuthority:
                                  "no second authority operation exists")
         self._gates_executed = True
         try:
-            # output custody PRE-OPENED and HELD before any authority
-            # is consumed; the freeze later happens through THIS fd.
+            # A: output custody PRE-OPENED/HELD; the freeze goes through THIS fd.
             self._out_dir_fd = open_custody_dir(output_root)
             self._staging_path = os.fspath(report_staging_path)
-            # attempt- AND binding-digest-specific O_EXCL accounting:
-            # a second authority process for the same attempt+binding
-            # fails closed here; a different digest is a new record.
+            # A (BA-RB-001): attempt-GLOBAL O_EXCL claim keyed by the reserved
+            # attempt id ALONE; a second process for the SAME attempt fails.
             self._store = AccountingStore.create(
                 output_root, accounting_name(self._binding),
                 self._binding.digest)
-            # CUSTODY FIRST (non-dumpable, source discipline, four
-            # seals) BEFORE any gate and BEFORE CONSUMED_PRE_EXEC; the
-            # role comes ONLY from the binding (re-checked below).
-            self._custody = CredentialCustody.ingest(
-                credential_source_fd, self._binding.auditor_role)
-            if self._custody.role != self._binding.auditor_role:
-                raise AuthorityRefused(
-                    "CUSTODY_ROLE_MISMATCH: defense-in-depth check — the "
-                    "custody role does not equal binding.auditor_role")
-            # the frozen argv leaves the binding ONLY as sealed
-            # canonical bytes.
+            # B: the frozen argv leaves the binding ONLY as sealed bytes.
             self._invocation_fd = make_invocation_fd(
                 self._binding.auditor_invocation)
-            # static byte identities BEFORE the dynamic gates: the
-            # boundary launcher and the LIVE auditor executable, each
-            # opened ONCE, hashed against the binding's exact pins.
+            # C: static identities BEFORE the gates — launcher + LIVE auditor, HELD.
             self._launcher_fd = open_verified_launcher(
                 launcher_path, self._binding.boundary_launcher["sha256"])
             self._auditor_fd = open_verified_auditor_executable(
                 auditor_executable_path,
                 self._binding.auditor_selection["client_executable"][
                     "sha256"])
+            # D: the THREE fresh gates exactly once each, frozen order (RESOURCE_GATE LAST); then E: drift re-hash.
             evidence = {}
             for gate in DYNAMIC_GATE_ORDER:   # PREFLIGHT -> NETWORK ->
                 evidence.update(self._execute_dynamic_gate(gate))
                 # RESOURCE_GATE LAST
             self._rehash_held("BEFORE_GATES_PASSED")  # gate-interval drift
+            # F: durable GATES_PASSED BEFORE any credential read.
             self._store.append(GATES_PASSED,          # fsync'd inside append
                                extra=evidence)
             self._machine.transition(GATES_PASSED)    # internal transient
+            # G+H (BA-RB-002): ONLY NOW custody ingest reads the credential; role ONLY from the binding.
+            self._custody = CredentialCustody.ingest(
+                credential_source_fd, self._binding.auditor_role)
+            if self._custody.role != self._binding.auditor_role:
+                raise AuthorityRefused(
+                    "CUSTODY_ROLE_MISMATCH: defense-in-depth check — the "
+                    "custody role does not equal binding.auditor_role")
+            # I: durable CONSUMED_PRE_EXEC immediately after custody.
             self._store.append(CONSUMED_PRE_EXEC,      # fsync'd inside append
                                extra=self._binding_facts())
             self._machine.transition(CONSUMED_PRE_EXEC)
@@ -1297,7 +1297,7 @@ class BootstrapAuthority:
             self._preexec_stop()   # PREPARED/GATES_PASSED -> fail-closed
             if isinstance(exc, AuthorityRefused):
                 raise
-            raise AuthorityRefused(f"PREEXEC_CONSUME_RECORD_FAILED: "
+            raise AuthorityRefused(f"PREEXEC_ATTEMPT_FAILED: "
                                    f"{exc!r}") from exc
         # IRREVERSIBLE SPEND: consumption is IMMEDIATELY followed by
         # the fork attempt inside the SAME public call — control never
