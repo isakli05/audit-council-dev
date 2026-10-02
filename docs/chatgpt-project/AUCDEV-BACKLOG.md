@@ -2866,6 +2866,87 @@ append-only. Canonical report:
   authority, NO event instantiation, NO attempt authority, NO `/audit-
   council`, NO provider/model/auditor execution, NO qualification, NO
   installation).
+- Bootstrap-authority implementation Control Room readback status
+  (2026-10-02; PARTIALLY_ACCEPTED_MECHANICS with TWO OPEN BLOCKING
+  findings over exact candidate `6fc0544489f7533813157a14db91475f5b3c4c04`
+  (root tree `bd573448cf324f63cf9729ab6b298d036af56953`, sole parent
+  `63e842e392320b74a7fac923ae140984b28079dd`) by record-only publication
+  authority
+  `AUCDEV-023-PCH6B-730D2B29-BOOTSTRAP-AUTHORITY-IMPLEMENTATION-CONTROL-ROOM-READBACK-20261002-01`):
+  the independently reached Control Room readback verified the
+  implementation candidate's MECHANICS — live candidate identity exact at
+  bootstrap / before staging / before commit; one-commit sixteen-path
+  geometry (14 ADD + CURRENT + BACKLOG, no seventeenth; protected trees
+  `3056e577…` / `5b8d5e54…` / `efd8c2e4…` unchanged and equal to the
+  frozen `730d2b29` target pins); generated-LAST handoff verified
+  DATA-ONLY in-memory with ZERO members executed (outer SHA-256
+  `b4e01aee…` / 1184759 B; 52 regular members = 51 payload + SHA256SUMS;
+  all 0600 flat unique; 51/51 checksums PASS; exact payload-set equality;
+  ALL SIXTEEN committed-file members independently hash to the
+  candidate's exact live Git blobs); MANIFEST self-identity (raw
+  `760ed40b…`; non-circular `package_sha256` `d09f197f…` independently
+  recalculated MATCH; 12/12 rows equal to the committed package members;
+  payload-set equality); four EXACT pre-target reuses (`cf563d21` /
+  `03de6f66` / `37e6b5bb` / `18f1cc60` from `068f5e2`); target-authority
+  separation AST import hold (zero production imports of candidate
+  bootstrap-supervisor / qualification-harness / skill); production LOC
+  3000 == 3000 ceiling — while recording OPEN / BLOCKING findings:
+  **BA-RB-001** `AUCDEV023-CR-PCH6B-BA-RB-001`
+  ATTEMPT_GLOBAL_ONE_SHOT_NOT_ENFORCED_ACROSS_BINDING_VARIANTS (the O_EXCL
+  accounting record name `f"{binding.attempt_id}.{binding.digest}"`
+  scopes uniqueness to same attempt + same binding digest, NOT to the
+  reserved attempt identity globally; a valid alternative binding
+  differing in digest-covered dimensions while retaining the SAME
+  reserved attempt ID would NOT collide; the submitted BA-29 regression
+  covers only the same-binding refusal and its own source documents a
+  different digest landing on a different record; blocking for
+  event-package preparation / execution-readiness; smallest remediation
+  direction recorded, NOT authorized) and **BA-RB-002**
+  `AUCDEV023-CR-PCH6B-BA-RB-002`
+  CREDENTIAL_MATERIALIZATION_PRECEDES_REQUIRED_PREINFERENCE_GATES
+  (`run_attempt()` performs AccountingStore.create -> CredentialCustody.
+  ingest -> invocation -> launcher/auditor verification -> the three
+  dynamic gates -> GATES_PASSED -> CONSUMED_PRE_EXEC, i.e. the credential
+  plaintext enters sealed custody BEFORE CLIENT_SELECTION_PREFLIGHT /
+  NETWORK_READINESS / RESOURCE_GATE complete, conflicting with the
+  accepted PATH-B design readback's frozen requirement that NO real
+  credential is materialized until every required pre-inference gate
+  passes; the gates not inheriting the credential fd does NOT satisfy
+  the stronger frozen requirement; CONTRIBUTING_CONTROL_ROOM_
+  TASKING_CONFLICT / IMPLEMENTER_FOLLOWED_AUTHORIZED_ORDER /
+  ACCEPTED_DESIGN_REMAINS_AUTHORITATIVE recorded honestly — the prior
+  Control Room implementation tasking itself described custody before
+  the dynamic gates and is NOT rewritten; blocking for event-package
+  preparation / real-credential execution readiness; smallest
+  remediation direction recorded, NOT authorized); **BA-RB-003**
+  `AUCDEV023-CR-PCH6B-BA-RB-003` completeness limitation (the successful
+  104-pass full-suite output is not mechanically bound to the exact
+  staged write-tree by the output member itself; submitted claim
+  supported by session narrative; NOT converted into a test failure;
+  NONBLOCKING relative to the two blockers); **BA-RB-004**
+  `AUCDEV023-CR-PCH6B-BA-RB-004` informational (00-FINAL-RETURN.md cites
+  `40-iteration-accounting.txt` vs the actual member
+  `48-iteration-accounting.txt` containing T-1..T-11; archive integrity
+  intact; handoff NOT repacked); submitted deterministic test evidence
+  (binding 50 / runtime 21 / static 33 / full 104) classified SUBMITTED
+  / SOURCE_BYTES_INSPECTED / NOT_INDEPENDENT_AUDIT / NOT_AUDIT_PASS —
+  the Control Room did NOT execute the suite; held valid mechanics do
+  NOT cancel either blocker; EVENT-PACKAGE PREPARATION HELD;
+  REMEDIATION REQUIRED and NOT authorized by this publication; candidate
+  NOT execution-ready; event NOT instantiated; attempts NOT granted;
+  new-lineage engagements USED 0; PCH6-B-SD-002 / PCH6-CR-BSD-001 NOT
+  CLOSED; PCH6-B-SD-001 RETAINED / OPEN; ROOT_CAUSE_NOT_ESTABLISHED
+  unchanged; provenance gate NOT_SATISFIED; NO audit execution, NO audit
+  PASS, QUALIFICATION NONE, INSTALLATION NONE; queue recounted base ==
+  staged on every dimension (READY 10 / OPEN 7 / BLOCKED 3 = 20 open; P0
+  2 / P1 8 / P2 11 = 21 queue rows; IN_PROGRESS 0; 3 DEFERRED / 8
+  ACCEPTED_RESIDUAL / 5 DONE; no queue-row status transition; no backlog
+  item marked DONE); NEXT (grants nothing): independent Control Room
+  verification of THIS readback publication BEFORE any remediation
+  authority or event-package preparation is released — grants NO
+  remediation authority, NO event-package preparation authority, NO
+  event instantiation, NO attempt authority, NO `/audit-council`, NO
+  provider/model/auditor execution, NO qualification, NO installation).
 
 ### AUCDEV-024 — Auditor Model Selection Policy & Model Generation Migration
 
@@ -3676,3 +3757,5 @@ means `AUDIT-COUNCIL-V2-KNOWN-LIMITATIONS.md`. Links to deeper authority are in
 2026-10-02 (AUCDEV-023 PCH6-B CANDIDATE-SPECIFIC INDEPENDENT-AUDITOR BOOTSTRAP GOVERNANCE / AUTHORITY TRANSITION — CONTROL ROOM READBACK — ACCEPTED AT DESIGN-READBACK STRENGTH over exact base `78b5bc37290ea443611e20fc6813e5f481eaab74` (sole parent `0307009636bba43b20bd14e92fd9f91a901d7b10` = the PATH-B transition preparation) by record-only publication authority `AUCDEV-023-PCH6B-730D2B29-CANDIDATE-SPECIFIC-AUDITOR-BOOTSTRAP-GOVERNANCE-TRANSITION-CONTROL-ROOM-READBACK-20261002-01`: the Control Room accepted the PATH-B transition preparation at design-readback strength with live publication identity / one-commit three-path geometry / generated-LAST integrity independently verified, target-authority separation and legacy-EBS non-reuse accepted with both mechanical reasons re-derived, the new target-independent `bootstrap-authority/` design and exact target binding requirements accepted (FAIL CLOSED before inference on any mismatch), independent report-target acceptance required (exact `first_pass_report.target_commit` equality enforced by the authority plane itself; held shape-only validator `6aff0e7eda0b16f9885bc7a7200bba7b6bcea42a9c5e9af2ef6ceb19848dd071` / 7228 B MAY be a pinned structural component NEVER the sole binding authority), two external first passes with governance-frozen selections (`claude-opus-5-5`/high; `gpt-6.1-sol`/high) and proposed budget 2/used-0 accepted, design identities REMAIN RESERVED ONLY, PATHB-RB-001 recorded INFORMATIONAL / NONBLOCKING; `bootstrap-authority/` implementation remains NOT AUTHORIZED and the namespace remains ABSENT; event NOT instantiated; attempts NOT granted; independent-auditor provenance gate remains NOT_SATISFIED; PCH6-B-SD-002 / PCH6-CR-BSD-001 remain IMPLEMENTED_AS_CANDIDATE / AWAITING_FRESH_INDEPENDENT_AUDIT / NOT CLOSED; PCH6-B-SD-001 RETAINED / OPEN; ROOT_CAUSE_NOT_ESTABLISHED unchanged; NO audit execution, NO audit PASS, NO qualification, NO installation; NEXT (grants nothing): operator decision on whether to authorize the bounded implementation of the Control-Room-accepted new target-independent `bootstrap-authority/` for candidate `730d2b29f7c0e7d33af3451b6d9205ec27c143ed` under this accepted PATH-B design — implementation only, granting no event-package preparation, no event instantiation, no attempt authority, no `/audit-council`, no provider/model/auditor execution, no qualification, no installation)
 
 2026-10-02 (AUCDEV-023 PCH6-B CANDIDATE-SPECIFIC TARGET-INDEPENDENT BOOTSTRAP AUTHORITY — BOUNDED IMPLEMENTATION — IMPLEMENTED_AS_CANDIDATE over authorized exact base `63e842e392320b74a7fac923ae140984b28079dd` by implementation authority `AUCDEV-023-PCH6B-730D2B29-BOOTSTRAP-AUTHORITY-IMPLEMENTATION-20261002-01`: NEW `bootstrap-authority/` per the accepted PATH-B design; sixteen tracked paths; four EXACT pre-target blob reuses; NEW binding/runtime; exact 730d2b29 target binding; semantic report binding implemented; one-shot accounting; zero-provider tests 104/104; LOC 3000 <= 3000; event package NOT prepared; event NOT instantiated; attempts NOT granted; engagements USED 0; findings NOT closed; provenance gate NOT_SATISFIED; qualification NONE; installation NONE; NEXT (grants nothing): FRESH CONTROL ROOM READBACK of this candidate and its generated-LAST handoff before ANY event-package preparation is authorized)
+
+2026-10-02 (AUCDEV-023 PCH6-B CANDIDATE-SPECIFIC TARGET-INDEPENDENT BOOTSTRAP AUTHORITY IMPLEMENTATION — CONTROL ROOM READBACK — PARTIALLY_ACCEPTED_MECHANICS / BA-RB-001 + BA-RB-002 OPEN BLOCKING over exact candidate `6fc0544489f7533813157a14db91475f5b3c4c04` by record-only publication authority `AUCDEV-023-PCH6B-730D2B29-BOOTSTRAP-AUTHORITY-IMPLEMENTATION-CONTROL-ROOM-READBACK-20261002-01`: implementation mechanics verified (sixteen-path geometry; handoff DATA-ONLY 52/51+SUMS integrity with sixteen-member Git-blob equality; MANIFEST self-identity independently recalculated; four pre-target reuses exact; import hold; LOC 3000); BA-RB-001 attempt-global one-shot not enforced across binding variants OPEN BLOCKING; BA-RB-002 credential materialization precedes the required pre-inference gates OPEN BLOCKING with contributing Control Room tasking conflict recorded; BA-RB-003 staged-context binding limitation NONBLOCKING; BA-RB-004 member-reference typo informational; test evidence SUBMITTED ONLY / NOT_INDEPENDENT_AUDIT / NOT_AUDIT_PASS; event-package preparation HELD; remediation REQUIRED and NOT authorized; candidate NOT execution-ready; event NOT instantiated; attempts NOT granted; engagements USED 0; findings NOT closed; provenance gate NOT_SATISFIED; AUCDEV-023 P1 / READY / NOT DONE; AUCDEV-024 P1 / READY / NOT DONE; qualification NONE; installation NONE; canonical record docs/chatgpt-project/AUCDEV-023-PCH6-B-CANDIDATE-SPECIFIC-BOOTSTRAP-AUTHORITY-IMPLEMENTATION-CONTROL-ROOM-READBACK.md; NEXT (grants nothing): INDEPENDENT CONTROL ROOM VERIFICATION OF THIS READBACK PUBLICATION BEFORE ANY REMEDIATION AUTHORITY OR EVENT-PACKAGE PREPARATION IS RELEASED)
