@@ -3374,6 +3374,72 @@ append-only. Canonical report:
   GATE-W-PRIME REHEARSAL PATH BEFORE ANY NEW EVENT-PACKAGE PREPARATION
   AUTHORIZATION; the fresh preparation authority of 2026-10-02 is NOT
   completed and NOT silently revivable).
+- Disposable-KVM GATE-W-prime rehearsal Control Room readback status
+  (2026-10-02; ACCEPTED_WITH_COMPLETENESS_BOUNDARIES over exact base
+  `2e52fb39087814877ee72e3a6f850e1ffb860b6a` (root tree
+  `a4ff2c7916b1f1e9a8087a675c4e91515f35e902`, sole parent
+  `72d7d1f8b3e2f81785e6f2968f38672224423958` = the fresh event-package
+  preparation FAIL-CLOSED HOLD whose recorded NEXT operator decision —
+  a safe GATE-W-prime rehearsal path — the operator answered with the
+  disposable-KVM path) published RECORD-ONLY by publication authority
+  AUCDEV-023-PCH6B-730D2B29-DISPOSABLE-KVM-GATEW-REHEARSAL-CR-READBACK-20261002-01:
+  input rehearsal handoff verified DATA-ONLY (31449899 B; outer SHA-256
+  `e4dfa59eee633ab7c15f2c7d7048707c90ff51035559664f319e644477885aa4`;
+  census 189 members = 156 regular (155 payload + exactly one
+  SHA256SUMS) + 33 dirs; 0 symlink/hardlink/special/unsafe/duplicate;
+  155 rows no self-row; payload-set equality TRUE; 155/155 PASS; zero
+  members executed); formal run formal-20261002T180735 recomputed from
+  raw JSON 16/16 PASS (IR-1..IR-4 + GWP-01..GWP-12; exact-equality
+  aggregation all(s == "PASS"); recomputed OVERALL == recorded) with the
+  two earlier formal executions retained as honest FAIL records
+  (formal-20261002T180453 GWP-10 FAIL + GWP-11 NOT_DEMONSTRATED;
+  formal-20261002T180640 GWP-10 FAIL); host non-mutation verified (host
+  PID1 mnt-ns inode unchanged; root propagation shared unchanged;
+  boot-id unchanged; mount count 84 unchanged; zero rehearsal mounts on
+  the host; repository HEAD unchanged; zero staged paths; golden image
+  SHA-256
+  `71d0284cea475c70066d7707d6f9c40c3efaadbf707547eb8c9ae34500cb648b`
+  unchanged); official Arch cloud image SHA-256
+  `360f0fa49db6813bdc8e35bed230a2dc2ae3567b7b5ab74719c0a706e4e34e87`
+  == published EXACT; incident regression IR-1..IR-4 ACCEPTED with
+  historical incident AUCDEV023-PCH6B-PREP-INCIDENT-20261002-001
+  retained immutable (the disposable-VM path mechanically blocks the
+  demonstrated incident class: MS_REC|MS_PRIVATE applied only inside
+  the proven-private copy; detach reachable only inside the proven
+  namespace); GWP-10 exact Codex application sandbox/profile NOT
+  demonstrated (deterministic stand-in permission gate mirroring
+  read-only / workspace-write ONLY) and GWP-12 exact
+  bootstrap-authority §15.4 report screen NOT exercised (synthetic
+  harness analog; the real mechanism CredentialCustody.contains exists
+  at bootstrap-authority/bootstrap_authority/custody.py:201-205 and
+  must be tested in a later authorized preparation) — both
+  COMPLETENESS_LIMITATION / BLOCKING_FOR_FINAL_GATE_W_PRIME_STATIC_PASS
+  / NOT_A_PRODUCT_DEFECT; final networked boundary NOT yet frozen — the
+  rehearsal establishes the SAFE disposable-KVM rehearsal path ONLY and
+  is NOT final static GATE_W_PRIME PASS evidence; derived
+  rehearsal-only boundary copy classified INFORMATIONAL /
+  REHEARSAL_IMPLEMENTATION_RESIDUAL (original review-only artifact
+  never executed; exact diff retained; in-process forger residual
+  disclosed; NOT adopted as production source); host infrastructure
+  observations recorded as ENVIRONMENT (SeaBIOS after OVMF headless
+  hang; scoped UFW virbr0 rules; bounded guest provisioning
+  workarounds; stale VM UUID refused fail-closed by the guest guard; VM
+  shut down; golden intact) — NOT frozen-target defects; NO event
+  package created; event NOT instantiated; attempts NOT granted;
+  engagements USED 0 with PROPOSED 2 unchanged; NO queue transition
+  solely from this publication (queue recounted base == staged; no
+  queue-row status transition; no backlog item marked DONE);
+  PCH6-B-SD-002 / PCH6-CR-BSD-001 NOT CLOSED; PCH6-B-SD-001 RETAINED /
+  OPEN; ROOT_CAUSE_NOT_ESTABLISHED unchanged; provenance gate
+  NOT_SATISFIED; NEXT (grants nothing): OPERATOR DECISION ON WHETHER TO
+  AUTHORIZE A NEW FRESH BOUNDED AUCDEV-023 PCH6-B EVENT-PACKAGE
+  PREPARATION AGAINST THE THEN-CURRENT EXACT LIVE HEAD, USING THE
+  DISPOSABLE-KVM PATH FOR ANY PRIVILEGED GATE-W-PRIME REHEARSAL AND
+  REQUIRING THE FINAL PREPARATION TO CLOSE GWP-10 AGAINST THE EXACT
+  PINNED CODEX APPLICATION SANDBOX/PROFILE MECHANISM AT ZERO-PROVIDER
+  STRENGTH, GWP-12 USING THE EXACT BOOTSTRAP-AUTHORITY §15.4
+  CREDENTIAL/REPORT SCREEN WITH SYNTHETIC BYTES, AND THE FULL
+  GATE-W-PRIME AGAINST THE FINAL FROZEN NETWORKED EVENT BOUNDARY).
 
 ### AUCDEV-024 — Auditor Model Selection Policy & Model Generation Migration
 
@@ -4549,3 +4615,35 @@ docs/chatgpt-project/AUCDEV-023-PCH6-B-FRESH-EVENT-PACKAGE-PREPARATION-HOLD.md;
 NEXT (grants nothing): OPERATOR DECISION ON A SAFE GATE-W-PRIME REHEARSAL
 PATH BEFORE ANY NEW EVENT-PACKAGE PREPARATION AUTHORIZATION; recording it
 grants nothing)
+
+2026-10-02 — AUCDEV-023 PCH6-B disposable-KVM GATE-W-prime rehearsal
+Control Room readback published RECORD-ONLY (publication authority
+AUCDEV-023-PCH6B-730D2B29-DISPOSABLE-KVM-GATEW-REHEARSAL-CR-READBACK-20261002-01)
+over exact base `2e52fb39087814877ee72e3a6f850e1ffb860b6a`: bootstrap
+identity verified EXACT; input rehearsal handoff verified DATA-ONLY
+(outer SHA-256
+`e4dfa59eee633ab7c15f2c7d7048707c90ff51035559664f319e644477885aa4`;
+census 189 = 156 regular (155 payload + exactly one SHA256SUMS) + 33
+dirs; 155 rows no self-row; payload-set equality TRUE; 155/155 PASS;
+zero members executed); formal run formal-20261002T180735 recomputed
+from raw JSON 16/16 PASS with prior FAIL runs retained honest; host
+non-mutation verified (PID1 mnt-ns inode unchanged, propagation
+shared, boot-id unchanged, mount count unchanged, zero rehearsal
+mounts, HEAD unchanged, zero staged, golden image hash unchanged);
+IR-1..IR-4 incident-class negative regression ACCEPTED with the
+historical incident retained immutable; GWP-10 (exact Codex application
+profile) and GWP-12 (exact bootstrap-authority §15.4 report screen)
+recorded COMPLETENESS_LIMITATION /
+BLOCKING_FOR_FINAL_GATE_W_PRIME_STATIC_PASS / NOT_A_PRODUCT_DEFECT;
+final networked boundary NOT yet frozen — the rehearsal establishes the
+SAFE disposable-KVM rehearsal path ONLY and is NOT final static
+GATE_W_PRIME PASS evidence; NO event package created; event NOT
+instantiated; attempts NOT granted; engagements USED 0; NO queue
+transition (AUCDEV-023 remains P1 / READY / NOT DONE); qualification
+NONE; installation NONE; canonical record
+docs/chatgpt-project/AUCDEV-023-PCH6-B-DISPOSABLE-KVM-GATE-W-PRIME-REHEARSAL-CONTROL-ROOM-READBACK.md;
+NEXT (grants nothing): OPERATOR DECISION ON WHETHER TO AUTHORIZE A NEW
+FRESH BOUNDED EVENT-PACKAGE PREPARATION USING THE DISPOSABLE-KVM PATH
+AND REQUIRING THE FINAL PREPARATION TO CLOSE GWP-10, GWP-12 AND THE
+FULL GATE-W-PRIME AGAINST THE FINAL FROZEN NETWORKED EVENT BOUNDARY;
+recording it grants nothing)
