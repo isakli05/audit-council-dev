@@ -3126,6 +3126,35 @@ append-only. Canonical report:
   EVENT-PACKAGE PREPARATION ONLY, granting NO event instantiation, NO attempt execution authority,
   NO `/audit-council`, NO auditor/provider/model execution, NO engagement consumption, NO audit
   PASS, NO qualification, NO installation).
+- - Event-package preparation preflight Control Room HOLD status (2026-10-02;
+  FAIL_CLOSED_HOLD over exact base `9b5eaae814e61938dece05f5332f04f01b745e8b` by record-only
+  hold-publication authority
+  `AUCDEV-023-PCH6B-730D2B29-EVENT-PACKAGE-PREPARATION-PREFLIGHT-CONTROL-ROOM-HOLD-20261002-01`:
+  the operator's explicit bounded event-package preparation authority (PREPARATION ONLY) for the
+  fresh independent audit of frozen target `730d2b29f7c0e7d33af3451b6d9205ec27c143ed` was RECEIVED
+  but NOT EXECUTED / NOT CONSUMED — the separately run preparation preflight re-derived the live
+  source DATA-ONLY and found BA-PREP-001
+  `ATTEMPT_GLOBAL_ONE_SHOT_BYPASS_VIA_CALLER_SELECTED_OUTPUT_ROOT` OPEN BLOCKING (the attempt-global
+  O_EXCL authority claim lives inside a CALLER-SELECTED output/accounting root; the binding freezes
+  no custody-root identity; the SAME reserved attempt could reach a second authority namespace under
+  a different otherwise-valid operator-custodied root; the existing BA-RB-001 regression pins the
+  SAME root and does NOT cover the cross-root case) and BA-PREP-002
+  `REPORT_ACCEPTANCE_SOURCE_NOT_BOUND_TO_FROZEN_OUTPUT_CUSTODY` OPEN BLOCKING (the caller-supplied
+  report staging path is snapshot/validated/frozen with NO binding-frozen report-source comparison,
+  so acceptance could be redirected to a different pre-existing valid-looking regular file; the
+  report SOURCE is not mechanically bound to the attempt's frozen output custody); an event package
+  cannot manufacture an enforcement comparison the authority source does not perform; prior
+  BA-RB-001 / BA-RB-002 / BA-RB-003 closures RETAINED and NOT reopened (the new findings are
+  additional trust-boundary dimensions, not reopenings); current bootstrap-authority tree remains
+  `21437705f2dd775fa8288709b9591d2c9a0e3acf`; event package NONE; event NOT instantiated; attempts
+  NOT granted; engagements USED 0; frozen target unchanged; original target findings remain NOT
+  CLOSED / OPEN as applicable (PCH6-B-SD-002 / PCH6-CR-BSD-001 NOT CLOSED; PCH6-B-SD-001 RETAINED /
+  OPEN); ROOT_CAUSE_NOT_ESTABLISHED unchanged; provenance gate NOT_SATISFIED; AUCDEV-023 /
+  AUCDEV-024 both P1 / READY / NOT DONE; qualification NONE; installation NONE; NO queue transition
+  solely from this HOLD (queue recounted base == staged on every dimension; no queue-row status
+  transition; no backlog item marked DONE); NEXT (grants nothing): independent Control Room
+  verification of this HOLD publication before any remediation authority or event-package
+  preparation is released).
 
 ### AUCDEV-024 — Auditor Model Selection Policy & Model Generation Migration
 
@@ -4025,3 +4054,44 @@ docs/chatgpt-project/AUCDEV-023-PCH6-B-BOOTSTRAP-AUTHORITY-BA-RB-001-002-REMEDIA
 NEXT (grants nothing): operator decision on whether to authorize bounded event-package preparation
 for the fresh independent audit of frozen target `730d2b29f7c0e7d33af3451b6d9205ec27c143ed` using
 the Control-Room-accepted target-independent bootstrap-authority lineage — preparation ONLY)
+
+2026-10-02 (AUCDEV-023 PCH6-B PATH-B EVENT-PACKAGE PREPARATION PREFLIGHT — CONTROL ROOM HOLD —
+FAIL_CLOSED_HOLD over exact base `9b5eaae814e61938dece05f5332f04f01b745e8b` (root tree
+`73e4140538b3631fac3014c4e40357457080c6b1`, sole parent `b3e0d3441b1df25d6e03644f39ba1ebabec9d02a` =
+the BA-RB-001 / BA-RB-002 remediation readback publication Control Room verification) by record-only
+hold-publication authority
+`AUCDEV-023-PCH6B-730D2B29-EVENT-PACKAGE-PREPARATION-PREFLIGHT-CONTROL-ROOM-HOLD-20261002-01`:
+the operator explicitly authorized bounded event-package preparation (PREPARATION ONLY) for the
+fresh independent audit of frozen target `730d2b29f7c0e7d33af3451b6d9205ec27c143ed` using the
+Control-Room-accepted target-independent bootstrap-authority lineage; that authority was RECEIVED
+but NOT EXECUTED / NOT CONSUMED — the separately run preparation preflight re-derived the live
+bootstrap-authority source DATA-ONLY at the exact base and recorded TWO NEW OPEN BLOCKING
+HARNESS/PROTOCOL findings with OBSERVED SOURCE FACT + MECHANICALLY IMPLIED CONSEQUENCE support:
+BA-PREP-001 `ATTEMPT_GLOBAL_ONE_SHOT_BYPASS_VIA_CALLER_SELECTED_OUTPUT_ROOT` (run_attempt receives
+output_root from the caller at runtime.py:1210-1212; the strict binding schema TOP_LEVEL freezes no
+custody-root identity; accounting_name correctly returns the reserved attempt id alone at
+runtime.py:202-208; AccountingStore.create obtains the O_EXCL claim at
+<caller-selected-root>/<attempt_id>.jsonl per accounting.py:104-110 — a different otherwise-valid
+operator-custodied root is a second authority namespace for the SAME reserved attempt; the existing
+BA-RB-001 regression pins the SAME root at test_runtime.py:229; accepted R1 governance requires ONE
+reserved attempt identity -> ONE process-bound one-shot authority, replacement requiring ALL of NEW
+operator authority / NEW attempt id / NEW process state / NEW output-accounting identity) and
+BA-PREP-002 `REPORT_ACCEPTANCE_SOURCE_NOT_BOUND_TO_FROZEN_OUTPUT_CUSTODY` (run_attempt accepts
+report_staging_path from the caller; the binding freezes no report-source locator; runtime.py:1259
+stores the caller path and runtime.py:1625-1628 snapshots it with zero staging-to-binding
+comparisons anywhere in runtime.py; snapshot_staging's valid local no-follow / regular-file /
+single-snapshot protections do not bind the accepted report SOURCE to the attempt's frozen
+single-writer output custody); because an event package cannot manufacture an enforcement comparison
+the authority source does not perform, preparation cannot safely proceed by choosing "correct"
+paths in a preparation record; THIS HOLD publication created ZERO preparation artifacts and executed
+ZERO preparation operations (no event package, no event MANIFEST, no final binding, no evidence
+package, no prompt contract, no gate results, no credential custody, no output/accounting state, no
+launcher adaptation, no execution-authority record; BootstrapAuthority / run_attempt / launcher /
+dynamic gates / validator / real client / provider call all NOT executed); event NOT instantiated;
+attempts NOT granted; engagements USED 0; prior BA-RB-001 / BA-RB-002 / BA-RB-003 closures RETAINED
+and NOT reopened; PCH6-B-SD-002 / PCH6-CR-BSD-001 NOT CLOSED; PCH6-B-SD-001 RETAINED / OPEN;
+ROOT_CAUSE_NOT_ESTABLISHED unchanged; provenance gate NOT_SATISFIED; NO audit execution, NO audit
+PASS, NO qualification, NO installation; canonical record
+docs/chatgpt-project/AUCDEV-023-PCH6-B-EVENT-PACKAGE-PREPARATION-PREFLIGHT-CONTROL-ROOM-HOLD.md;
+NEXT (grants nothing): independent Control Room verification of this HOLD publication before any
+remediation authority or event-package preparation is released)
