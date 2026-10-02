@@ -218,6 +218,10 @@ def _mutations():
             "package_sha256", hex2)),
         ("output_name", lambda d: d["output_identity"].__setitem__(
             "name", "other.json")),
+        ("output_custody_root", lambda d: d["output_identity"].__setitem__(
+            "custody_root", "/other/custody/root")),
+        ("report_source", lambda d: d["output_identity"].__setitem__(
+            "report_source", "/other/staging/report.json")),
         ("static_gate_evidence", lambda d: d["static_gate_evidence"][
             "GATE_W_PRIME"].__setitem__("evidence_sha256", hex2)),
         ("gate_descriptor", lambda d: d["dynamic_gates"][
@@ -370,3 +374,44 @@ def test_ba25_dynamic_gate_frozen_pass_forbidden(gate):
     with pytest.raises(bab.BindingError,
                        match="GATE_EVIDENCE_.*_FORBIDDEN"):
         bab.parse_binding(variant(minimal_binding_doc(), mutate))
+
+
+# --- BA-PREP-001 / BA-PREP-002: the attempt output-custody root and
+# report source are mandatory frozen canonical absolute-path identity
+# dimensions of output_identity (fail-closed parse; digest-covered) ---
+
+
+@pytest.mark.parametrize("field", ["custody_root", "report_source"])
+def test_ba_prep_missing_output_identity_dimension_refused(field):
+    def mutate(doc):
+        del doc["output_identity"][field]
+    with pytest.raises(bab.BindingError, match="OUTPUT_IDENTITY"):
+        bab.parse_binding(variant(minimal_binding_doc(), mutate))
+
+
+@pytest.mark.parametrize("bad", [
+    "relative/custody",             # not absolute
+    "/abs/../escape",               # parent traversal
+    "/abs//double",                 # empty segment
+    "/abs/trailing/",               # trailing separator
+    "/abs/./dot",                   # current-directory segment
+    "/",                             # the filesystem root
+    "/abs/bad\x01control",          # control character
+    7,                               # not a string
+])
+def test_ba_prep_noncanonical_frozen_path_refused(bad):
+    def mutate(doc):
+        doc["output_identity"]["custody_root"] = bad
+    with pytest.raises(bab.BindingError,
+                       match="OUTPUT_CUSTODY_ROOT_NOT_A_FROZEN"):
+        bab.parse_binding(variant(minimal_binding_doc(), mutate))
+
+
+def test_ba_prep_frozen_output_identity_parsed_exact():
+    doc = minimal_binding_doc(output_root="/operator/custody/attempt-01",
+                              staging="/operator/staging/report.json")
+    parsed = bab.parse_binding(canonical(doc))
+    assert parsed.output_identity["custody_root"] == \
+        "/operator/custody/attempt-01"
+    assert parsed.output_identity["report_source"] == \
+        "/operator/staging/report.json"

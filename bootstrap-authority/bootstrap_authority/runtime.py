@@ -1,70 +1,57 @@
 """Controllerless one-shot target-independent bootstrap authority core.
 
-NEW authority-specific source for the AUCDEV-023 PCH6-B PATH-B wholly
-NEW lineage (Control Room design readback 2026-10-02); shares NO code
-with, and imports NOTHING from, the audit target
-`730d2b29:bootstrap-supervisor/**` (AUDIT SUBJECT: never authority
-here) or the legacy EBS at `068f5e2` (REFERENCE_ONLY).  The four
-pre-target EBS primitives (exact reused blobs, published in
-MANIFEST.json source_provenance) provide the state machine, the
-hash-chained O_EXCL accounting, the sealed credential custody, and
-the report snapshot/freeze discipline; everything else here is NEW.
+NEW authority-specific source for the AUCDEV-023 PCH6-B PATH-B wholly NEW
+lineage (Control Room design readback 2026-10-02); shares NO code with, and
+imports NOTHING from, the audit target `730d2b29:bootstrap-supervisor/**`
+(AUDIT SUBJECT: never authority here) or the legacy EBS at `068f5e2`
+(REFERENCE_ONLY).  The four pre-target EBS primitives (exact reused blobs,
+published in MANIFEST.json source_provenance) provide the state machine,
+the hash-chained O_EXCL accounting, the sealed credential custody, and the
+report snapshot/freeze discipline; everything else here is NEW.
 
-Primary launch authority is NON-EXPORTABLE AUTHORITY PROCESS STATE
-plus state-machine control flow: the whole attempt lifecycle —
-package/event identity verification, static byte identities, the
-THREE fresh dynamic gates in frozen order (CLIENT_SELECTION_PREFLIGHT
--> NETWORK_READINESS -> RESOURCE_GATE LAST), durable GATES_PASSED,
-credential custody strictly AFTER those gates (BA-RB-002), durable
-CONSUMED_PRE_EXEC, the irreversible in-process spend, and the
-IMMEDIATE fork/exec attempt — happens inside
-ONE public authority operation `BootstrapAuthority.run_attempt(
+Primary launch authority is NON-EXPORTABLE AUTHORITY PROCESS STATE plus
+state-machine control flow: the whole attempt lifecycle — package/event
+identity verification, static byte identities, the THREE fresh dynamic
+gates in frozen order (CLIENT_SELECTION_PREFLIGHT -> NETWORK_READINESS ->
+RESOURCE_GATE LAST), durable GATES_PASSED, credential custody strictly
+AFTER those gates (BA-RB-002), durable CONSUMED_PRE_EXEC, the irreversible
+in-process spend, and the IMMEDIATE fork/exec attempt — happens inside ONE
+public authority operation `BootstrapAuthority.run_attempt(
 credential_source_fd, launcher_path, auditor_executable_path,
 report_staging_path, output_root)`: no grant/consume/resume/retry/
 adopt_report/finish/mint_attempt/create_event surface exists, and no
-caller ever regains control between GATES_PASSED, CONSUMED_PRE_EXEC
-and the exec attempt.  Every construction fail-closed-verifies ITS OWN
-live package bytes and the frozen event package against the binding
-pins (full semantics in verify_own_package / verify_event_package;
-package root derived from THIS module's own source location).
+caller ever regains control between GATES_PASSED, CONSUMED_PRE_EXEC and
+the exec attempt.  Every construction fail-closed-verifies ITS OWN live
+package bytes and the frozen event package against the binding pins
+(full semantics in verify_own_package / verify_event_package).
 
-The authority OWNS the sealed credential custody (SOURCE fd only,
+The authority OWNS the sealed credential custody (SOURCE fd only;
 non-dumpable pipe/sealed-memfd ingest strictly AFTER every required
-pre-inference gate has durably passed, role derived ONLY from the
-binding; the SAME held custody serves the child's CRED_FD and the
-report leak screen; no credential byte is ever logged, hashed into
-evidence, included in errors, persisted, or returned).  The frozen
-boundary launcher and the LIVE auditor
-executable are each opened ONCE, hashed as the ALREADY-OPEN fd
-against the binding's exact SHA-256, HELD, re-hashed before gate
-acceptance and again immediately before the post-consumption exec,
-and executed via execveat(AT_EMPTY_PATH) with an fexecve fallback
-(unavailability FAILS CLOSED; no pathname re-open after verification);
-the EXACT frozen auditor argv travels ONLY as canonical binding bytes
-on the sealed read-only AUDITOR_INVOCATION_FD (no caller
-argv/model/environment/timeout override).
+pre-inference gate has durably passed; role ONLY from the binding; no
+credential byte is ever logged, hashed into evidence, persisted, or
+returned — full semantics in custody.py).  The frozen boundary launcher
+and the LIVE auditor executable are each verified-opened ONCE, HELD,
+re-hashed before gate acceptance and again immediately before the
+post-consumption exec, and exec'd identity-preserving with NO pathname
+re-open; the EXACT frozen auditor argv travels ONLY as sealed canonical
+bytes on the read-only AUDITOR_INVOCATION_FD.
 
 After the bounded child wait (own session/process group; monotonic
 deadline from the frozen binding only; a timeout SIGKILLs the EXACT
 attempt process group and settles consumed-fail-closed with no report
-accepted) the process-bound report lifecycle runs inside the SAME
-call: ONE immutable snapshot -> SAME-custody screen -> the frozen
-SHAPE-ONLY structural validator -> the authority's OWN INDEPENDENT
-semantic report binding -> freeze 0444 O_EXCL under the pre-opened
-operator custody fd (full semantics in _report_and_terminalize and
-check_report_binding; the submitted wrong value, report prose, parser
-prose and credentials NEVER enter a durable reason).
+accepted) the process-bound report lifecycle runs inside the SAME call:
+ONE immutable snapshot -> SAME-custody screen -> frozen SHAPE-ONLY
+validator -> the authority's OWN semantic report binding -> 0444 O_EXCL
+freeze under the pre-opened custody fd (full semantics in
+_report_and_terminalize / check_report_binding; fixed safe tokens only).
 
 Post-consumption fail-closed terminality: ONE centralized settlement
 primitive separates the durable accounting attempt from a guaranteed
 in-process fail-closed death; a durable terminal-accounting failure
 raises the distinct PostConsumptionTerminalAccountingError, NEVER a
 successful AttemptResult.  The package contains NO substantive audit
-verdict logic (no PASS/FAIL verdicts, no finding scores/closures, no
-auditor reconciliation/adjudication): its responsibility ends at
-authority mechanics, exact identities, the safe one-shot execution
-boundary, report custody/structural validity, and the exact report
-binding.
+verdict logic: its responsibility ends at authority mechanics, exact
+identities, the one-shot execution boundary, and report custody.
 """
 from __future__ import annotations
 
@@ -144,7 +131,7 @@ VALIDATOR_RESULT_FIELDS = ("schema", "status", "event_id", "auditor_role",
 # The exact per-file source provenance of every production module,
 # verified against the live authority package at every construction
 # (the four reused primitives are EXACT pre-target blobs from
-# 068f5e29904f446bf832138fd64c8833b9037cb7; the rest are NEW).
+# 068f5e29904f446bf832138fd64c8833b9037cb7; the rest are NEW):
 PRETARGET_REUSE_SOURCE_COMMIT = \
     "068f5e29904f446bf832138fd64c8833b9037cb7"
 PRETARGET_REUSE = {
@@ -176,10 +163,10 @@ class AuthorityRefused(AuthorityError):
 
 class PostConsumptionTerminalAccountingError(AuthorityError):
     """The durable post-consumption terminal accounting chain did NOT
-    complete: the attempt is already in-process TERMINAL, custody and
-    held fds closed, NO retry exists, and the durable record must be
-    treated as INCOMPLETE — never returned or swallowed as a
-    success/timed-out/conforming AttemptResult."""
+    complete: the attempt is already in-process TERMINAL, custody and held
+    fds closed, NO retry exists, and the durable record must be treated as
+    INCOMPLETE — never returned or swallowed as a success/timed-out/
+    conforming AttemptResult."""
 
     def __init__(self, durable_error, original_error=None,
                  related_error=None, last_state=None) -> None:
@@ -200,11 +187,9 @@ class PostConsumptionTerminalAccountingError(AuthorityError):
 
 
 def accounting_name(binding) -> str:
-    """Attempt-GLOBAL O_EXCL authority-claim name (BA-RB-001): the
-    exact reserved attempt id ALONE — ONE reserved attempt id = ONE
-    global authority claim, independent of the binding digest; the
-    exact digest remains durably recorded and inspection-bound inside
-    every record of the claim."""
+    """Attempt-GLOBAL O_EXCL authority-claim name (BA-RB-001): ONE
+    reserved attempt id = ONE global claim, independent of the binding
+    digest (which stays durable, inspection-bound in-record evidence)."""
     return binding.attempt_id
 
 
@@ -267,10 +252,9 @@ def _hash_fd(fd: int) -> str:
 
 def _open_verified(path, expected_sha256: str, kind: str,
                    require_executable: bool) -> int:
-    """Shared verified-open core: no final symlink, regular file
-    (plus executable mode when required), hash of the ALREADY-OPEN fd
-    with exact equality, rewind, HELD fd returned (no pathname re-open
-    after verification)."""
+    """Shared verified-open core: no final symlink, regular file (plus
+    executable mode when required), exact-equality hash of the
+    ALREADY-OPEN fd, rewind, HELD fd returned (no pathname re-open)."""
     try:
         fd = os.open(os.fspath(path), os.O_RDONLY | os.O_NOFOLLOW)
     except OSError as exc:
@@ -300,16 +284,16 @@ def open_verified_launcher(path, expected_sha256: str) -> int:
 
 def open_verified_auditor_executable(path, expected_sha256: str) -> int:
     """Verify and HOLD the LIVE auditor executable (regular +
-    executable + exact SHA-256; refusals are PREEXEC, authority
-    unconsumed, no same-attempt retry)."""
+    executable + exact SHA-256; PREEXEC refusal, no same-attempt
+    retry)."""
     return _open_verified(path, expected_sha256,
                           "PREEXEC_EXECUTABLE_IDENTITY_FAIL", True)
 
 
 def make_invocation_fd(argv_list) -> int:
-    """Sealed read-only memfd carrying the EXACT frozen auditor argv
-    as canonical binding bytes; no caller string, argv tail, or
-    environment override can enter the auditor client's argv."""
+    """Sealed read-only memfd carrying the EXACT frozen auditor argv as
+    canonical binding bytes; no caller string, argv tail, or environment
+    override can enter the auditor client's argv."""
     fd = memfd_create("bootstrap-authority-auditor-invocation",
                       MFD_CLOEXEC | MFD_ALLOW_SEALING)
     try:
@@ -327,12 +311,11 @@ def make_invocation_fd(argv_list) -> int:
 def verify_package_bytes(root, expected_package_sha256: str,
                          expected_manifest_sha256: str = None) -> dict:
     """Fail-closed verification of the package at root: non-circular
-    package_sha256 self-consistency, the pinned raw manifest digest
-    when one is supplied, the pinned package identity, per-file
-    size/SHA-256 rows, and EXACT payload-set equality between the
-    walked live tree and the recorded rows (unrecorded files, missing
-    rows, symlinks and special files all refuse).  Strict JSON parse;
-    returned as "document" for cross-binding."""
+    package_sha256 self-consistency, the pinned raw-manifest/package
+    identities, per-file size/SHA-256 rows, and EXACT payload-set
+    equality with the walked live tree (unrecorded files, missing rows,
+    symlinks and special files all refuse).  Strict JSON parse; the
+    manifest is returned as "document" for cross-binding."""
     try:
         fd = os.open(os.path.join(os.fspath(root), PACKAGE_MANIFEST),
                      os.O_RDONLY | os.O_NOFOLLOW)
@@ -438,10 +421,10 @@ def verify_package_bytes(root, expected_package_sha256: str,
 
 def verify_own_package(binding) -> dict:
     """MANDATORY self-identity of THE EXECUTING authority package at
-    EVERY construction: both pinned identities plus per-file/payload-
-    set verification of the LIVE bytes at THIS module's own package
-    root (never caller-provided; no flag, no environment override),
-    then the strict authority-manifest semantic checks (exact key
+    EVERY construction: both pinned identities plus per-file/payload-set
+    verification of the LIVE bytes at THIS module's own package root
+    (never caller-provided; no flag, no environment override), then the
+    strict authority-manifest semantic checks (exact key
     set/schema/package/policy, the exact frozen target, the
     design-reserved event/attempt identities, the candidate-only
     status, qualification NONE, and the exact per-file source
@@ -503,9 +486,7 @@ def verify_event_package(root, binding) -> dict:
     """Fail-closed verification of the frozen event package BEFORE any
     gate is reachable: pinned package identity plus exact
     transport-projection equality with the binding (as canonical JSON
-    bytes), so substituted component identities under the same package
-    identity, or a regenerated package with updated pins, both fail
-    closed here."""
+    bytes; substituted or regenerated packages fail closed here)."""
     result = verify_package_bytes(
         os.fspath(root), binding.event_package["package_sha256"])
     manifest = result["document"]
@@ -529,11 +510,10 @@ def verify_event_package(root, binding) -> dict:
 def _open_bound_artifact(event_package_root, descriptor, rows,
                          label: str) -> int:
     """Verified-open core for a frozen EVENT-PACKAGE-SIDE executable
-    artifact (dynamic gate or structural validator): the descriptor
-    path must be a manifest row of the ALREADY-VERIFIED package; open
-    with no final symlink, regular + executable, hash of the
-    ALREADY-OPEN fd against the descriptor's exact SHA-256, rewind,
-    return the verified open HELD fd (exactly-once live execution)."""
+    artifact (gate or validator): the descriptor path must be a
+    manifest row of the ALREADY-VERIFIED package; open with no final
+    symlink, regular + executable, exact-SHA-256 hash of the
+    ALREADY-OPEN fd, rewind, return the verified open HELD fd."""
     if descriptor["path"] not in rows:
         raise AuthorityRefused(
             f"{label}_NOT_PACKAGE_MANIFEST_ROW: {descriptor['path']!r}")
@@ -562,8 +542,8 @@ def _open_bound_artifact(event_package_root, descriptor, rows,
 def open_dynamic_gate(event_package_root, binding, event_manifest,
                       gate: str) -> int:
     """Open + verify ONE frozen dynamic-gate artifact (by gate name)
-    from the ALREADY-VERIFIED event-package tree; HELD for exactly-once
-    live execution."""
+    from the ALREADY-VERIFIED event-package tree; HELD for its
+    exactly-once live execution."""
     return _open_bound_artifact(
         event_package_root, binding.dynamic_gates[gate],
         {row["path"] for row in event_manifest["files"]}, gate)
@@ -574,7 +554,7 @@ def open_output_validator(event_package_root, binding,
     """Open + verify the frozen STRUCTURAL OUTPUT VALIDATOR from the
     ALREADY-VERIFIED event-package tree; HELD at construction (same
     discipline as a dynamic gate; NO public API supplies a validator
-    path — no post-freeze substitution)."""
+    path; no post-freeze substitution)."""
     return _open_bound_artifact(
         event_package_root, binding.output_validator,
         {row["path"] for row in event_manifest["files"]},
@@ -582,7 +562,7 @@ def open_output_validator(event_package_root, binding,
 
 
 def _kill_and_reap(child_pid: int) -> None:
-    """Bounded-failure cleanup: SIGKILL + reap the child."""
+    """Bounded-failure cleanup: SIGKILL + reap the child (best effort)."""
     try:
         os.kill(child_pid, SIGKILL)
     except OSError:
@@ -605,8 +585,8 @@ def _close_all_except(keep) -> None:
 
 
 def _close_fds(*fds) -> None:
-    """Close every non-None fd, absorbing failures (cleanup paths
-    must never raise on the way out)."""
+    """Close every non-None fd, absorbing failures (cleanup paths must
+    never raise on the way out)."""
     for fd in fds:
         if fd is not None:
             try:
@@ -616,13 +596,13 @@ def _close_fds(*fds) -> None:
 
 
 def _sanitize_structural_diagnostic(stderr: bytes) -> str:
-    """Bounded STRUCTURAL-ONLY diagnostic grammar: the captured stderr
-    is accepted ONLY when its first line is the frozen
-    VALIDATION_ERROR emission, reduced to the pre-colon token, kept
-    ONLY as a short uppercase [A-Z0-9_] identifier; everything else
-    (parser prose, report values, arbitrary output, oversize or
-    non-UTF-8 channels) yields "".  A returned token can never contain
-    report prose, credentials, paths or any model/auditor text."""
+    """Bounded STRUCTURAL-ONLY diagnostic grammar: the captured stderr is
+    accepted ONLY when its first line is the frozen VALIDATION_ERROR
+    emission, reduced to the pre-colon token, kept ONLY as a short
+    uppercase [A-Z0-9_] identifier; everything else (parser prose,
+    report values, arbitrary output, oversize or non-UTF-8 channels)
+    yields "".  A returned token can never contain report prose,
+    credentials, paths or any model/auditor text."""
     if not stderr or len(stderr) > VALIDATOR_STDERR_MAX:
         return ""
     try:
@@ -643,13 +623,13 @@ def _gate_child(gate_fd: int, result_w: int, devnull: int,
                 argv, env: dict, report_fd: int = None,
                 stderr_w: int = None) -> None:
     """Child-side preparation for a dynamic gate or the structural
-    validator: stdout is the bounded result pipe, stdin/stderr are
-    devnull (stderr EXCEPT the validator, whose writable bounded
-    stderr_w replaces devnull on fd 2), NO credential fd is inherited,
-    every other fd is closed, and the ALREADY-VERIFIED open gate fd is
-    exec'd (identity-preserving; no pathname re-open).  report_fd
-    (validator only) is inherited as the sealed immutable report
-    snapshot at the fixed VALIDATOR_REPORT_FD slot.  Never returns."""
+    validator: stdout is the bounded result pipe, stdin/stderr devnull
+    (stderr EXCEPT the validator, whose bounded writable stderr_w
+    replaces devnull on fd 2), NO credential fd inherited, every other
+    fd closed, and the ALREADY-VERIFIED open gate fd exec'd
+    (identity-preserving; no pathname re-open).  report_fd (validator
+    only) is inherited as the sealed immutable report snapshot at the
+    fixed VALIDATOR_REPORT_FD slot.  Never returns."""
     try:
         os.dup2(devnull, 0)
         os.dup2(result_w, 1)
@@ -659,8 +639,8 @@ def _gate_child(gate_fd: int, result_w: int, devnull: int,
         if report_fd is not None:
             # alias-safe slot remap: DISTINCT fresh copies of BOTH the
             # exec target and the report, then remap the report into
-            # VALIDATOR_REPORT_FD — the dup2 can only clobber a copy or
-            # an unrelated fd, never the exec target.
+            # VALIDATOR_REPORT_FD — the dup2 can only clobber a copy
+            # or an unrelated fd, never the exec target.
             exec_copy = os.dup(gate_fd)
             report_second = os.dup(os.dup(report_fd))
             os.dup2(report_second, VALIDATOR_REPORT_FD)
@@ -687,9 +667,9 @@ def _run_child_once(label: str, gate_fd: int, argv, env: dict,
     output, or non-zero child exit refuses.  report_bytes (validator
     only) is delivered as a sealed read-only memfd at
     VALIDATOR_REPORT_FD — the immutable clean snapshot, never a
-    pathname, never a credential.  capture_stderr gives the validator
-    a WRITABLE bounded stderr pipe, reduced to a bounded
-    STRUCTURAL-ONLY token before any durable use."""
+    pathname, never a credential.  capture_stderr gives the validator a
+    WRITABLE bounded stderr pipe, reduced to a bounded STRUCTURAL-ONLY
+    token before any durable use."""
     report_fd = None
     if report_bytes is not None:
         report_fd = memfd_create("bootstrap-authority-report-snapshot",
@@ -782,8 +762,7 @@ def _run_child_once(label: str, gate_fd: int, argv, env: dict,
             if not progressed:
                 time.sleep(0.01)               # bounded poll, no busy spin
         if err_r is not None and exitcode is not None:
-            # the child is reaped: its writes are complete — one final
-            # bounded nonblocking drain of the stderr channel
+            # child reaped, writes complete: one final bounded drain
             while True:
                 try:
                     chunk = os.read(err_r, 65536)
@@ -820,7 +799,7 @@ def _strict_envelope(output: bytes, binding, label: str, fields,
     validator results: strict JSON, object shape, exact top-level key
     set, exact schema tag, exact event/role/attempt match with the
     binding, top-level status PASS (never inferred from the exit
-    code).  Per-gate payload validation continues in the caller."""
+    code); per-gate payload validation continues in the caller."""
     try:
         result = strict_loads(output)
     except BindingError as exc:
@@ -849,8 +828,8 @@ def _strict_envelope(output: bytes, binding, label: str, fields,
 
 
 def _result_evidence(prefix: str, result: dict) -> dict:
-    """Durable fresh-evidence fields for one validated gate result:
-    canonical JSON + exact SHA-256 and byte size."""
+    """Durable fresh-evidence fields for one validated gate result
+    (canonical JSON + exact SHA-256 and byte size)."""
     canonical = canonical_bytes(result).decode()
     return {f"{prefix}_result": canonical,
             f"{prefix}_result_sha256": hashlib.sha256(
@@ -860,11 +839,10 @@ def _result_evidence(prefix: str, result: dict) -> dict:
 
 def _validate_client_selection_result(output: bytes, binding) -> dict:
     """Strict validation of the FRESH client-selection preflight
-    envelope: the shared core PLUS exact equality of the bound
-    provider role, client family, model, effort and client-executable
-    identity/version/SHA-256 — the NO-FALLBACK enforcement point
-    (mismatch/unobservable FAILS CLOSED PRE-INFERENCE: no fallback,
-    inherit, "auto", generation substitution or silent downgrade)."""
+    envelope: the shared core PLUS exact equality of the bound provider
+    role, client family, model, effort and client-executable
+    identity/version/SHA-256 — the NO-FALLBACK enforcement point: any
+    mismatch or unobservable FAILS CLOSED PRE-INFERENCE."""
     result = _strict_envelope(output, binding, "CLIENT_SELECTION_PREFLIGHT",
                               CLIENT_SELECTION_RESULT_FIELDS,
                               binding.dynamic_gates[
@@ -891,8 +869,8 @@ def _validate_network_readiness_result(output: bytes, binding) -> dict:
     shared core plus the exact transport-binding context (provider
     role, boundary launcher SHA-256, sandbox profile id from the
     binding) and the EXACT checks key set route + resolver, each an
-    exact {status, detail} object with status PASS and an object
-    detail; a top-level PASS never overrides a failed check."""
+    exact {status, detail} PASS object; a top-level PASS never
+    overrides a failed check."""
     result = _strict_envelope(output, binding, "NETWORK_READINESS",
                               NETWORK_READINESS_RESULT_FIELDS,
                               binding.dynamic_gates["NETWORK_READINESS"][
@@ -930,7 +908,7 @@ def _validate_network_readiness_result(output: bytes, binding) -> dict:
 def _validate_resource_gate_result(output: bytes, binding) -> dict:
     """Strict validation of the FRESH resource-gate envelope: the
     shared core plus EXACTLY three samples each explicitly PASS with
-    an object detail; a top-level PASS never overrides a sample."""
+    an object detail (a top-level PASS never overrides a sample)."""
     result = _strict_envelope(output, binding, "RESOURCE_GATE",
                               RESOURCE_GATE_RESULT_FIELDS,
                               binding.dynamic_gates["RESOURCE_GATE"][
@@ -968,7 +946,8 @@ def _validate_validator_result(output: bytes, binding, digest: str,
                                size: int) -> None:
     """Strict fail-closed validation of the structural-validator result:
     the shared core PLUS exact match of output_name/report_sha256/
-    report_size with the EXACT screened immutable snapshot."""
+    report_size with the EXACT screened snapshot (SHAPE-ONLY for
+    target_commit; check_report_binding is the authority)."""
     result = _strict_envelope(output, binding, "OUTPUT_VALIDATOR",
                               VALIDATOR_RESULT_FIELDS,
                               binding.output_validator["result_schema"])
@@ -1010,16 +989,16 @@ def check_report_binding(snapshot: bytes, binding) -> None:
 def _child_setup(launcher_fd: int, metadata_w: int, fail_w: int,
                  devnull: int, custody_fd: int, auditor_fd: int,
                  invocation_fd: int, argv, env: dict) -> None:
-    """Child-side preparation: session isolation (setsid BEFORE exec,
-    so the attempt's whole descendant tree is killable as one exact
-    process group on timeout — never an unrelated host process), fixed
-    fd contract (CRED_FD=3 sealed custody, FAIL_FD=4 CLOEXEC exec-fail
-    pipe, AUDITOR_EXEC_FD=5 the HELD verified auditor executable,
+    """Child-side preparation: session isolation (setsid BEFORE exec, so
+    the attempt's whole descendant tree is killable as one exact process
+    group on timeout — never an unrelated host process), fixed fd
+    contract (CRED_FD=3 sealed custody, FAIL_FD=4 CLOEXEC exec-fail pipe,
+    AUDITOR_EXEC_FD=5 the HELD verified auditor executable,
     AUDITOR_INVOCATION_FD=6 the sealed canonical frozen-argv spec),
     hygiene, then exec of the verified open fd.  The remap is
-    alias-safe: every source is first duplicated to fresh fds, so
-    every slot 3-6 is occupied before the final dup2s and they can
-    only clobber originals or copies.  Never returns."""
+    alias-safe: every source is first duplicated to fresh fds, so every
+    slot 3-6 is occupied before the final dup2s and they can only
+    clobber originals or copies.  Never returns."""
     try:
         os.setsid()
         os.dup2(devnull, 0)
@@ -1050,9 +1029,9 @@ def _child_setup(launcher_fd: int, metadata_w: int, fail_w: int,
 
 @dataclass(frozen=True)
 class AttemptResult:
-    """Outcome DATA ONLY — never authority.  Returned strictly AFTER
-    the terminal outcome: returncode/exec_failed/metadata describe the
-    boundary child; timed_out marks the authority-enforced deadline;
+    """Outcome DATA ONLY — never authority.  Returned strictly AFTER the
+    terminal outcome: returncode/exec_failed/metadata describe the
+    boundary child, timed_out marks the authority-enforced deadline, and
     report_state carries the terminal report outcome (REPORT_FROZEN /
     REPORT_MISSING / REPORT_SCREEN_FAIL / REPORT_INVALID, or "") with
     the frozen artifact digest/size."""
@@ -1066,22 +1045,21 @@ class AttemptResult:
 
 
 class BootstrapAuthority:
-    """One-shot controllerless target-independent authority for a
-    single attempt of the wholly NEW PATH-B lineage.  Startup ordering
-    (fail closed at every step, before any gate or authority
-    operation): (1) self-identity of THE EXECUTING authority package
-    against the binding pins (both identities, per-file rows, payload
-    set, semantic policy/target/provenance values); (2) frozen
-    event-package identity verification against the binding's
-    event_package pin PLUS exact transport-projection equality; (3)
-    ALL THREE dynamic-gate artifacts and the structural validator
-    identity-verified from the already-verified package tree with the
-    verified open fds HELD.  The event-package root is a MANDATORY
-    constructor input; no attach/revival constructor exists; the
-    attempt's accounting record is created O_EXCL inside run_attempt
-    (attempt-GLOBAL, keyed by the exact reserved attempt id alone per
-    BA-RB-001), so no second authority process can obtain authority
-    for the same reserved attempt under ANY other valid binding."""
+    """One-shot controllerless target-independent authority for a single
+    attempt of the wholly NEW PATH-B lineage.  Startup ordering (fail
+    closed at every step, before any gate or authority operation):
+    (1) self-identity of THE EXECUTING authority package against the
+    binding pins; (2) frozen event-package identity verification against
+    the binding's event_package pin PLUS exact transport-projection
+    equality; (3) ALL THREE dynamic-gate artifacts and the structural
+    validator identity-verified from the already-verified package tree
+    with the verified open fds HELD.  The event-package root is a
+    MANDATORY constructor input; no attach/revival constructor exists;
+    the attempt's accounting record is created O_EXCL inside run_attempt
+    (attempt-GLOBAL, keyed by the reserved attempt id alone per
+    BA-RB-001, at the binding-FROZEN custody root), so no second
+    authority process can obtain authority for the same reserved
+    attempt under ANY other valid binding or caller-selected root."""
 
     def __init__(self, binding, event_package_root) -> None:
         if not isinstance(binding, Binding):
@@ -1135,6 +1113,8 @@ class BootstrapAuthority:
                  "auditor_invocation_sha256": hashlib.sha256(
                      canonical_bytes(list(b.auditor_invocation))).hexdigest(),
                  "output_identity_name": b.output_identity["name"],
+                 "output_custody_root": b.output_identity["custody_root"],
+                 "report_source": b.output_identity["report_source"],
                  "binding_digest": b.digest}
         for key in ("commit", "root_tree", "bootstrap_supervisor_tree",
                     "qualification_harness_tree", "skill_tree",
@@ -1167,12 +1147,11 @@ class BootstrapAuthority:
         return facts
 
     def _execute_dynamic_gate(self, gate: str) -> dict:
-        """Execute ONE frozen dynamic-gate artifact ONCE, NOW (all startup
+        """Execute ONE frozen dynamic-gate artifact ONCE, NOW (startup
         identity checks already passed); strictly validate the fresh
         result; return the durable fresh-evidence fields for the
-        GATES_PASSED record.  Bounded to this attempt's
-        event/role/attempt with a clean minimal environment and NO
-        credential fd or launch authority exposed to the gate."""
+        GATES_PASSED record.  Clean minimal environment; NO credential
+        fd or launch authority is ever exposed to the gate."""
         descriptor = self._binding.dynamic_gates[gate]
         fd = self._gate_fds[gate]
         got = _hash_fd(fd)            # held-fd drift check immediately
@@ -1211,23 +1190,22 @@ class BootstrapAuthority:
                     auditor_executable_path, report_staging_path,
                     output_root) -> AttemptResult:
         """THE single public authority operation: the COMPLETE one-shot
-        attempt lifecycle in ONE caller-uninterruptible call — output
-        custody pre-open + attempt-global O_EXCL accounting (PREPARED),
-        sealed frozen-argv spec, launcher/auditor verified and HELD,
-        the THREE dynamic gates fresh in frozen order (RESOURCE_GATE
-        LAST), held-fd re-hash, durable GATES_PASSED, THEN credential
-        custody (BA-RB-002), durable CONSUMED_PRE_EXEC, irreversible
-        spend, IMMEDIATE fork/exec (own session),
-        EXEC_ATTEMPTED, deadline-bounded wait, report snapshot ->
-        SAME-custody screen -> structural validator -> the authority's
-        OWN semantic report binding -> freeze of the exact bound bytes
-        -> TERMINAL -> custody and held fds closed -> AttemptResult.
-        No public operation ever returns control in GATES_PASSED,
-        CONSUMED_PRE_EXEC, EXEC_ATTEMPTED or any report outcome state;
-        no caller surface for a custody object, role, argv tail,
-        environment override, timeout, or validator path.  Any
-        pre-consumption failure terminalizes fail-closed with
-        authority unconsumed and no same-attempt retry."""
+        attempt lifecycle in ONE caller-uninterruptible call — binding-
+        frozen custody-root/report-source identity gate (BA-PREP-001/002:
+        caller substitution refused BEFORE any authority action; all
+        actions use the FROZEN values), output custody pre-open +
+        attempt-global O_EXCL accounting (PREPARED), sealed frozen-argv
+        spec, launcher/auditor verified and HELD, the THREE dynamic
+        gates fresh in frozen order (RESOURCE_GATE LAST), held-fd
+        re-hash, durable GATES_PASSED, THEN credential custody
+        (BA-RB-002), durable CONSUMED_PRE_EXEC, irreversible spend,
+        IMMEDIATE fork/exec (own session), EXEC_ATTEMPTED,
+        deadline-bounded wait, report lifecycle, TERMINAL, custody/fds
+        closed -> AttemptResult.  No caller surface exists for a
+        custody object, role, argv tail, environment override, timeout,
+        or validator path.  Any pre-consumption failure terminalizes
+        fail-closed with authority unconsumed and no same-attempt
+        retry."""
         if not isinstance(credential_source_fd, int) or \
                 isinstance(credential_source_fd, bool):
             raise AuthorityError(
@@ -1252,15 +1230,34 @@ class BootstrapAuthority:
                 or self._store is not None:
             raise AuthorityError("RUN_ATTEMPT_REFUSED_ALREADY_ADVANCED: "
                                  "no second authority operation exists")
+        # BA-PREP-001/BA-PREP-002: the caller arguments must name EXACTLY
+        # the binding-frozen custody root / report source (normpath
+        # identity; any substitution is refused BEFORE any custody open,
+        # O_EXCL claim, gate or credential read); all actions below use
+        # the FROZEN values exclusively — caller values are never used.
+        frozen_output = self._binding.output_identity["custody_root"]
+        frozen_source = self._binding.output_identity["report_source"]
+        if os.path.normpath(os.fspath(output_root)) != frozen_output:
+            raise AuthorityRefused(
+                "OUTPUT_CUSTODY_ROOT_MISMATCH: the caller-supplied output "
+                "root is not the binding-frozen attempt output custody "
+                "root; refusing fail-closed before any authority action")
+        if os.path.normpath(os.fspath(report_staging_path)) != frozen_source:
+            raise AuthorityRefused(
+                "REPORT_SOURCE_MISMATCH: the caller-supplied report "
+                "staging path is not the binding-frozen attempt report "
+                "source; refusing fail-closed before any authority action")
         self._gates_executed = True
         try:
-            # A: output custody PRE-OPENED/HELD; the freeze goes through THIS fd.
-            self._out_dir_fd = open_custody_dir(output_root)
-            self._staging_path = os.fspath(report_staging_path)
-            # A (BA-RB-001): attempt-GLOBAL O_EXCL claim keyed by the reserved
-            # attempt id ALONE; a second process for the SAME attempt fails.
+            # A: output custody PRE-OPENED/HELD at the FROZEN root (the
+            # freeze goes through THIS fd; never the caller value).
+            self._out_dir_fd = open_custody_dir(frozen_output)
+            self._staging_path = frozen_source
+            # A (BA-RB-001): attempt-GLOBAL O_EXCL claim keyed by the
+            # reserved attempt id ALONE at the FROZEN custody root; a
+            # second process for the SAME attempt fails in ANY root.
             self._store = AccountingStore.create(
-                output_root, accounting_name(self._binding),
+                frozen_output, accounting_name(self._binding),
                 self._binding.digest)
             # B: the frozen argv leaves the binding ONLY as sealed bytes.
             self._invocation_fd = make_invocation_fd(
@@ -1274,9 +1271,8 @@ class BootstrapAuthority:
                     "sha256"])
             # D: the THREE fresh gates exactly once each, frozen order (RESOURCE_GATE LAST); then E: drift re-hash.
             evidence = {}
-            for gate in DYNAMIC_GATE_ORDER:   # PREFLIGHT -> NETWORK ->
+            for gate in DYNAMIC_GATE_ORDER:   # frozen order, last gate
                 evidence.update(self._execute_dynamic_gate(gate))
-                # RESOURCE_GATE LAST
             self._rehash_held("BEFORE_GATES_PASSED")  # gate-interval drift
             # F: durable GATES_PASSED BEFORE any credential read.
             self._store.append(GATES_PASSED,          # fsync'd inside append
@@ -1306,10 +1302,9 @@ class BootstrapAuthority:
         return self._fork_and_launch()
 
     def _rehash_held(self, phase: str) -> None:
-        """Re-hash the HELD launcher + auditor-executable fds: before
-        gate acceptance (gate-interval drift stays PREEXEC and
-        authority-unconsumed) and again post-consumption inside
-        _fork_and_launch (consumed fail-closed semantics)."""
+        """Re-hash the HELD launcher + auditor fds: before gate
+        acceptance (drift stays PREEXEC/authority-unconsumed) and again
+        post-consumption inside _fork_and_launch."""
         b = self._binding
         got = _hash_fd(self._launcher_fd)
         os.lseek(self._launcher_fd, 0, os.SEEK_SET)
@@ -1327,15 +1322,12 @@ class BootstrapAuthority:
 
     def _fork_and_launch(self) -> AttemptResult:
         """Post-consumption continuation, called ONLY from run_attempt
-        after the irreversible spend: defense-in-depth re-hash,
-        IMMEDIATE fork/exec into a DEDICATED SESSION, EXEC_ATTEMPTED
-        accounting, the MONOTONIC-deadline bounded wait (all parent
-        pipes NONBLOCKING), timeout kill of the EXACT attempt process
-        group with consumed terminal accounting, and the process-bound
-        report lifecycle — all before any return.  The launcher's argv
-        carries only authority-bound non-secret context; the auditor
-        argv travels on the sealed AUDITOR_INVOCATION_FD; the child
-        environment is entirely authority-defined."""
+        after the irreversible spend: defense-in-depth re-hash, IMMEDIATE
+        fork/exec into a DEDICATED SESSION, EXEC_ATTEMPTED accounting,
+        the MONOTONIC-deadline bounded wait (all parent pipes
+        NONBLOCKING), timeout kill of the EXACT attempt process group
+        with consumed terminal accounting, and the process-bound report
+        lifecycle — all before any return."""
         child_pid = None
         waited = False
         md_r = md_w = fail_r = fail_w = devnull = None
@@ -1369,8 +1361,8 @@ class BootstrapAuthority:
             self._store.append(EXEC_ATTEMPTED,
                                extra={"child_pid": child_pid})
             self._machine.transition(EXEC_ATTEMPTED)
-            # bounded wait: nonblocking pipes + WNOHANG reap under the
-            # monotonic frozen deadline.
+            # bounded wait: nonblocking pipes + WNOHANG reap under
+            # the monotonic frozen deadline.
             os.set_blocking(fail_r, False)
             os.set_blocking(md_r, False)
             deadline = time.monotonic() + timeout
@@ -1380,8 +1372,8 @@ class BootstrapAuthority:
             grace_deadline = None
             while True:
                 if time.monotonic() >= deadline:
-                    # deadline boundary race: one final nonblocking reap
-                    # decides timeout-vs-completed honestly
+                    # boundary race: one final nonblocking reap decides
+                    # timeout-vs-completed honestly
                     wpid, wstatus = os.waitpid(child_pid, os.WNOHANG)
                     if wpid == child_pid:
                         waited = True
@@ -1424,8 +1416,8 @@ class BootstrapAuthority:
                     if md_eof:
                         break                    # complete: reaped + EOFs
                     if grace_deadline is None:
-                        # bounded final metadata drain (a descendant may
-                        # still hold the write end)
+                        # bounded final drain (a descendant may still
+                        # hold the write end)
                         grace_deadline = time.monotonic() + METADATA_GRACE
                     elif time.monotonic() >= grace_deadline:
                         break
@@ -1460,8 +1452,8 @@ class BootstrapAuthority:
             # timeout is AFTER durable CONSUMED_PRE_EXEC — authority
             # CONSUMED, engagement CONSUMED FAIL-CLOSED, no report
             # accepted; the process group is killed and the direct child
-            # reaped BEFORE the settlement; a TERMINAL-accounting failure
-            # raises the exact incompleteness error, never a result.
+            # reaped BEFORE the settlement (a TERMINAL-accounting failure
+            # raises the exact incompleteness error, never a result).
             self._kill_attempt_group(child_pid)
             if not waited:
                 _, status = os.waitpid(child_pid, 0)
@@ -1496,10 +1488,9 @@ class BootstrapAuthority:
 
     def _close_authority_holds(self) -> None:
         """Close the authority-held sealed custody and EVERY held fd
-        (launcher/auditor/invocation/validator/gate fds plus the
-        pre-opened output-custody dir fd) on EVERY terminal path; each
-        close absorbs its own failure so the guaranteed settlement
-        path can never raise."""
+        (launcher/auditor/invocation/validator/gates + the pre-opened
+        output-custody dir fd) on EVERY terminal path; each close
+        absorbs its own failure so settlement can never raise."""
         try:
             if self._custody is not None:
                 self._custody.close()
@@ -1525,18 +1516,16 @@ class BootstrapAuthority:
                                  terminal_extra=None, original_error=None,
                                  related_error=None) -> None:
         """THE single centralized post-consumption terminal settlement.
-        Concept A, durable accounting ATTEMPT: the report-outcome
-        record (when one applies) and then TERMINAL, each with its
-        normal transition while the chain still advances; the FIRST
-        durable failure stops further appends — the existing record is
-        preserved exactly, never counted as durable success.  Concept
-        B (the finally), guaranteed in-process fail-closed death:
-        whether or not the durable accounting completed, the
-        already-consumed attempt lands on TERMINAL with the custody
-        and every held fd closed; this path can never raise nor mask
-        an outcome.  A durable failure raises the exact incompleteness
-        error chaining the original/related failure; durable success
-        re-raises original_error when present."""
+        Concept A, durable accounting ATTEMPT: the report-outcome record
+        (when one applies) and then TERMINAL, each with its normal
+        transition while the chain still advances; the FIRST durable
+        failure stops further appends — the existing record is preserved
+        exactly, never counted as durable success.  Concept B (the
+        finally), guaranteed in-process fail-closed death: the
+        already-consumed attempt lands on TERMINAL with the custody and
+        every held fd closed; this path can never raise nor mask an
+        outcome.  A durable failure raises the exact incompleteness
+        error; durable success re-raises original_error."""
         durable_error = None
         if terminal_extra is None:
             terminal_extra = report_extra if report_state is None \
@@ -1572,12 +1561,12 @@ class BootstrapAuthority:
         clean immutable snapshot: held fd re-hashed immediately before
         execution; only frozen non-secret binding context in the argv;
         minimal authority-defined environment; NO credential fd;
-        sealed-memfd snapshot delivery; the frozen
-        validator_timeout_seconds bounds the run; a WRITABLE bounded
-        stderr channel surfaces a structural failure's bounded safe
-        token.  Any refusal is classified REPORT_INVALID by the caller;
-        never a second execution.  The validator is SHAPE-ONLY for
-        target_commit: its PASS is NEVER sufficient for acceptance."""
+        sealed-memfd snapshot delivery; the frozen validator_timeout_seconds
+        bounds the run; a WRITABLE bounded stderr channel surfaces a
+        structural failure's bounded safe token.  Any refusal is
+        classified REPORT_INVALID by the caller; never a second
+        execution.  The validator is SHAPE-ONLY for target_commit: its
+        PASS is NEVER sufficient for acceptance."""
         descriptor = self._binding.output_validator
         got = _hash_fd(self._validator_fd)
         os.lseek(self._validator_fd, 0, os.SEEK_SET)
@@ -1600,24 +1589,24 @@ class BootstrapAuthority:
 
     def _report_and_terminalize(self, core) -> AttemptResult:
         """Process-bound post-exec report lifecycle: ONE immutable
-        snapshot -> SAME-custody screen (contaminated =
-        REPORT_SCREEN_FAIL terminal, validator NEVER run) -> frozen
-        structural validator on exactly that snapshot -> the authority
-        plane's OWN independent semantic report binding on the SAME
-        snapshot (fixed safe tokens only) -> freeze of the EXACT
-        screened+validated+bound bytes 0444 under the pre-opened
-        custody fd -> TERMINAL -> custody and held fds closed.  Every
+        snapshot (at the binding-FROZEN report source) -> SAME-custody
+        screen (contaminated = REPORT_SCREEN_FAIL terminal, validator
+        NEVER run) -> frozen structural validator on exactly that
+        snapshot -> the authority plane's OWN independent semantic report
+        binding on the SAME snapshot (fixed safe tokens only) -> freeze
+        of the EXACT screened+validated+bound bytes 0444 under the
+        pre-opened custody fd -> TERMINAL -> custody/fds closed.  Every
         refusal terminalizes fail-closed inside THIS call; no second
         report attempt; digest/size are recorded only AFTER the screen
-        passes; a semantic-binding refusal records the FIXED token
-        ONLY (never the submitted wrong value or report prose)."""
+        passes; a semantic-binding refusal records the FIXED token ONLY
+        (never the submitted wrong value or report prose)."""
         returncode, exec_failed, metadata = core
         outcome = {"report_state": "", "report_sha256": "",
                    "report_size": 0}
         try:
             if exec_failed:
-                # the boundary never exec'd: no report phase is
-                # semantically appropriate — direct consumed terminal
+                # the boundary never exec'd: no report phase applies —
+                # direct consumed terminal
                 self._settle_post_consumption(
                     None, None,
                     {"terminal_reason": "EXEC_FAILED_AFTER_CONSUMPTION"})
@@ -1642,13 +1631,13 @@ class BootstrapAuthority:
                         self._run_validator(snapshot)
                         check_report_binding(snapshot, self._binding)
                     except AuthorityError as exc:
-                        # durably pin the EXACT snapshot identity that
-                        # reached validation — hash/size ONLY; the
-                        # invalid bytes are never retained as evidence
-                        # and REPORT_INVALID stays terminal/nonconforming
-                        # (no freeze, no acceptance, no retry).  A
-                        # semantic-binding refusal carries its FIXED
-                        # safe token as the durable reason.
+                        # durably pin ONLY the snapshot hash/size that
+                        # reached validation (the invalid bytes are
+                        # never retained); REPORT_INVALID stays
+                        # terminal/nonconforming — no freeze, no
+                        # acceptance, no retry — and a semantic-binding
+                        # refusal carries its FIXED safe token as the
+                        # durable reason.
                         invalid_sha = hashlib.sha256(snapshot).hexdigest()
                         token = (str(exc) if str(exc) in
                                  (REPORT_BINDING_UNPARSEABLE,
@@ -1670,11 +1659,10 @@ class BootstrapAuthority:
                             snapshot, self._out_dir_fd,
                             self._binding.output_identity["name"])
                         discard_staging(self._staging_path)
-                        # a settlement failure here raises the exact
-                        # incompleteness error: the already frozen
+                        # a settlement failure raises the exact
+                        # incompleteness error; the already frozen
                         # artifact REMAINS operator-custodied evidence
-                        # (never deleted) and is NEVER returned as a
-                        # conforming first pass.
+                        # (never deleted, never a conforming first pass)
                         self._settle_post_consumption(
                             REPORT_FROZEN,
                             {"terminal_reason": "REPORT_FROZEN",
@@ -1687,9 +1675,9 @@ class BootstrapAuthority:
         except ReportRefused as exc:
             # operational report-custody refusal (invalid staging
             # object, oversize, unsafe output, no-overwrite collision):
-            # terminal fail-closed with the exact bounded durable
-            # reason, no retry; a settlement accounting failure raises
-            # the exact incompleteness error chaining this refusal.
+            # terminal fail-closed with the bounded durable reason, no
+            # retry; a settlement accounting failure raises the exact
+            # incompleteness error chaining this refusal.
             self._settle_post_consumption(
                 None, None,
                 {"terminal_reason": f"REPORT_CUSTODY_REFUSED: {exc}"[:256]},
@@ -1712,9 +1700,9 @@ class BootstrapAuthority:
     def _preexec_stop(self) -> None:
         """Fail-closed terminalization of a refused pre-exec attempt: the
         in-process transition to the absorbing TERMINAL_PREEXEC_STOP
-        ALWAYS happens (authority is dead even if the medium is
-        unavailable); the durable append is best-effort — never a
-        relabeling as resumable.  Held custody/fds closed."""
+        ALWAYS happens (authority dead even if the medium is
+        unavailable); the durable append is best-effort, never a
+        relabeling as resumable; held custody/fds closed."""
         try:
             if self._store is not None:
                 self._store.append(TERMINAL_PREEXEC_STOP)

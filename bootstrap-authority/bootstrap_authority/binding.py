@@ -4,10 +4,8 @@ candidate-specific target-independent bootstrap authority.
 NEW authority-specific source for the wholly NEW PATH-B lineage
 (Control Room design readback 2026-10-02); shares NO code with, and
 imports NOTHING from, the audit target
-`730d2b29:bootstrap-supervisor/**` (AUDIT SUBJECT, never authority) or
-the legacy EBS at `068f5e2` (REFERENCE_ONLY: its binding pins the
-historical target `d4d584ff` and predates the exact semantic
-report-target acceptance this authority implements natively).
+`730d2b29:bootstrap-supervisor/**` (AUDIT SUBJECT, never authority)
+or the legacy EBS at `068f5e2` (REFERENCE_ONLY).
 
 Fail-closed validation of the operator-declared attempt binding
 document against the PATH-B policy identity, the frozen fresh-audit
@@ -15,34 +13,34 @@ target, the design-reserved event/attempt identities and the
 governance-frozen auditor selections: unknown fields, wrong types,
 malformed digests, wrong target identity, wrong event/role/attempt
 pairing, substituted model/effort/client selections, and incomplete or
-non-PASS static gate evidence are all refused.  The policy is
-candidate-specific — NOT standing authority for any other candidate.
-Every dimension is mandatory and digest-covered by `Binding.digest`
-(swapping ANY dimension changes the digest, which the store and
-authority refuse for the same attempt); synthetic test documents are
-built in tests/conftest.py (no doc-builder lives in the TCB).
+non-PASS static gate evidence are all refused.  The output identity
+additionally freezes the attempt's authoritative output-custody root
+and report-source path as canonical absolute paths (BA-PREP-001/002),
+so caller path substitution is refused at the authority boundary.
+The policy is candidate-specific — NOT standing authority for any
+other candidate.  Every dimension is mandatory and digest-covered by
+`Binding.digest` (swapping ANY dimension changes the digest, which
+the store and authority refuse for the same attempt); synthetic test
+documents are built in tests/conftest.py (no doc-builder in the TCB).
 
 Gate split (PATH-B): the EIGHT STATIC preparation gates are frozen
-PASS evidence members; the THREE DYNAMIC runtime gates —
-CLIENT_SELECTION_PREFLIGHT, NETWORK_READINESS, RESOURCE_GATE, in that
-required execution order — are NOT frozen evidence: each is frozen as
-an exact executable-artifact DESCRIPTOR (identity, safe
-event-package-relative path, exact SHA-256, exact byte size, exact
-result schema, bounded timeout, bounded result size) and EXECUTED
-fresh exactly once by the authority inside the ONE public
+PASS evidence members; the THREE DYNAMIC runtime gates
+(CLIENT_SELECTION_PREFLIGHT, NETWORK_READINESS, RESOURCE_GATE, in
+that required order) are NOT frozen evidence: each is frozen as an
+exact executable-artifact DESCRIPTOR (identity, safe package-relative
+path, exact SHA-256/byte size/result schema, bounded timeout/result
+size) and EXECUTED fresh exactly once inside the ONE public
 preexec-consumption operation — a package-time PASS for any dynamic
-gate cannot exist in a valid binding.  CLIENT_SELECTION_PREFLIGHT is
-the model/effort/client NO-FALLBACK enforcement point: its fresh
-result must prove the EXACT bound selection — no fallback, no
-inherit, no "auto", no generation substitution, no silent downgrade.
+gate cannot exist in a valid binding; CLIENT_SELECTION_PREFLIGHT is
+the NO-FALLBACK enforcement point (no fallback, inherit, "auto",
+generation substitution or silent downgrade).
 
 This module also defines the VERSIONED STRICT EVENT-PACKAGE MANIFEST
 and AUTHORITY-PACKAGE MANIFEST contracts (exact key sets, schema
 tags, file rows, non-circular package identities: package_sha256
-lives inside each manifest and covers the document EXCLUDING its own
-field) and the canonical transport projection `binding_projection`,
-established mechanically by runtime.verify_event_package BEFORE
-GATES_PASSED.
+covers the document EXCLUDING its own field) and the canonical
+transport projection `binding_projection`, established mechanically
+by runtime.verify_event_package BEFORE GATES_PASSED.
 """
 from __future__ import annotations
 
@@ -55,9 +53,8 @@ POLICY_ID = ("AUCDEV-023-PCH6B-CAND730D2B29-TARGET-INDEPENDENT-"
              "BOOTSTRAP-AUTHORITY-V1")
 
 # The one frozen fresh-audit target accepted by this policy (readback
-# 6.5; the REQUIRED bootstrap-supervisor subtree pin holds the primary
-# remediated production code under fresh audit); any other target is
-# refused before inference can become reachable.
+# 6.5); any other target is refused before inference can become
+# reachable.
 FROZEN_TARGET = {
     "repository": "isakli05/audit-council-dev",
     "commit": "730d2b29f7c0e7d33af3451b6d9205ec27c143ed",
@@ -73,12 +70,11 @@ FROZEN_TARGET = {
 TARGET_KEYS = ("repository", "commit", "root_tree",
                "bootstrap_supervisor_tree", "qualification_harness_tree",
                "skill_tree", "remediation_parent")
-
 # Design-reserved identities for the wholly NEW lineage (readback 6.7):
-# binding constants ONLY — parsing a document that carries them does NOT
-# instantiate the event, mint attempt capability, grant execution, or
-# consume an engagement; synthetic test fixtures using them are
-# NON-AUTHORITATIVE / ZERO-PROVIDER / NON-PERSISTENT.
+# binding constants ONLY — parsing them does NOT instantiate the event,
+# mint attempt capability, grant execution, or consume an engagement;
+# synthetic fixtures using them are NON-AUTHORITATIVE / ZERO-PROVIDER /
+# NON-PERSISTENT.
 EVENT_ID = "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01"
 RESERVED_ATTEMPT_IDS = {
     "AUDITOR_A":
@@ -88,11 +84,10 @@ RESERVED_ATTEMPT_IDS = {
 }
 ROLES = ("AUDITOR_A", "AUDITOR_B")
 
-# Governance-frozen auditor selections (readback 6.8) — explicit,
-# never ambient/default/current/auto, never inherited, NO fallback of
-# any kind.  The exact client executable identity/version/SHA-256 are
-# frozen from values supplied by the LATER event package; this parser
-# never invents those live identities itself.
+# Governance-frozen auditor selections (readback 6.8) — explicit, never
+# ambient/default/current/auto, never inherited, NO fallback of any
+# kind; the client executable identity/version/SHA-256 are frozen from
+# values supplied by the LATER event package, never invented here.
 AUDITOR_SELECTIONS = {
     "AUDITOR_A": {"provider_role": "CLAUDE_FIRSTPARTY",
                   "client_family": "CLAUDE_FIRSTPARTY",
@@ -136,14 +131,13 @@ DYNAMIC_GATE_RESULT_SCHEMAS = {
     "NETWORK_READINESS": NETWORK_READINESS_RESULT_SCHEMA,
     "RESOURCE_GATE": RESOURCE_GATE_RESULT_SCHEMA,
 }
-
 # Descriptor field sets: an EXECUTABLE descriptor (launcher/wrapper)
 # pins identity/path/sha256/bytes; a RUNNABLE descriptor (a dynamic
-# gate or the structural validator) adds the exact result schema tag,
-# a bounded timeout, and a bounded result size.  The structural
-# validator is SHAPE-ONLY for target_commit (NEVER sufficient alone;
-# runtime.check_report_binding is the binding authority); the
-# execution limits are the ONLY timeout/report-size authority.
+# gate or the structural validator) adds the result schema tag, a
+# bounded timeout, and a bounded result size.  The structural
+# validator is SHAPE-ONLY for target_commit (runtime.check_report_binding
+# is the binding authority); the execution limits are the ONLY
+# timeout/report-size authority.
 EXECUTABLE_DESCRIPTOR_FIELDS = ("identity", "path", "sha256", "bytes")
 RUNNABLE_DESCRIPTOR_FIELDS = ("identity", "path", "sha256", "bytes",
                               "result_schema", "timeout_seconds",
@@ -163,6 +157,7 @@ IDENTITY_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 EXECUTABLE_VERSION_RE = re.compile(r"^[!-~]{1,64}$")
 PATH_SEGMENT_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 OUTPUT_KIND = "FIRST_PASS_REPORT"
+OUTPUT_IDENTITY_FIELDS = ("kind", "name", "custody_root", "report_source")
 GATE_EVIDENCE_FIELDS = ("status", "evidence_sha256", "evidence_size",
                         "auditor_role", "attempt_id")
 PACKAGE_FIELDS = ("manifest_sha256", "package_sha256")
@@ -183,10 +178,9 @@ TOP_LEVEL = ("schema", "policy_id", "event_id", "auditor_role",
 # --- versioned strict event-package manifest contract: a frozen event
 # package's manifest has an EXACT key set, an EXACT schema tag, exact
 # per-file rows, a non-circular package identity, and the COMPLETE
-# transport projection below.  The projection covers every binding
-# security dimension EXCEPT event_package itself (the package's own
-# identity is pinned independently by the binding and verified against
-# the actual package bytes — no circular self-hashing). ---
+# transport projection below (every binding security dimension EXCEPT
+# event_package itself, whose identity is pinned independently by the
+# binding — no circular self-hashing). ---
 EVENT_MANIFEST_SCHEMA = "AUCDEV-023-CAND730D2B29-EVENT-PACKAGE-MANIFEST-V1"
 EVENT_MANIFEST_KEYS = frozenset(
     ("schema", "transport_binding", "files", "package_sha256"))
@@ -194,8 +188,7 @@ EVENT_MANIFEST_KEYS = frozenset(
 # --- versioned strict AUTHORITY-PACKAGE manifest contract (verified
 # against the live package bytes by runtime.verify_own_package at
 # EVERY construction): exact key set + the exact semantic values below;
-# status/qualification_claim freeze the candidate-only governance
-# posture; the design ids stay RESERVED-ONLY binding constants.
+# the design ids stay RESERVED-ONLY binding constants.
 AUTHORITY_MANIFEST_SCHEMA = "AUCDEV-023-BOOTSTRAP-AUTHORITY-PACKAGE-MANIFEST-V1"
 AUTHORITY_MANIFEST_KEYS = frozenset(
     ("schema", "package", "policy_id", "target", "design_event_id",
@@ -295,12 +288,30 @@ def _positive_int(value, where, maximum):
 def _safe_relpath(value, where):
     """Safe event-package-relative POSIX path (charset-bounded
     segments; absolute paths, empty segments, "."/".." traversal and
-    non-str types refused)."""
+    non-str types are refused)."""
     if not isinstance(value, str) or not 0 < len(value) <= 512:
         raise BindingError(f"{where}_NOT_A_SAFE_RELATIVE_PATH")
     for segment in value.split("/"):
         if segment in ("", ".", "..") or not PATH_SEGMENT_RE.match(segment):
             raise BindingError(f"{where}_NOT_A_SAFE_RELATIVE_PATH")
+    return value
+
+
+def _frozen_abs_path(value, where):
+    """One frozen authoritative HOST path dimension (BA-PREP-001/002):
+    an absolute POSIX path in exact canonical form — printable non-empty
+    UTF-8 (no control characters), leading '/', no empty/'.'/'..'
+    segment, no trailing '/', bounded length; every non-canonical form
+    is refused at parse so the frozen form IS the canonical comparison
+    form (the runtime identity gate compares against it)."""
+    if not isinstance(value, str) or not 2 <= len(value) <= 4096:
+        raise BindingError(f"{where}_NOT_A_FROZEN_ABSOLUTE_PATH")
+    if any(ord(ch) < 0x20 or ord(ch) == 0x7f for ch in value):
+        raise BindingError(f"{where}_NOT_A_FROZEN_ABSOLUTE_PATH")
+    segments = value[1:].split("/")
+    if value[0] != "/" or not segments or "" in segments \
+            or "." in segments or ".." in segments:
+        raise BindingError(f"{where}_NOT_A_FROZEN_ABSOLUTE_PATH")
     return value
 
 
@@ -319,7 +330,7 @@ def _executable_descriptor(value, where):
 def _runnable_descriptor(value, where, result_schema):
     """One frozen RUNNABLE executable-artifact descriptor (a dynamic
     gate or the structural validator): the executable discipline PLUS
-    the exact result schema tag, a bounded timeout, and a bounded
+    the exact result schema tag, a bounded timeout and a bounded
     accepted-result size — no result and no PASS can appear here."""
     _exact_keys(value, RUNNABLE_DESCRIPTOR_FIELDS, where)
     _identity_field(value["identity"], f"{where}_IDENTITY")
@@ -338,8 +349,8 @@ def _runnable_descriptor(value, where, result_schema):
 
 def _invocation_field(value, where):
     """The EXACT frozen auditor-client argv: non-empty ordered bounded
-    strings with no control character; ordering is exactly the JSON
-    list order; no caller argv tail can extend it."""
+    strings with no control character; ordering is exactly the JSON list
+    order; no caller argv tail can extend it."""
     if not isinstance(value, list) or not value:
         raise BindingError(f"{where}_NOT_A_NONEMPTY_LIST")
     if len(value) > AUDITOR_INVOCATION_MAX_ITEMS:
@@ -366,8 +377,8 @@ def _invocation_field(value, where):
 def _execution_limits_field(value):
     """The frozen bounded execution limits: auditor wait timeout,
     validator timeout and report byte bound, each a strictly-positive
-    int (bool refused) under conservative maxima — the ONLY
-    timeout/size authority on the post-consumption path."""
+    int (bool refused) under conservative maxima — the ONLY timeout/
+    size authority on the post-consumption path."""
     _exact_keys(value, EXECUTION_LIMITS_FIELDS, "EXECUTION_LIMITS")
     limits = {}
     for key in ("auditor_timeout_seconds", "validator_timeout_seconds"):
@@ -444,7 +455,6 @@ def parse_binding(data) -> Binding:
     _sha_field(doc["common_evidence_manifest_digest"],
                "COMMON_EVIDENCE_MANIFEST_DIGEST")
     _sha_field(doc["prompt_contract_digest"], "PROMPT_CONTRACT_DIGEST")
-
     # Governance-frozen selection: NO fallback/inherit/"auto"/generation
     # substitution/silent downgrade — any substituted provider/client/
     # model/effort or client executable identity is refused at parse.
@@ -470,7 +480,6 @@ def parse_binding(data) -> Binding:
     _identity_field(doc["sandbox_profile_id"], "SANDBOX_PROFILE_ID")
     tool_wrapper = _executable_descriptor(doc["tool_wrapper"],
                                           "TOOL_WRAPPER")
-
     authority_package = _package_fields(doc["authority_package"],
                                         "AUTHORITY_PACKAGE")
     _exact_keys(doc["event_package"], EVENT_PACKAGE_FIELDS,
@@ -482,12 +491,16 @@ def parse_binding(data) -> Binding:
             "EVENT_PACKAGE_MANIFEST_SCHEMA_UNEXPECTED: "
             f"{doc['event_package']['manifest_schema']!r}")
 
-    _exact_keys(doc["output_identity"], ("kind", "name"), "OUTPUT_IDENTITY")
+    _exact_keys(doc["output_identity"], OUTPUT_IDENTITY_FIELDS,
+                "OUTPUT_IDENTITY")
     if doc["output_identity"]["kind"] != OUTPUT_KIND:
         raise BindingError("OUTPUT_KIND_UNEXPECTED")
     if doc["output_identity"]["name"] != output_name_for(attempt):
         raise BindingError("OUTPUT_NAME_NOT_ATTEMPT_DERIVED")
-
+    _frozen_abs_path(doc["output_identity"]["custody_root"],
+                     "OUTPUT_CUSTODY_ROOT")
+    _frozen_abs_path(doc["output_identity"]["report_source"],
+                     "REPORT_SOURCE")
     # A package-time PASS for any DYNAMIC gate is exactly the
     # stale-evidence defect — refused BEFORE any other gate check.
     for dynamic_gate in DYNAMIC_GATE_ORDER:
@@ -567,7 +580,6 @@ def binding_projection(binding: Binding) -> dict:
     value a frozen event-package manifest's transport_binding must
     equal (compared as canonical JSON bytes, so type confusions such
     as true==1 cannot pass).  Covers every dimension in
-    PROJECTION_FIELDS; event_package is EXCLUDED — it is the package's
-    own identity, verified against the actual package bytes (the
-    non-circular construction).  Internal use only."""
+    PROJECTION_FIELDS; event_package is EXCLUDED (the package's own
+    identity — the non-circular construction).  Internal use only."""
     return {name: getattr(binding, name) for name in PROJECTION_FIELDS}

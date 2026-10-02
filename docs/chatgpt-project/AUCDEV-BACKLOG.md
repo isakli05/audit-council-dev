@@ -3191,6 +3191,45 @@ append-only. Canonical report:
   transition; no backlog item marked DONE); NEXT (grants nothing): operator decision on whether
   to authorize a bounded source remediation of BA-PREP-001 / BA-PREP-002 against the
   then-current exact live HEAD — remediation implementation ONLY).
+- - BA-PREP-001 / BA-PREP-002 bounded source remediation status (2026-10-02;
+  IMPLEMENTED_AS_REMEDIATION_CANDIDATE over exact base
+  `cfff321bd206b246f61cdc6ad6294bbe30489134` (root tree
+  `bae48da3fbdb1c1a37fe953c20fb3fc8c960cb5e`, sole parent
+  `77563029873bf08d19dea3eee7d5b8ab13cead3d` = the BA-PREP HOLD publication Control Room
+  verification) by remediation-implementation authority
+  `AUCDEV-023-PCH6B-730D2B29-BA-PREP-001-002-REMEDIATION-IMPLEMENTATION-20261002-01` (operator
+  grant = REMEDIATION IMPLEMENTATION ONLY): both demonstrated defects were first re-demonstrated
+  live by synthetic probes against the UNMODIFIED base (a caller-selected alternate otherwise-
+  valid root minted a SECOND attempt-global claim for the SAME reserved attempt; a substituted
+  pre-existing valid-looking report file was snapshotted/validated/frozen and then discarded as
+  staging), then remediated at IMPLEMENTATION strength by binding-FREEZING the attempt output
+  custody root and report source (output_identity = kind/name/custody_root/report_source;
+  canonical absolute paths; digest-covered; transport-projected) behind a run_attempt
+  pre-consumption identity gate (normpath equality against the frozen values;
+  OUTPUT_CUSTODY_ROOT_MISMATCH / REPORT_SOURCE_MISMATCH fixed refusal tokens; every authority
+  action — custody open, attempt-global O_EXCL claim, staging snapshot — uses the FROZEN binding
+  values exclusively; durable output_custody_root / report_source facts at CONSUMED_PRE_EXEC);
+  accounting.py and reportcustody.py UNTOUCHED (pre-target blobs intact); four new adversarial
+  regressions (alternate-root refusal with NO namespace acquired / symlink-alias root refusal /
+  substituted-report refusal with NO acceptance, NO freeze, NO stdout-stderr fallback /
+  symlink-alias source refusal with the frozen source still freezing) plus the adapted same-root
+  BA-RB-001 regressions (shared root now frozen into BOTH bindings so the O_EXCL refusal remains
+  what they exercise) and binding-plane canonical-path refusals with the extended BA-22 digest
+  matrix; deterministic zero-network suite 123 passed over already-local bytes (binding 61 /
+  runtime 29 / static 33; +15); four pre-target primitives + __init__.py + bootstrap-supervisor /
+  qualification-harness / skill trees byte-identical; frozen target untouched; production LOC
+  exactly 3000 within the unchanged ceiling; MANIFEST regenerated LAST from the final bytes;
+  BA-PREP-001 `ATTEMPT_GLOBAL_ONE_SHOT_BYPASS_VIA_CALLER_SELECTED_OUTPUT_ROOT` and BA-PREP-002
+  `REPORT_ACCEPTANCE_SOURCE_NOT_BOUND_TO_FROZEN_OUTPUT_CUSTODY` both REMEDIATION_IMPLEMENTED /
+  AWAITING_FRESH_CONTROL_ROOM_READBACK and NOT CLOSED by the implementer (findings close only
+  through the Control Room); prior BA-RB-001 / BA-RB-002 / BA-RB-003 closures RETAINED and NOT
+  reopened; event-package preparation STILL FAIL-CLOSED HELD; event NOT instantiated; attempts
+  NOT granted; engagements USED 0; PCH6-B-SD-002 / PCH6-CR-BSD-001 NOT CLOSED; PCH6-B-SD-001
+  RETAINED / OPEN; ROOT_CAUSE_NOT_ESTABLISHED unchanged; provenance gate NOT_SATISFIED; NO queue
+  transition solely from this remediation (queue recounted base == staged; no queue-row status
+  transition; no backlog item marked DONE); NEXT (grants nothing): independent Control Room
+  readback of this remediation publication and its generated-LAST handoff before any
+  event-package preparation authority is considered).
 
 ### AUCDEV-024 — Auditor Model Selection Policy & Model Generation Migration
 
@@ -4177,3 +4216,28 @@ docs/chatgpt-project/AUCDEV-023-PCH6-B-EVENT-PACKAGE-PREPARATION-PREFLIGHT-CONTR
 NEXT (grants nothing): operator decision on whether to authorize a bounded source remediation of
 BA-PREP-001 / BA-PREP-002 against the then-current exact live HEAD — remediation implementation
 ONLY)
+
+2026-10-02 (AUCDEV-023 PCH6-B PATH-B BA-PREP-001 / BA-PREP-002 BOUNDED SOURCE REMEDIATION —
+IMPLEMENTED_AS_REMEDIATION_CANDIDATE over exact base
+`cfff321bd206b246f61cdc6ad6294bbe30489134` (root tree
+`bae48da3fbdb1c1a37fe953c20fb3fc8c960cb5e`, sole parent
+`77563029873bf08d19dea3eee7d5b8ab13cead3d` = the BA-PREP HOLD publication Control Room
+verification) by remediation-implementation authority
+`AUCDEV-023-PCH6B-730D2B29-BA-PREP-001-002-REMEDIATION-IMPLEMENTATION-20261002-01`: the binding
+output_identity now freezes custody_root + report_source as canonical absolute paths and
+run_attempt refuses caller substitution fail-closed BEFORE any custody open, attempt-global O_EXCL
+claim, dynamic gate or credential read, using the FROZEN values exclusively; ten-path bounded
+change surface (binding.py / runtime.py / conftest.py / test_binding.py / test_runtime.py /
+README.md / MANIFEST.json M + NEW canonical remediation report + CURRENT M + BACKLOG M); the four
+pre-target primitives, __init__.py and the protected bootstrap-supervisor / qualification-harness
+/ skill trees are byte-identical; the frozen audit target is untouched; production LOC exactly
+3000; deterministic zero-network suite 123 passed; MANIFEST regenerated LAST (raw SHA-256
+`121a70cf2acb9f641959e850859e43faacfe07ece70efe6ce150f4ed90d5d1fb`; package_sha256
+`9e76c0df7b66177ab25e8a78e0497f72fabc56981cbd06afc0b521dbeb5e9bd1`); BA-PREP-001 and BA-PREP-002
+REMEDIATION_IMPLEMENTED / AWAITING_FRESH_CONTROL_ROOM_READBACK, NOT CLOSED by the implementer;
+prior BA-RB closures RETAINED; event-package preparation STILL FAIL-CLOSED HELD; event NOT
+instantiated; attempts NOT granted; engagements USED 0; NO audit execution, NO audit PASS, NO
+qualification, NO installation; canonical record
+docs/chatgpt-project/AUCDEV-023-PCH6-B-BA-PREP-001-002-BOUNDED-SOURCE-REMEDIATION-REPORT.md;
+NEXT (grants nothing): independent Control Room readback of this remediation publication and its
+generated-LAST handoff before any event-package preparation authority is considered)

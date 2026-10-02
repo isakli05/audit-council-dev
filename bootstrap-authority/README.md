@@ -9,11 +9,14 @@ independent audit of the frozen candidate target
 candidate only: not readback-accepted, not execution-ready, and it has
 NOT prepared an event package, instantiated the design event, granted
 attempt authorities, or consumed any model engagement. The BA-RB-001 /
-BA-RB-002 bounded source remediation is implemented AS A REMEDIATION
-CANDIDATE (attempt-global O_EXCL claim; gates before credential
-materialization) — neither Control Room finding is closed by the
-implementer, and a fresh Control Room readback of the remediation
-candidate is required before any event-package preparation.
+BA-RB-002 bounded source remediation (attempt-global O_EXCL claim;
+gates before credential materialization) and the BA-PREP-001 /
+BA-PREP-002 bounded source remediation (binding-frozen output-custody
+root and report source; caller path substitution refused fail-closed
+before any authority action) are each implemented AS A REMEDIATION
+CANDIDATE — no Control Room finding is closed by the implementer, and
+a fresh Control Room readback of each remediation candidate is
+required before any event-package preparation.
 
 ## What this package is
 
@@ -43,7 +46,7 @@ installation decisions, no auditor-output reconciliation.
 | `bootstrap_authority/runtime.py` | NEW authority-specific |
 | `tests/conftest.py` | synthetic zero-provider fixtures |
 | `tests/test_binding.py` | BA-13..BA-25 binding/gate-contract tests |
-| `tests/test_runtime.py` | BA-26..BA-50 + BA-RB-001/BA-RB-002 remediation regressions |
+| `tests/test_runtime.py` | BA-26..BA-50 + BA-RB-001/BA-RB-002 + BA-PREP-001/BA-PREP-002 remediation regressions |
 | `tests/test_static.py` | BA-01..BA-12, BA-51..BA-59 provenance/identity/governance tests |
 
 No CLI, no provider adapters, no real event package, no credential
@@ -97,7 +100,18 @@ auditor_executable_path, report_staging_path, output_root)`:
 self-identity of the executing package (both pinned identities, live
 per-file equality, payload-set equality, semantic values — no
 caller-provided root), event-package identity + transport projection,
-an **attempt-global O_EXCL authority claim keyed by the exact reserved
+a **binding-frozen output-custody/report-source identity gate**
+(BA-PREP-001/BA-PREP-002: the binding's `output_identity` freezes the
+attempt's authoritative `custody_root` and `report_source` as
+canonical absolute host paths; caller-supplied `output_root` /
+`report_staging_path` arguments that do not equal the frozen values
+after `os.path.normpath` normalization are refused fail-closed BEFORE
+any custody open, O_EXCL claim, dynamic gate or credential read, and
+every authority action then uses the FROZEN binding values
+exclusively — a caller-selected alternate custody root cannot mint a
+second same-attempt claim, and report acceptance cannot be redirected
+to a different pre-existing file), an **attempt-global O_EXCL
+authority claim keyed by the exact reserved
 attempt id alone** (BA-RB-001: ONE reserved attempt id = ONE global
 claim, independent of the binding digest, while the exact binding
 digest remains durable, inspection-bound evidence inside every
@@ -169,6 +183,6 @@ engagements 2/2 USED historical truth; non-transferable). This
 lineage's design budget: PROPOSED 2 / USED 0 — this implementation
 consumes ZERO engagements. No audit execution, no audit PASS, no
 qualification, no installation. The next action is a FRESH Control
-Room readback of THIS BA-RB-001 / BA-RB-002 remediation candidate and
-its generated-LAST handoff before any event-package preparation is
-authorized.
+Room readback of THIS BA-PREP-001 / BA-PREP-002 remediation candidate
+and its generated-LAST handoff before any event-package preparation
+is authorized.

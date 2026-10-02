@@ -298,14 +298,17 @@ def make_report(binding, target_commit=None, event_id=None,
 
 def build_world(tmp_path, role="AUDITOR_A", preflight_tweak=None,
                 launcher_mode="ok", report=None, wall_timeout=60,
-                authority_pins=None) -> World:
+                authority_pins=None, output_root=None) -> World:
     """Assemble one complete synthetic world: event package + binding
     document pinned to the REAL executing authority package + inert
     executables + synthetic credential.  `report` defaults to a correct
-    first-pass report for the role."""
+    first-pass report for the role.  `output_root` may override the
+    operator custody root (shared-root worlds) — the SAME path is then
+    FROZEN into the binding's output_identity.custody_root."""
     root = Path(tmp_path) / "world"
     event_root = root / "event"
-    output_root = Path(tmp_path) / "output"
+    output_root = Path(output_root) if output_root is not None \
+        else Path(tmp_path) / "output"
     output_root.mkdir(parents=True, exist_ok=True)
     os.chmod(output_root, 0o700)
     staging = Path(tmp_path) / "staging" / "report.json"
@@ -356,7 +359,8 @@ def build_world(tmp_path, role="AUDITOR_A", preflight_tweak=None,
     doc = minimal_binding_doc(role, files, staging=staging,
                               auditor_sha=sha256_bytes(auditor_bytes),
                               wall_timeout=wall_timeout,
-                              authority_pins=authority_pins)
+                              authority_pins=authority_pins,
+                              output_root=output_root)
     binding = bab.parse_binding(canonical(doc))
     manifest = {"schema": bab.EVENT_MANIFEST_SCHEMA,
                 "transport_binding": bab.binding_projection(binding),
@@ -379,13 +383,20 @@ def make_report_for_role(role: str) -> bytes:
 
 def minimal_binding_doc(role="AUDITOR_A", event_files=None, staging=None,
                         auditor_sha=None, wall_timeout=60,
-                        authority_pins=None) -> dict:
+                        authority_pins=None, output_root=None) -> dict:
     """A complete VALID binding document for `role` with synthetic
     digests (or real artifact pins when supplied).  event_files may be
-    None for pure parse-level tests."""
+    None for pure parse-level tests.  output_identity freezes the
+    attempt output custody root and report source (BA-PREP-001/002):
+    the real world paths when supplied, synthetic canonical absolute
+    paths otherwise."""
     hex64 = "a" * 64
     if auditor_sha is None:
         auditor_sha = hex64
+    custody_root = str(output_root) if output_root is not None \
+        else "/synthetic-operator-custody/output"
+    report_source = str(staging) if staging is not None \
+        else "/synthetic-operator-custody/staging/report.json"
     selection = dict(bab.AUDITOR_SELECTIONS[role])
     selection["client_executable"] = {
         "identity": "SYNTHETIC-INERT-CLIENT-V1",
@@ -412,7 +423,9 @@ def minimal_binding_doc(role="AUDITOR_A", event_files=None, staging=None,
                           "package_sha256": hex64},
         "output_identity": {"kind": "FIRST_PASS_REPORT",
                             "name": "%s.first-pass-report.json"
-                                    % bab.RESERVED_ATTEMPT_IDS[role]},
+                                    % bab.RESERVED_ATTEMPT_IDS[role],
+                            "custody_root": custody_root,
+                            "report_source": report_source},
         "static_gate_evidence": {
             gate: {"status": "PASS", "evidence_sha256": hex64,
                    "evidence_size": 1024, "auditor_role": role,

@@ -217,16 +217,18 @@ def test_ba29_rb001_cross_binding_same_attempt_refused(tmp_path):
     # BA-RB-001: ONE reserved attempt id -> ONE GLOBAL authority claim.
     # Two INDEPENDENTLY valid AUDITOR_A bindings (different digests,
     # each with its own self-consistent synthetic event package) with
-    # the SAME reserved attempt id and the SAME operator custody: the
+    # the SAME reserved attempt id and the SAME operator custody (the
+    # shared root is FROZEN into BOTH bindings' output_identity): the
     # second claim must fail closed at the attempt-global O_EXCL name,
     # BEFORE any dynamic gate and BEFORE any credential read.
     first = build_world(tmp_path / "first", "AUDITOR_A",
                         launcher_mode="none")
     second = build_world(tmp_path / "second", "AUDITOR_A",
-                         launcher_mode="none")
+                         launcher_mode="none",
+                         output_root=first.output_root)
     assert second.binding.attempt_id == first.binding.attempt_id
     assert second.binding.digest != first.binding.digest
-    second.output_root = first.output_root     # the SAME custody dir
+    assert second.output_root == first.output_root  # the SAME custody dir
     assert first.run().report_state == REPORT_MISSING
     authority_b = second.authority()           # valid on its OWN terms
     r, w = os.pipe()
@@ -270,15 +272,165 @@ def test_ba29_rb001_cross_binding_same_attempt_refused(tmp_path):
 
 def test_ba29_rb001_distinct_reserved_attempts_stay_distinct(tmp_path):
     # the distinct AUDITOR_A / AUDITOR_B reserved attempt ids remain
-    # independent accounting namespaces under one operator custody.
+    # independent accounting namespaces under one operator custody
+    # (the shared root frozen into BOTH bindings' output_identity).
     a = build_world(tmp_path / "a", "AUDITOR_A", launcher_mode="none")
-    b = build_world(tmp_path / "b", "AUDITOR_B", launcher_mode="none")
-    b.output_root = a.output_root
+    b = build_world(tmp_path / "b", "AUDITOR_B", launcher_mode="none",
+                    output_root=a.output_root)
     assert a.run().report_state == REPORT_MISSING
     assert b.run().report_state == REPORT_MISSING
     assert sorted(p.name for p in a.output_root.glob("*.jsonl")) == sorted(
         [bar.accounting_name(a.binding) + ".jsonl",
          bar.accounting_name(b.binding) + ".jsonl"])
+
+
+# --- BA-PREP-001 / BA-PREP-002 remediation: the attempt output custody
+# root and report source are BINDING-FROZEN authority dimensions; caller
+# path substitution fails closed BEFORE any custody open, attempt-global
+# O_EXCL claim, dynamic gate or credential read, and every authority
+# action then uses the FROZEN binding values exclusively -------------
+
+
+def test_ba_prep001_alternate_output_root_refused_fail_closed(tmp_path):
+    # BA-PREP-001: ONE reserved attempt -> ONE mechanically authorized
+    # process-bound one-shot authority.  A caller selecting a DIFFERENT
+    # otherwise-valid operator-custodied root for the SAME reserved
+    # attempt under the SAME binding/package must fail closed BEFORE the
+    # alternate root can acquire any authority namespace.
+    world = build_world(tmp_path, "AUDITOR_A", launcher_mode="none")
+    alt = tmp_path / "attacker-custody"
+    alt.mkdir(parents=True, exist_ok=True)
+    os.chmod(alt, 0o700)
+    authority = world.authority()
+    r, w = os.pipe()
+    os.write(w, world.credential)
+    os.close(w)
+    try:
+        with pytest.raises(bar.AuthorityRefused,
+                           match="OUTPUT_CUSTODY_ROOT_MISMATCH"):
+            authority.run_attempt(r, world.launcher_path,
+                                  world.auditor_path, world.staging, alt)
+        # the refusal PRECEDES any credential read: every synthetic byte
+        # remains readable from the source pipe
+        assert os.read(r, 65536) == world.credential
+    finally:
+        try:
+            os.close(r)
+        except OSError:
+            pass
+    # the alternate root acquired NO authority namespace at all
+    assert list(alt.iterdir()) == []
+    # no dynamic gate executed; no claim; no staging anywhere
+    assert not world.order_file.exists()
+    assert not list(world.output_root.glob("*.jsonl"))
+    # pre-advance refusal: the SAME authority object stays PREPARED and
+    # the FROZEN root then succeeds under normal synthetic execution
+    assert authority.state == PREPARED
+    assert world.run().report_state == REPORT_MISSING
+    assert sorted(p.name for p in world.output_root.glob("*.jsonl")) == \
+        [world.attempt_name() + ".jsonl"]
+    # SAME-root duplicate-attempt semantics unchanged: a SECOND authority
+    # process for the SAME attempt still refuses at the attempt-global
+    # O_EXCL claim
+    with pytest.raises(bar.AuthorityRefused, match="RECORD_CREATE_REFUSED"):
+        world.run()
+
+
+def test_ba_prep001_symlink_alias_output_root_refused(tmp_path):
+    # documented identity semantics: the caller argument must equal the
+    # binding-frozen path after os.path.normpath — a symlink ALIAS of
+    # the frozen custody root is a different name and is refused
+    world = build_world(tmp_path, "AUDITOR_A", launcher_mode="none")
+    alias = tmp_path / "custody-alias"
+    alias.symlink_to(world.output_root, target_is_directory=True)
+    r, w = os.pipe()
+    os.write(w, world.credential)
+    os.close(w)
+    try:
+        with pytest.raises(bar.AuthorityRefused,
+                           match="OUTPUT_CUSTODY_ROOT_MISMATCH"):
+            world.authority().run_attempt(
+                r, world.launcher_path, world.auditor_path,
+                world.staging, alias)
+        assert os.read(r, 65536) == world.credential
+    finally:
+        try:
+            os.close(r)
+        except OSError:
+            pass
+    assert not world.order_file.exists()
+    assert not list(world.output_root.glob("*.jsonl"))
+
+
+def test_ba_prep002_report_source_substitution_refused(tmp_path):
+    # BA-PREP-002: report acceptance is mechanically bound to the exact
+    # binding-frozen attempt-owned report source.  A DIFFERENT
+    # pre-existing regular file whose bytes are otherwise a structurally
+    # AND semantically VALID first-pass report for the SAME
+    # target/event/role/attempt must NOT be acceptable by substitution.
+    world = build_world(tmp_path, "AUDITOR_A", launcher_mode="none")
+    substitute_bytes = make_report_for_role("AUDITOR_A")
+    substitute = tmp_path / "attacker" / "substituted-report.json"
+    substitute.parent.mkdir(parents=True, exist_ok=True)
+    substitute.write_bytes(substitute_bytes)
+    authority = world.authority()
+    r, w = os.pipe()
+    os.write(w, world.credential)
+    os.close(w)
+    try:
+        with pytest.raises(bar.AuthorityRefused,
+                           match="REPORT_SOURCE_MISMATCH"):
+            authority.run_attempt(r, world.launcher_path,
+                                  world.auditor_path, substitute,
+                                  world.output_root)
+        assert os.read(r, 65536) == world.credential
+    finally:
+        try:
+            os.close(r)
+        except OSError:
+            pass
+    # the substituted file was NOT accepted, NOT frozen and NOT
+    # discarded; nothing executed; no stdout/stderr fallback; no output
+    # artifacts of any kind
+    assert substitute.read_bytes() == substitute_bytes
+    assert not world.order_file.exists()
+    assert not list(world.output_root.glob("*.json"))
+    assert not list(world.output_root.glob("*.jsonl"))
+    # the frozen-source REPORT_MISSING semantics are retained: with a
+    # "none" launcher the frozen staging file is never written and the
+    # honest outcome stays REPORT_MISSING (no reconstruction)
+    assert authority.state == PREPARED
+    result = world.run()
+    assert result.report_state == REPORT_MISSING
+    assert not list(world.output_root.glob("*.json"))
+
+
+def test_ba_prep002_symlink_alias_report_source_refused(tmp_path):
+    # a symlink alias of the frozen report source is a different name
+    # and is refused; the frozen source itself stays a regular file and
+    # the normal path through the EXACT frozen source still freezes
+    world = build_world(tmp_path, "AUDITOR_A", launcher_mode="ok")
+    world.staging.write_bytes(make_report_for_role("AUDITOR_A"))
+    alias = tmp_path / "staging-alias.json"
+    alias.symlink_to(world.staging)
+    r, w = os.pipe()
+    os.write(w, world.credential)
+    os.close(w)
+    try:
+        with pytest.raises(bar.AuthorityRefused,
+                           match="REPORT_SOURCE_MISMATCH"):
+            world.authority().run_attempt(
+                r, world.launcher_path, world.auditor_path,
+                alias, world.output_root)
+        assert os.read(r, 65536) == world.credential
+    finally:
+        try:
+            os.close(r)
+        except OSError:
+            pass
+    assert not world.order_file.exists()
+    result = world.run()
+    assert result.report_state == REPORT_FROZEN
 
 
 # --- BA-31: no public consume/resume/retry split -------------------------
