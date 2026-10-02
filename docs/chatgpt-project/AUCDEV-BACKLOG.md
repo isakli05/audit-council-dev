@@ -2947,6 +2947,73 @@ append-only. Canonical report:
   remediation authority, NO event-package preparation authority, NO
   event instantiation, NO attempt authority, NO `/audit-council`, NO
   provider/model/auditor execution, NO qualification, NO installation).
+- Bootstrap-authority implementation readback publication Control Room
+  verification status (2026-10-02; ACCEPTED_WITH_HANDOFF_PRECISION_RESIDUALS
+  over exact readback publication `521460fa413ab0f62615a89b70bf4b782444a110`
+  (root tree `0e7f70dee6de935d820f5beb2c516d634a3c7bce`, sole parent /
+  implementation candidate `6fc0544489f7533813157a14db91475f5b3c4c04` with
+  root tree `bd573448cf324f63cf9729ab6b298d036af56953`) by record-only
+  publication verification authority
+  `AUCDEV-023-PCH6B-730D2B29-BOOTSTRAP-AUTHORITY-IMPLEMENTATION-READBACK-PUBLICATION-CONTROL-ROOM-VERIFICATION-20261002-01`:
+  the independently reached Control Room verification ACCEPTED
+  the readback publication at verification strength with handoff-precision
+  residuals — live publication identity (live GitHub master == local HEAD ==
+  origin/master EXACT at bootstrap, before staging and before commit);
+  one-commit three-path geometry (ADD readback record +597/-0, MODIFY CURRENT
+  +12/-5, MODIFY BACKLOG +83/-0; NO fourth path); canonical blob equality
+  (readback record `f63f3c06…`, CURRENT `7744d32c…`, BACKLOG `26f3e9d4…`
+  EXACT); protected/source trees unchanged (bootstrap-authority
+  `d88fbcfb…`, bootstrap-supervisor `3056e577…`, qualification-harness
+  `5b8d5e54…`, skill `efd8c2e4…`; implementation candidate record
+  `01055ad8…` unchanged; ZERO source remediation in the readback
+  publication and ZERO in this verification); input generated-LAST handoff
+  verified DATA-ONLY in-memory (outer SHA-256 `797fa2ee…` / 1038679 B;
+  ACTUAL census 29 regular members = 28 payload + exactly one SHA256SUMS;
+  every member regular / mode 0600 / flat / unique; SHA256SUMS 28/28 PASS;
+  exact payload-set equality TRUE; the three canonical members
+  byte-identical to the live GitHub blobs; ZERO members executed or
+  extracted for execution); BA-RB-001 CONFIRMED OPEN BLOCKING
+  (attempt-global one-shot not enforced across binding variants — the
+  accounting name `<reserved attempt id>.<full binding digest>` scopes
+  O_EXCL uniqueness to same attempt+same binding digest; source facts
+  re-derived this session from the live candidate bytes at
+  runtime.py:200-205 and 1257-1262); BA-RB-002 CONFIRMED OPEN BLOCKING
+  (credential-custody ordering — custody ingest at runtime.py:1266
+  precedes the frozen dynamic-gate loop at 1286-1288 covering
+  CLIENT_SELECTION_PREFLIGHT, NETWORK_READINESS and RESOURCE_GATE LAST,
+  vs the accepted PATH-B design readback's verbatim
+  no-materialization-before-all-required-gates requirement; contributing
+  Control Room tasking conflict preserved — the implementer followed the
+  authorized order while the accepted design remains authoritative, and
+  history is NOT rewritten); BA-RB-003 COMPLETENESS LIMITATION /
+  NONBLOCKING and
+  BA-RB-004 INFORMATIONAL held unchanged; NEW BA-RB-PUB-001 INFORMATIONAL
+  (handoff index census precision — 01-README-INDEX.txt states
+  "28 regular members = 27 payload + exactly one SHA256SUMS" while the
+  actual archive census is 29 = 28 payload + one SHA256SUMS because the
+  index does not count itself in its own payload inventory; archive
+  integrity unaffected; the historical handoff is NOT repacked) and NEW
+  BA-RB-PUB-002 INFORMATIONAL (iteration-accounting header precision —
+  21-iteration-accounting.txt heading says T-1..T-5 while its content
+  records T-1..T-8 and both 00-FINAL-RETURN.md and 01-README-INDEX.txt
+  correctly state T-1..T-8; NOT repacked); event-package preparation HELD;
+  remediation REQUIRED and NOT yet authorized; candidate NOT
+  execution-ready; event NOT instantiated; attempt authorities NOT
+  granted; new-lineage engagements USED 0; PCH6-B-SD-002 /
+  PCH6-CR-BSD-001 NOT CLOSED; PCH6-B-SD-001 RETAINED / OPEN;
+  ROOT_CAUSE_NOT_ESTABLISHED unchanged; independent-auditor provenance
+  gate NOT_SATISFIED with installed-source predecessor provenance NOT
+  ESTABLISHED; NO audit execution, NO audit PASS, NO qualification, NO
+  installation; queue recounted base == staged on every dimension (READY
+  10 / OPEN 7 / BLOCKED 3 = 20 open; P0 2 / P1 8 / P2 11 = 21 queue rows;
+  IN_PROGRESS 0; 3 DEFERRED / 8 ACCEPTED_RESIDUAL / 5 DONE; no queue-row
+  status transition; no backlog item marked DONE); NEXT (grants nothing):
+  operator decision on whether to authorize a bounded source remediation
+  of AUCDEV023-CR-PCH6B-BA-RB-001 and AUCDEV023-CR-PCH6B-BA-RB-002
+  against the then-current exact live HEAD — remediation implementation
+  only, granting NO event-package preparation, NO event instantiation, NO
+  attempt authority, NO `/audit-council`, NO provider/model/auditor
+  execution, NO qualification, NO installation).
 
 ### AUCDEV-024 — Auditor Model Selection Policy & Model Generation Migration
 
@@ -3759,3 +3826,5 @@ means `AUDIT-COUNCIL-V2-KNOWN-LIMITATIONS.md`. Links to deeper authority are in
 2026-10-02 (AUCDEV-023 PCH6-B CANDIDATE-SPECIFIC TARGET-INDEPENDENT BOOTSTRAP AUTHORITY — BOUNDED IMPLEMENTATION — IMPLEMENTED_AS_CANDIDATE over authorized exact base `63e842e392320b74a7fac923ae140984b28079dd` by implementation authority `AUCDEV-023-PCH6B-730D2B29-BOOTSTRAP-AUTHORITY-IMPLEMENTATION-20261002-01`: NEW `bootstrap-authority/` per the accepted PATH-B design; sixteen tracked paths; four EXACT pre-target blob reuses; NEW binding/runtime; exact 730d2b29 target binding; semantic report binding implemented; one-shot accounting; zero-provider tests 104/104; LOC 3000 <= 3000; event package NOT prepared; event NOT instantiated; attempts NOT granted; engagements USED 0; findings NOT closed; provenance gate NOT_SATISFIED; qualification NONE; installation NONE; NEXT (grants nothing): FRESH CONTROL ROOM READBACK of this candidate and its generated-LAST handoff before ANY event-package preparation is authorized)
 
 2026-10-02 (AUCDEV-023 PCH6-B CANDIDATE-SPECIFIC TARGET-INDEPENDENT BOOTSTRAP AUTHORITY IMPLEMENTATION — CONTROL ROOM READBACK — PARTIALLY_ACCEPTED_MECHANICS / BA-RB-001 + BA-RB-002 OPEN BLOCKING over exact candidate `6fc0544489f7533813157a14db91475f5b3c4c04` by record-only publication authority `AUCDEV-023-PCH6B-730D2B29-BOOTSTRAP-AUTHORITY-IMPLEMENTATION-CONTROL-ROOM-READBACK-20261002-01`: implementation mechanics verified (sixteen-path geometry; handoff DATA-ONLY 52/51+SUMS integrity with sixteen-member Git-blob equality; MANIFEST self-identity independently recalculated; four pre-target reuses exact; import hold; LOC 3000); BA-RB-001 attempt-global one-shot not enforced across binding variants OPEN BLOCKING; BA-RB-002 credential materialization precedes the required pre-inference gates OPEN BLOCKING with contributing Control Room tasking conflict recorded; BA-RB-003 staged-context binding limitation NONBLOCKING; BA-RB-004 member-reference typo informational; test evidence SUBMITTED ONLY / NOT_INDEPENDENT_AUDIT / NOT_AUDIT_PASS; event-package preparation HELD; remediation REQUIRED and NOT authorized; candidate NOT execution-ready; event NOT instantiated; attempts NOT granted; engagements USED 0; findings NOT closed; provenance gate NOT_SATISFIED; AUCDEV-023 P1 / READY / NOT DONE; AUCDEV-024 P1 / READY / NOT DONE; qualification NONE; installation NONE; canonical record docs/chatgpt-project/AUCDEV-023-PCH6-B-CANDIDATE-SPECIFIC-BOOTSTRAP-AUTHORITY-IMPLEMENTATION-CONTROL-ROOM-READBACK.md; NEXT (grants nothing): INDEPENDENT CONTROL ROOM VERIFICATION OF THIS READBACK PUBLICATION BEFORE ANY REMEDIATION AUTHORITY OR EVENT-PACKAGE PREPARATION IS RELEASED)
+
+2026-10-02 (AUCDEV-023 PCH6-B CANDIDATE-SPECIFIC BOOTSTRAP AUTHORITY IMPLEMENTATION CONTROL ROOM READBACK PUBLICATION — CONTROL ROOM VERIFICATION — ACCEPTED_WITH_HANDOFF_PRECISION_RESIDUALS over exact readback publication `521460fa413ab0f62615a89b70bf4b782444a110` (root tree `0e7f70dee6de935d820f5beb2c516d634a3c7bce`, sole parent / implementation candidate `6fc0544489f7533813157a14db91475f5b3c4c04`) by record-only publication verification authority `AUCDEV-023-PCH6B-730D2B29-BOOTSTRAP-AUTHORITY-IMPLEMENTATION-READBACK-PUBLICATION-CONTROL-ROOM-VERIFICATION-20261002-01`: live publication identity verified; one-commit three-path geometry verified (ADD readback record +597/-0 blob `f63f3c06…`, MODIFY CURRENT +12/-5 blob `7744d32c…`, MODIFY BACKLOG +83/-0 blob `26f3e9d4…`; NO fourth path); protected/source trees unchanged (bootstrap-authority `d88fbcfb…`, bootstrap-supervisor `3056e577…`, qualification-harness `5b8d5e54…`, skill `efd8c2e4…`; implementation candidate record `01055ad8…` unchanged; ZERO source remediation in the readback publication and ZERO in this verification); input generated-LAST handoff verified DATA-ONLY in-memory (outer SHA-256 `797fa2ee…` / 1038679 B; ACTUAL census 29 regular members = 28 payload + exactly one SHA256SUMS; all 0600 flat unique; SHA256SUMS 28/28 PASS; exact payload-set equality TRUE; the three canonical members byte-identical to the live GitHub blobs; ZERO members executed or extracted for execution); BA-RB-001 CONFIRMED OPEN BLOCKING (accounting name `<reserved attempt id>.<full binding digest>` scopes O_EXCL uniqueness to same attempt+same binding digest, NOT attempt-globally; source facts re-derived from the live candidate bytes); BA-RB-002 CONFIRMED OPEN BLOCKING (credential custody ingest precedes CLIENT_SELECTION_PREFLIGHT / NETWORK_READINESS / RESOURCE_GATE vs the accepted design's no-materialization-before-all-required-gates requirement; contributing Control Room tasking conflict preserved honestly, accepted design remains authoritative); BA-RB-003 NONBLOCKING completeness limitation and BA-RB-004 informational held; NEW BA-RB-PUB-001 informational (01-README-INDEX.txt states 28 regular members = 27 payload + one SHA256SUMS while the actual census is 29 = 28 payload + one SHA256SUMS — the index does not count itself; archive integrity unaffected; NOT repacked) and NEW BA-RB-PUB-002 informational (21-iteration-accounting.txt heading says T-1..T-5 while its content records T-1..T-8 and both 00-FINAL-RETURN.md and the index correctly state T-1..T-8; NOT repacked); event-package preparation HELD; remediation REQUIRED and NOT yet authorized; event NOT instantiated; attempts NOT granted; new-lineage engagements USED 0; source findings NOT closed; provenance gate NOT_SATISFIED; AUCDEV-023 and AUCDEV-024 both remain P1 / READY / NOT DONE; NO audit execution, NO audit PASS, NO qualification, NO installation; canonical record docs/chatgpt-project/AUCDEV-023-PCH6-B-CANDIDATE-SPECIFIC-BOOTSTRAP-AUTHORITY-IMPLEMENTATION-CONTROL-ROOM-READBACK-PUBLICATION-CONTROL-ROOM-VERIFICATION.md; NEXT (grants nothing): operator decision on whether to authorize a bounded source remediation of AUCDEV023-CR-PCH6B-BA-RB-001 and AUCDEV023-CR-PCH6B-BA-RB-002 against the then-current exact live HEAD — remediation implementation only, granting nothing else)
