@@ -3493,6 +3493,45 @@ append-only. Canonical report:
   EXACT FRESH KVM-BOUND EVENT-PACKAGE PREPARATION PUBLICATION AND ITS
   GENERATED-LAST HANDOFF; canonical record
   docs/chatgpt-project/AUCDEV-023-PCH6-B-FRESH-EVENT-PACKAGE-PREPARATION-KVM-BOUND-REPORT.md)
+- 2026-10-02 — AUCDEV-023 PCH6-B: FRESH KVM EVENT-PACKAGE PREPARATION
+  CONTROL ROOM READBACK = FAIL_CLOSED_HOLD (record-only publication
+  authority AUCDEV-023-PCH6B-730D2B29-FRESH-EVP-KVM-CR-HOLD-20261002-01
+  over exact base `e9c9fc43923296209e409c5d09efefe36144a946`): the
+  independently reached Control Room readback of the fresh KVM-bound
+  preparation is canonically recorded at exact strength — the claimed
+  PREPARED disposition NOT accepted because the frozen event packages
+  are not mechanically compatible with the current bootstrap-authority
+  execution ABI; EVP-RB-001 DYNAMIC_GATE_EXECUTION_ABI_MISMATCH,
+  EVP-RB-002 BOUNDARY_LAUNCHER_BOOTSTRAP_FD_ARGV_ABI_MISMATCH,
+  EVP-RB-003 OUTPUT_VALIDATOR_RUNTIME_ABI_MISMATCH and EVP-RB-004
+  REAL_CLIENT_TOOL_DOMAIN_WRAPPER_DISPATCH_NOT_MECHANICALLY_BOUND all
+  OPEN/BLOCKING (harness/event-package protocol defects; NOT
+  frozen-target product findings; REAL_CLIENT_CREDENTIAL_TOOL_ISOLATION
+  final PASS NOT established and GWP-07/GWP-08 retained as useful
+  synthetic evidence); valid preparation results retained and not
+  erased (package A `17acc336…` / B `9004fe6d…`, binding digests A
+  `9dfe9bea…` / B `4adda192…`, 18 manifest payload rows each with all
+  rows/SHA recomputed, exact transport projections, eight static-gate
+  descriptors byte/hash-matching role/attempt-bound, dynamic gates
+  descriptor-only, A/B common-evidence + neutral-contract parity,
+  custody identities recorded with real accounting/sink/artifact
+  absence, GWP-10 exact pinned codex sandbox and GWP-12 exact frozen
+  custody-screen component evidence, disposable-KVM safety path
+  retained); three NONBLOCKING evidence-precision residuals recorded
+  (INFO-001 earlier PASS run id in the top-level combined file while
+  the final GATE_W_PRIME static evidence correctly binds the final
+  run; INFO-002 18 PASS rows / 16 unique assertion ids; INFO-003
+  Auditor-A isolation record must represent the disclosed
+  inference-time enforcement residual precisely); event NOT
+  instantiated; attempt authorities NOT granted; engagements USED 0
+  with PROPOSED 2 unchanged; NO queue transition solely because this
+  readback is published (AUCDEV-023 remains P1 / READY / NOT DONE);
+  NO audit execution; NO audit PASS; QUALIFICATION_NONE;
+  INSTALLATION_NONE; NEXT (grants nothing): OPERATOR DECISION ON
+  WHETHER TO AUTHORIZE A NARROW EVENT-PACKAGE / EXECUTION-SEAM
+  REMEDIATION OF EVP-RB-001 THROUGH EVP-RB-004 AGAINST THE
+  THEN-CURRENT EXACT LIVE HEAD; canonical record
+  docs/chatgpt-project/AUCDEV-023-PCH6-B-FRESH-KVM-EVENT-PACKAGE-PREPARATION-CONTROL-ROOM-HOLD.md)
 
 ### AUCDEV-024 — Auditor Model Selection Policy & Model Generation Migration
 
@@ -4704,3 +4743,7 @@ recording it grants nothing)
 ## Dated status record — 2026-10-02: AUCDEV-023 PCH6-B NEW FRESH EVENT-PACKAGE PREPARATION (KVM-BOUND) PREPARED
 
 Publication authority AUCDEV-023-PCH6B-730D2B29-FRESH-EVP-KVM-20261002-01 over exact base `55cb840b8a70794f9c543a792b5a75cb76e40f1c`: the operator-authorized NEW preparation completed with all mandatory gates passed. Disposition `AUCDEV_023_PCH6B_FRESH_EVENT_PACKAGE_PREPARATION = PREPARED / DISPOSABLE_KVM_EVENT_BOUNDARY_FROZEN / AUDITOR_A_PACKAGE_FROZEN / AUDITOR_B_PACKAGE_FROZEN / GWP10_EXACT_CODEX_APPLICATION_PROFILE_PASS_ZERO_PROVIDER / GWP12_EXACT_BOOTSTRAP_AUTHORITY_REPORT_SCREEN_PASS_SYNTHETIC / FULL_FRESH_GATE_W_PRIME_FINAL_BOUNDARY_PASS / INCIDENT_REGRESSION_IR_1_4_PASS / REAL_CLIENT_CREDENTIAL_TOOL_ISOLATION_PASS / STATIC_GATES_ALL_PASS / BINDINGS_PARSE_AND_PROJECT_EXACT / COMMON_EVIDENCE_PARITY_VERIFIED / FIRST_PASS_BLINDNESS_PRESERVED / CUSTODY_OBJECT_IDENTITIES_FROZEN / REAL_RESERVED_ATTEMPT_ACCOUNTING_ABSENT / REAL_REPORT_SINKS_ABSENT / EVENT_NOT_INSTANTIATED / ATTEMPT_AUTHORITIES_NOT_GRANTED / MODEL_ENGAGEMENTS_USED_0 / AWAITING_INDEPENDENT_CONTROL_ROOM_READBACK / NO_AUDIT_EXECUTION / NO_AUDIT_PASS / QUALIFICATION_NONE / INSTALLATION_NONE`. The event is NOT instantiated and no attempt authority exists; the packages are frozen preparation artifacts only. Canonical record: docs/chatgpt-project/AUCDEV-023-PCH6-B-FRESH-EVENT-PACKAGE-PREPARATION-KVM-BOUND-REPORT.md. NEXT (grants nothing): INDEPENDENT CONTROL ROOM READBACK OF THE EXACT FRESH KVM-BOUND EVENT-PACKAGE PREPARATION PUBLICATION AND ITS GENERATED-LAST HANDOFF.
+
+## Dated status record — 2026-10-02: AUCDEV-023 PCH6-B fresh KVM event-package preparation Control Room readback = FAIL_CLOSED_HOLD
+
+Publication authority AUCDEV-023-PCH6B-730D2B29-FRESH-EVP-KVM-CR-HOLD-20261002-01 (record-only) over exact base `e9c9fc43923296209e409c5d09efefe36144a946`: the independently reached Control Room readback of the fresh KVM-bound event-package preparation is canonically recorded at exact strength — the claimed PREPARED disposition NOT accepted because the frozen event packages are not mechanically compatible with the current bootstrap-authority execution ABI: EVP-RB-001 (frozen dynamic gates take package-local CLIs and emit schema/gate/status documents, not the runtime's event/role/attempt-bound envelopes), EVP-RB-002 (the frozen boundary launcher requires --role client|tool --evidence --target --out-src --bnd + client_argv and never implements the authority FD 3/5/6 sealed-credential/held-executable/sealed-invocation protocol), EVP-RB-003 (the frozen validator opens a report pathname itself instead of the authority's report-bytes channel and required result envelope) and EVP-RB-004 (no demonstrated execution seam routes real client tool execution through the frozen tool wrapper; REAL_CLIENT_CREDENTIAL_TOOL_ISOLATION_PASS not accepted at final-event strength) all OPEN/BLOCKING harness/event-package protocol defects — NOT frozen-target product findings. Valid preparation results retained (packages A `17acc336…` / B `9004fe6d…`, binding digests A `9dfe9bea…` / B `4adda192…`, 18 manifest rows each all recomputed, exact transport projections, eight static-gate descriptors role/attempt-bound byte-matching, dynamic gates descriptor-only, A/B common-evidence and neutral-contract parity, custody identities with real accounting/sink/artifact absence, GWP-10/GWP-12 component evidence, disposable-KVM safety path retained); three NONBLOCKING evidence-precision residuals recorded. Event NOT instantiated; attempt authorities NOT granted; engagements USED 0; NO audit execution; NO audit PASS; QUALIFICATION_NONE; INSTALLATION_NONE; NEXT (grants nothing): OPERATOR DECISION ON WHETHER TO AUTHORIZE A NARROW EVENT-PACKAGE / EXECUTION-SEAM REMEDIATION OF EVP-RB-001 THROUGH EVP-RB-004 AGAINST THE THEN-CURRENT EXACT LIVE HEAD)
