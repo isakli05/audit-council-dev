@@ -407,10 +407,12 @@ def test_ba_prep002_report_source_substitution_refused(tmp_path):
 
 def test_ba_prep002_symlink_alias_report_source_refused(tmp_path):
     # a symlink alias of the frozen report source is a different name
-    # and is refused; the frozen source itself stays a regular file and
-    # the normal path through the EXACT frozen source still freezes
+    # and is refused; the normal path through the EXACT frozen source
+    # still freezes (RB2 adaptation: the authority now CREATES the sink
+    # itself O_EXCL, so the pre-fix fixture pre-write of the frozen
+    # staging file is gone — a pre-existing object at the frozen sink
+    # name is refused by test_rb2_002 below)
     world = build_world(tmp_path, "AUDITOR_A", launcher_mode="ok")
-    world.staging.write_bytes(make_report_for_role("AUDITOR_A"))
     alias = tmp_path / "staging-alias.json"
     alias.symlink_to(world.staging)
     r, w = os.pipe()
@@ -431,6 +433,157 @@ def test_ba_prep002_symlink_alias_report_source_refused(tmp_path):
     assert not world.order_file.exists()
     result = world.run()
     assert result.report_state == REPORT_FROZEN
+
+
+# --- BA-PREP-RB2-001 / BA-PREP-RB2-002 follow-up remediation: the
+# binding freezes the custody directory OBJECT identity (st_dev/st_ino)
+# and run_attempt (a) verifies the HELD custody fd IS that object before
+# any claim and (b) creates the attempt report sink itself O_EXCL under
+# the SAME held object after the gates and before any credential read;
+# acceptance snapshots ONLY the held sink object -----------------------
+
+
+def test_rb2_001_replacement_directory_same_pathname_refused(tmp_path):
+    # RB2-001 Case A: an authorized custody directory renamed away and a
+    # NEW otherwise-valid same-UID 0700 directory created at the EXACT
+    # frozen pathname must NOT provide a fresh O_EXCL namespace for the
+    # SAME reserved attempt: the pathname matches, the OBJECT does not.
+    world = build_world(tmp_path, "AUDITOR_A", launcher_mode="none")
+    root = world.output_root
+    moved = tmp_path / "custody-moved-away"
+    os.rename(root, moved)
+    os.makedirs(root, mode=0o700)
+    os.chmod(root, 0o700)
+    authority = world.authority()
+    r, w = os.pipe()
+    os.write(w, world.credential)
+    os.close(w)
+    try:
+        with pytest.raises(bar.AuthorityRefused,
+                           match="OUTPUT_CUSTODY_OBJECT_MISMATCH"):
+            authority.run_attempt(r, world.launcher_path,
+                                  world.auditor_path, world.staging, root)
+        # the refusal PRECEDES any credential read: every synthetic byte
+        # remains readable from the source pipe
+        assert os.read(r, 65536) == world.credential
+    finally:
+        try:
+            os.close(r)
+        except OSError:
+            pass
+    # ZERO dynamic gates; ZERO accounting records in EITHER object; the
+    # replacement directory acquired NO authority namespace at all
+    assert not world.order_file.exists()
+    assert list(root.iterdir()) == []
+    assert list(moved.iterdir()) == []
+    # pre-advance refusal: the SAME authority object stays PREPARED and
+    # succeeds once the frozen pathname names the frozen object again
+    assert authority.state == PREPARED
+    os.rmdir(root)
+    os.rename(moved, root)
+    assert world.run(authority=authority).report_state == REPORT_MISSING
+    # BA-RB-001 semantics retained: a SECOND process for the SAME
+    # attempt under the SAME frozen root still refuses at the
+    # attempt-global O_EXCL claim
+    with pytest.raises(bar.AuthorityRefused, match="RECORD_CREATE_REFUSED"):
+        world.run()
+    assert sorted(p.name for p in root.glob("*.jsonl")) == \
+        [world.attempt_name() + ".jsonl"]
+
+
+def test_rb2_001_single_run_rebind_accounting_uses_held_object(
+        tmp_path, monkeypatch):
+    # RB2-001 Case B: rebinding the frozen pathname to a DIFFERENT
+    # directory object between the custody open and the accounting
+    # create cannot split custody: the O_EXCL claim is created RELATIVE
+    # TO THE SAME HELD verified directory object, never a pathname
+    # re-open (the rebind is made deterministic by wrapping the store's
+    # held-fd create primitive; no production test hook exists).
+    world = build_world(tmp_path, "AUDITOR_A", launcher_mode="ok")
+    root = world.output_root
+    moved = tmp_path / "custody-moved-away"
+    original = AccountingStore.create_at.__func__
+
+    def rebinding_create_at(cls, dir_fd, attempt_id, binding_digest,
+                            first_state="PREPARED"):
+        os.rename(root, moved)          # rebind the pathname NOW
+        os.makedirs(root, mode=0o700)
+        os.chmod(root, 0o700)
+        return original(cls, dir_fd, attempt_id, binding_digest,
+                        first_state)
+
+    monkeypatch.setattr(
+        AccountingStore, "create_at",
+        classmethod(rebinding_create_at))
+    result = world.run()
+    assert result.report_state == REPORT_MISSING
+    # the attempt-global claim and the sink live in the HELD (moved)
+    # object; the frozen output would freeze there too (held fd)
+    assert sorted(p.name for p in moved.glob("*.jsonl")) == \
+        [world.attempt_name() + ".jsonl"]
+    assert not list(root.glob("*.jsonl"))
+    # the launcher wrote its report through the REBOUND pathname into
+    # the replacement object: those bytes were NEVER acceptable (honest
+    # REPORT_MISSING above) and cleanup NEVER deleted the replacement
+    replacement_report = root / world.staging.name
+    assert replacement_report.read_bytes() == \
+        make_report_for_role("AUDITOR_A")
+    # the authority-owned sink object (in the HELD moved directory) was
+    # safely discarded on the honest REPORT_MISSING terminal
+    assert not (moved / world.staging.name).exists()
+
+
+def test_rb2_002_preexisting_exact_frozen_report_refused(tmp_path):
+    # RB2-002 B: a structurally AND semantically VALID report that
+    # already exists at the EXACT frozen report pathname BEFORE the
+    # attempt must NEVER become the accepted first pass: only an
+    # authority-created sink object can (the authority fails closed
+    # after the gates, BEFORE any credential read or model execution).
+    world = build_world(tmp_path, "AUDITOR_A", launcher_mode="none")
+    preexisting = make_report_for_role("AUDITOR_A")
+    world.staging.write_bytes(preexisting)
+    r, w = os.pipe()
+    os.write(w, world.credential)
+    os.close(w)
+    try:
+        with pytest.raises(bar.AuthorityRefused,
+                           match="REPORT_SINK_PREEXISTING"):
+            world.authority().run_attempt(
+                r, world.launcher_path, world.auditor_path,
+                world.staging, world.output_root)
+        assert os.read(r, 65536) == world.credential
+    finally:
+        try:
+            os.close(r)
+        except OSError:
+            pass
+    # the pre-existing object was NOT accepted, NOT frozen, NOT
+    # discarded (it is not the authority's object); no frozen artifact
+    assert world.staging.read_bytes() == preexisting
+    assert not list(world.output_root.glob("*.first-pass-report.json"))
+    record = world.inspect_record()
+    assert record["last_state"] == TERMINAL_PREEXEC_STOP
+    assert CONSUMED_PRE_EXEC not in record["states"]
+    assert EXEC_ATTEMPTED not in record["states"]
+
+
+def test_rb2_002_sink_replacement_during_execution_not_accepted(tmp_path):
+    # RB2-002 B: after the authority has created and HELD the sink, the
+    # synthetic auditor UNLINKS the sink pathname and writes a fresh
+    # otherwise-valid replacement object at the exact same pathname.
+    # Acceptance reads ONLY the held original sink (empty -> honest
+    # REPORT_MISSING); the replacement bytes are never accepted and
+    # cleanup never deletes the replacement object.
+    world = build_world(tmp_path, "AUDITOR_A", launcher_mode="replace")
+    result = world.run()
+    assert result.report_state == REPORT_MISSING
+    assert not list(world.output_root.glob("*.first-pass-report.json"))
+    # the replacement object survives untouched (never unlinked by the
+    # authority's cleanup)
+    assert world.staging.read_bytes() == make_report_for_role("AUDITOR_A")
+    record = world.inspect_record()
+    assert record["last_state"] == TERMINAL
+    assert record["records"][-2]["terminal_reason"] == "REPORT_MISSING"
 
 
 # --- BA-31: no public consume/resume/retry split -------------------------

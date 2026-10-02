@@ -1,17 +1,17 @@
 """Operator-custodied durable attempt accounting (hash-chained JSONL).
 
+Exact pre-target EBS blob DERIVATIVE (BA-PREP-RB2-001): unchanged
+semantics plus `create_at`, the held-dir-fd O_EXCL claim primitive.
+
 The accounting record is NOT launch authority and can NEVER reconstruct
-it (adopted R1: controllerless / process-bound / one-shot / no revival).
-A writable store exists ONLY via `create` in the ONE authority process
-for an attempt; an existing same-attempt record makes `create` fail
-closed (O_EXCL), so no second EBS process can obtain authority for the
-same attempt.  Historical records are inspectable READ-ONLY via
-`inspect_accounting_record` (a view with no file descriptor, no append
-path, no resumable state).  The record provides durable crash/restart
-evidence, mechanically checked tamper semantics, and the complete
-non-secret binding identity set at CONSUMED_PRE_EXEC.  Narrow claim: no
-audited-target/boundary-child mutation path exists; no protection
-against operator/root rewrite is claimed.
+it (adopted R1: controllerless / process-bound / one-shot / no
+revival).  A writable store exists ONLY via `create`/`create_at` in
+the ONE authority process for an attempt; an existing same-attempt
+record makes the claim fail closed (O_EXCL).  Historical records are
+inspectable READ-ONLY via `inspect_accounting_record` (a view with no
+fd, no append path, no resumable state).  The record provides durable
+crash/restart evidence, mechanically checked tamper semantics, and the
+complete non-secret binding identity set at CONSUMED_PRE_EXEC.
 """
 from __future__ import annotations
 
@@ -28,21 +28,17 @@ GENESIS = "0" * 64
 RECORD_MODE = 0o600
 ATTEMPT_NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 
-
 class AccountingError(RuntimeError):
     """Refused accounting operation (fail closed)."""
-
 
 class UnsafeStore(AccountingError):
     """Custody directory or record fails the safety validation."""
 
-
 class TamperRefused(AccountingError):
     """Record history is malformed, truncated, or hash-inconsistent."""
 
-
 def open_custody_dir(path) -> int:
-    """Open an operator-custodied directory (no symlink following) and
+    """Open an operator-custodied directory (no symlink following);
     enforce same-uid ownership plus restrictive mode."""
     try:
         fd = os.open(os.fspath(path), os.O_RDONLY | os.O_DIRECTORY
@@ -64,10 +60,8 @@ def open_custody_dir(path) -> int:
         raise
     return fd
 
-
 def _canonical(obj) -> str:
     return json.dumps(obj, sort_keys=True, separators=(",", ":"))
-
 
 class AccountingStore:
     """One append-only attempt record file inside an operator-custodied
@@ -81,11 +75,9 @@ class AccountingStore:
         self._digests = list(digests)
         self._attempt_id = attempt_id
         self._binding_digest = binding_digest
-
     @property
     def attempt_id(self) -> str:
         return self._attempt_id
-
     @property
     def last_state(self):
         return self._records[-1]["state"] if self._records else None
@@ -93,35 +85,50 @@ class AccountingStore:
     @property
     def binding_digest(self) -> str:
         return self._binding_digest
-
     @classmethod
-    def create(cls, root, attempt_id: str, binding_digest: str,
-               first_state: str = PREPARED) -> "AccountingStore":
+    def create_at(cls, dir_fd: int, attempt_id: str, binding_digest: str,
+                  first_state: str = PREPARED) -> "AccountingStore":
+        """Create the attempt record RELATIVE TO an ALREADY-HELD verified
+        custody directory fd (BA-PREP-RB2-001): the O_EXCL namespace is
+        the held directory OBJECT, never a pathname re-open.  Ownership
+        is explicit: the store dups and owns its OWN fd (closed by
+        close()); the caller keeps its fd untouched."""
         if not ATTEMPT_NAME_RE.match(str(attempt_id)):
             raise AccountingError(f"ATTEMPT_ID_UNSAFE_NAME: {attempt_id!r}")
         if not binding_digest or not isinstance(binding_digest, str):
             raise AccountingError("BINDING_DIGEST_REQUIRED")
-        dir_fd = open_custody_dir(root)
+        held = os.dup(dir_fd)
         name = f"{attempt_id}.jsonl"
         try:
             file_fd = os.open(name,
                               os.O_WRONLY | os.O_APPEND | os.O_CREAT
                               | os.O_EXCL | os.O_NOFOLLOW,
-                              RECORD_MODE, dir_fd=dir_fd)
+                              RECORD_MODE, dir_fd=held)
         except OSError as exc:
-            os.close(dir_fd)
+            os.close(held)
             raise AccountingError(
                 f"RECORD_CREATE_REFUSED (duplicate attempt?): "
                 f"{exc!r}") from exc
-        mode = stat.S_IMODE(os.fstat(file_fd).st_mode)
-        if mode & 0o077 or not mode & 0o600:
+        try:
+            mode = stat.S_IMODE(os.fstat(file_fd).st_mode)
+            if mode & 0o077 or not mode & 0o600:
+                raise UnsafeStore(f"RECORD_MODE_UNSAFE: {mode:o}")
+        except Exception:
             os.close(file_fd)
-            os.close(dir_fd)
-            raise UnsafeStore(f"RECORD_MODE_UNSAFE: {mode:o}")
-        store = cls(dir_fd, file_fd, [], [], attempt_id, binding_digest)
+            os.close(held)
+            raise
+        store = cls(held, file_fd, [], [], attempt_id, binding_digest)
         store.append(first_state)
         return store
-
+    @classmethod
+    def create(cls, root, attempt_id: str, binding_digest: str,
+               first_state: str = PREPARED) -> "AccountingStore":
+        fd = open_custody_dir(root)
+        try:
+            return cls.create_at(fd, attempt_id, binding_digest,
+                                 first_state)
+        finally:
+            os.close(fd)
     def append(self, state: str, extra: dict = None) -> dict:
         if self._records:
             if state not in TRANSITIONS[self._records[-1]["state"]]:
@@ -157,7 +164,6 @@ class AccountingStore:
         self._records.append(record)
         self._digests.append(hashlib.sha256(line.rstrip(b"\n")).hexdigest())
         return dict(record)
-
     def close(self) -> None:
         for fd in (self._file_fd, self._dir_fd):
             if fd is not None and fd >= 0:
@@ -167,14 +173,12 @@ class AccountingStore:
                     pass
         self._file_fd = self._dir_fd = -1
 
-
 def inspect_accounting_record(root, attempt_id: str,
                               binding_digest: str) -> dict:
     """Open, fully validate, return a READ-ONLY summary dict (keys:
     attempt_id, binding_digest, records, states, last_state) of one
-    historical record.  Inspection only: nothing is opened for write, no
-    AccountingStore is returned, no state — including PREPARED or
-    GATES_PASSED — becomes resumable or revivable by it."""
+    historical record.  Inspection only: nothing is opened for write,
+    no AccountingStore is returned, no state becomes resumable."""
     if not ATTEMPT_NAME_RE.match(str(attempt_id)):
         raise AccountingError(f"ATTEMPT_ID_UNSAFE_NAME: {attempt_id!r}")
     dir_fd = open_custody_dir(root)

@@ -161,12 +161,15 @@ def launcher_script(mode: str = "ok", report_bytes: bytes = None,
     hashes the held auditor executable (fd 5), records its OWN argv +
     environment + fd observations as stdout metadata (the exact
     no-caller-override evidence), then behaves per mode: ok (write the
-    embedded report), none (no report), contam (report prefixed with
-    the synthetic credential), sleep (spawn a long-lived
-    same-process-group child and hang), broken (unusable interpreter —
-    handled by the caller writing a bad shebang)."""
+    embedded report into the invocation sink), none (no report), contam
+    (report prefixed with the synthetic credential), replace (RB2-002
+    adversarial: UNLINK the authority-created sink and write a fresh
+    replacement object at the exact same pathname — never the held
+    object), sleep (spawn a long-lived same-process-group child and
+    hang), broken (unusable interpreter — handled by the caller writing
+    a bad shebang)."""
     prep = ""
-    if mode in ("ok", "sleep"):
+    if mode in ("ok", "sleep", "replace"):
         prep += "_REPORT = %r\n" % (report_bytes or b"{}\n")
     if mode == "contam":
         prep += "_CREDS = %r\n_REPORT = %r\n" % (cred_bytes,
@@ -178,6 +181,10 @@ def launcher_script(mode: str = "ok", report_bytes: bytes = None,
         "contam": ('    path = inv[inv.index("--report") + 1]\n'
                    '    with open(path, "wb") as handle:\n'
                    '        handle.write(_CREDS + _REPORT)\n'),
+        "replace": ('    path = inv[inv.index("--report") + 1]\n'
+                    '    os.unlink(path)\n'
+                    '    with open(path, "wb") as handle:\n'
+                    '        handle.write(_REPORT)\n'),
         "none": "", "sleep": "",
     }[mode]
     spawn = ('child = os.posix_spawn("/usr/bin/sleep", '
@@ -311,8 +318,13 @@ def build_world(tmp_path, role="AUDITOR_A", preflight_tweak=None,
         else Path(tmp_path) / "output"
     output_root.mkdir(parents=True, exist_ok=True)
     os.chmod(output_root, 0o700)
-    staging = Path(tmp_path) / "staging" / "report.json"
-    staging.parent.mkdir(parents=True, exist_ok=True)
+    # RB2: the report source is the authority-created attempt-owned sink,
+    # a DIRECT child of the frozen custody root (one custody domain), and
+    # the binding also freezes the custody directory OBJECT identity
+    # (st_dev/st_ino at build time).
+    staging = output_root / ("%s.staging-report.json"
+                             % bab.RESERVED_ATTEMPT_IDS[role])
+    custody_stat = os.stat(output_root)
     order_file = Path(tmp_path) / "order.log"
     sleep_pid_file = Path(tmp_path) / "sleep_child.pid"
 
@@ -360,7 +372,9 @@ def build_world(tmp_path, role="AUDITOR_A", preflight_tweak=None,
                               auditor_sha=sha256_bytes(auditor_bytes),
                               wall_timeout=wall_timeout,
                               authority_pins=authority_pins,
-                              output_root=output_root)
+                              output_root=output_root,
+                              custody_dev=custody_stat.st_dev,
+                              custody_ino=custody_stat.st_ino)
     binding = bab.parse_binding(canonical(doc))
     manifest = {"schema": bab.EVENT_MANIFEST_SCHEMA,
                 "transport_binding": bab.binding_projection(binding),
@@ -383,20 +397,23 @@ def make_report_for_role(role: str) -> bytes:
 
 def minimal_binding_doc(role="AUDITOR_A", event_files=None, staging=None,
                         auditor_sha=None, wall_timeout=60,
-                        authority_pins=None, output_root=None) -> dict:
+                        authority_pins=None, output_root=None,
+                        custody_dev=2049, custody_ino=1048577) -> dict:
     """A complete VALID binding document for `role` with synthetic
     digests (or real artifact pins when supplied).  event_files may be
     None for pure parse-level tests.  output_identity freezes the
-    attempt output custody root and report source (BA-PREP-001/002):
-    the real world paths when supplied, synthetic canonical absolute
-    paths otherwise."""
+    attempt output custody root, the attempt-owned report sink (a
+    DIRECT child of the custody root; RB2-002) and the custody
+    directory OBJECT identity st_dev/st_ino (RB2-001): the real world
+    values when supplied, synthetic canonical values otherwise."""
     hex64 = "a" * 64
     if auditor_sha is None:
         auditor_sha = hex64
     custody_root = str(output_root) if output_root is not None \
         else "/synthetic-operator-custody/output"
     report_source = str(staging) if staging is not None \
-        else "/synthetic-operator-custody/staging/report.json"
+        else "%s/%s.staging-report.json" % (
+            custody_root, bab.RESERVED_ATTEMPT_IDS[role])
     selection = dict(bab.AUDITOR_SELECTIONS[role])
     selection["client_executable"] = {
         "identity": "SYNTHETIC-INERT-CLIENT-V1",
@@ -425,7 +442,9 @@ def minimal_binding_doc(role="AUDITOR_A", event_files=None, staging=None,
                             "name": "%s.first-pass-report.json"
                                     % bab.RESERVED_ATTEMPT_IDS[role],
                             "custody_root": custody_root,
-                            "report_source": report_source},
+                            "report_source": report_source,
+                            "custody_dev": custody_dev,
+                            "custody_ino": custody_ino},
         "static_gate_evidence": {
             gate: {"status": "PASS", "evidence_sha256": hex64,
                    "evidence_size": 1024, "auditor_role": role,
@@ -441,7 +460,7 @@ def minimal_binding_doc(role="AUDITOR_A", event_files=None, staging=None,
         "auditor_invocation": [
             "SYNTHETIC-INERT-CLIENT-V1", "--model",
             bab.AUDITOR_SELECTIONS[role]["model"], "--effort", "high",
-            "--report", str(staging or "STAGING")],
+            "--report", report_source],
         "output_validator": {"identity": "SYNTHETIC-VALIDATOR-V1",
                              "path": "validator/validator.py",
                              "sha256": hex64, "bytes": 1,

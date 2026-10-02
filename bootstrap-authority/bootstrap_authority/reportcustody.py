@@ -1,20 +1,27 @@
 """Report snapshot custody: one immutable snapshot, credential leak
 screen, and operator-custody freeze.
 
+Exact pre-target EBS blob DERIVATIVE (BA-PREP-RB2-002): the unchanged
+freeze semantics plus the authority-created held-fd report sink
+primitives (create_report_sink / snapshot_held_sink /
+discard_held_sink), which REPLACE the pre-target pathname-based
+snapshot/discard staging primitives (superseded dead surface removed).
+
 The post-exec report lifecycle (CR-EBS-S1-007) is process-bound inside
-the single authority operation: the staged artifact is snapshotted ONCE
-(no-final-symlink open, regular-file check, size bound, one exact read
-of the ALREADY-OPEN fd), and THAT SAME immutable byte sequence is then
-credential-screened, structurally validated, and frozen — the bytes are
-never re-read, so no validate-one-sequence/freeze-another (TOCTOU) gap
-exists.  A missing staging report stays REPORT_MISSING — stdout/stderr
-are NEVER reconstructed as a report.  Screening happens BEFORE any
-persistence, hashing, or publication (only a boolean classification is
-ever recorded for a contaminated report; the contaminated staging bytes
-are removed where possible), and the freeze creates the artifact
-read-only (0444) under operator custody with O_EXCL no-overwrite
-semantics through a PRE-OPENED held custody directory fd (validated
-before any authority is consumed; a pathname re-open is never used).
+the single authority operation: the authority CREATES the attempt-owned
+report sink (O_CREAT|O_EXCL|O_NOFOLLOW under the held custody fd), the
+auditor writes into that exact object, the HELD object is snapshotted
+ONCE (regular-file check, size bound, one exact read of the
+ALREADY-HELD fd — never a pathname re-open), and THAT SAME immutable
+byte sequence is then credential-screened, structurally validated, and
+frozen — no validate-one-sequence/freeze-another (TOCTOU) gap exists.
+An empty sink stays REPORT_MISSING — stdout/stderr are NEVER
+reconstructed as a report.  Screening happens BEFORE any persistence,
+hashing or publication (only a boolean classification is ever recorded
+for a contaminated report), and the freeze creates the artifact
+read-only (0444) with O_EXCL no-overwrite semantics through the
+PRE-OPENED held custody fd.  Cleanup unlinks ONLY the exact held sink
+object, never a replacement at the sink pathname.
 """
 from __future__ import annotations
 
@@ -26,14 +33,11 @@ import stat
 FROZEN_MODE = 0o444
 DEFAULT_SIZE_LIMIT = 16 * 1024 * 1024
 
-
 class ReportError(RuntimeError):
     """Refused report custody operation (fail closed)."""
 
-
 class ReportRefused(ReportError):
     """Hard refusal: symlink, non-regular, oversize, or unsafe output."""
-
 
 def _read_all(fd: int, limit: int) -> bytes:
     data = b""
@@ -44,55 +48,78 @@ def _read_all(fd: int, limit: int) -> bytes:
         data += chunk
     return data
 
-
-def snapshot_staging(staging_path,
-                     size_limit: int = DEFAULT_SIZE_LIMIT):
-    """Take the ONE immutable bounded snapshot of the staged report:
-    open without symlink following, require a regular file, enforce the
-    size bound, read the exact bytes of the ALREADY-OPEN fd once, and
-    return them — or None when no staging report exists (REPORT_MISSING;
-    stdout/stderr are never a substitute).  Every later phase (screen,
-    validator, freeze) operates on exactly these bytes."""
+def create_report_sink(dir_fd: int, sink_name: str) -> int:
+    """Create the authority-owned attempt report sink EXACTLY ONCE
+    (RB2-002): O_CREAT|O_EXCL|O_NOFOLLOW relative to the PRE-OPENED
+    held custody directory fd; a pre-existing object at the frozen sink
+    name refuses.  Returns the HELD O_RDWR fd of the exact created
+    object (the auditor child writes through the frozen pathname; the
+    authority reads the same object through this fd)."""
+    if "/" in sink_name or sink_name in (".", ".."):
+        raise ReportRefused(f"SINK_NAME_UNSAFE: {sink_name!r}")
     try:
-        st = os.stat(os.fspath(staging_path), follow_symlinks=False)
-    except FileNotFoundError:
-        return None
-    if stat.S_ISLNK(st.st_mode):
-        raise ReportRefused("STAGING_IS_SYMLINK")
-    if not stat.S_ISREG(st.st_mode):
-        raise ReportRefused("STAGING_NOT_REGULAR")
-    if st.st_size > size_limit:
-        raise ReportRefused(f"REPORT_SIZE_LIMIT: {st.st_size} > {size_limit}")
-    try:
-        fd = os.open(os.fspath(staging_path), os.O_RDONLY | os.O_NOFOLLOW)
+        fd = os.open(sink_name, os.O_RDWR | os.O_CREAT | os.O_EXCL
+                     | os.O_NOFOLLOW, 0o600, dir_fd=dir_fd)
     except OSError as exc:
-        raise ReportRefused(f"STAGING_OPEN_REFUSED: {exc!r}") from exc
+        if exc.errno == errno.EEXIST:
+            raise ReportRefused(
+                "REPORT_SINK_PREEXISTING: an object already exists at "
+                "the binding-frozen report source; only an "
+                "authority-created sink can become the first pass"
+            ) from exc
+        raise ReportRefused(f"REPORT_SINK_CREATE_REFUSED: {exc!r}") from exc
     try:
         if not stat.S_ISREG(os.fstat(fd).st_mode):
-            raise ReportRefused("STAGING_NOT_REGULAR_AT_OPEN")
-        data = _read_all(fd, size_limit)
-    finally:
+            raise ReportRefused("REPORT_SINK_NOT_REGULAR")
+    except Exception:
         os.close(fd)
+        raise
+    return fd
+
+def snapshot_held_sink(fd: int,
+                       size_limit: int = DEFAULT_SIZE_LIMIT):
+    """ONE immutable bounded snapshot of the HELD authority-created
+    sink OBJECT (never a pathname re-open; RB2-002): empty means the
+    auditor produced NO report (None -> REPORT_MISSING); otherwise the
+    exact bytes of the ALREADY-HELD fd are read once and every later
+    phase operates on exactly these bytes."""
+    info = os.fstat(fd)
+    if not stat.S_ISREG(info.st_mode):
+        raise ReportRefused("SINK_NOT_REGULAR")
+    if info.st_size == 0:
+        return None
+    if info.st_size > size_limit:
+        raise ReportRefused(
+            f"REPORT_SIZE_LIMIT: {info.st_size} > {size_limit}")
+    os.lseek(fd, 0, os.SEEK_SET)
+    data = _read_all(fd, size_limit)
     if len(data) > size_limit:
         raise ReportRefused("REPORT_SIZE_LIMIT_AT_READ")
     return data
 
-
-def discard_staging(staging_path) -> None:
-    """Best-effort removal of contaminated ephemeral staging bytes."""
+def discard_held_sink(dir_fd: int, sink_name: str, held_fd: int) -> None:
+    """Best-effort removal of the attempt-owned sink OBJECT — never a
+    replacement: the name is resolved relative to the held custody fd
+    and unlinked ONLY when it still names the EXACT held object (same
+    st_dev/st_ino); a replaced or vanished name is left untouched."""
     try:
-        os.unlink(os.fspath(staging_path))
+        named = os.stat(sink_name, dir_fd=dir_fd, follow_symlinks=False)
+    except OSError:
+        return
+    held = os.fstat(held_fd)
+    if (named.st_dev, named.st_ino) != (held.st_dev, held.st_ino):
+        return
+    try:
+        os.unlink(sink_name, dir_fd=dir_fd)
     except OSError:
         pass
-
 
 def freeze_snapshot(snapshot: bytes, out_dir_fd: int,
                     artifact_name: str) -> dict:
     """Freeze the EXACT screened+validated snapshot bytes read-only
     (0444) under operator custody through the PRE-OPENED held output
     directory fd, with O_EXCL no-overwrite semantics and full fsync
-    durability.  The artifact name is ALWAYS binding-derived (checked by
-    the caller); no caller filename can replace it."""
+    durability; the artifact name is ALWAYS binding-derived."""
     if "/" in artifact_name or artifact_name in (".", ".."):
         raise ReportRefused(f"ARTIFACT_NAME_UNSAFE: {artifact_name!r}")
     try:

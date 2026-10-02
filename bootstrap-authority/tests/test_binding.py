@@ -222,6 +222,10 @@ def _mutations():
             "custody_root", "/other/custody/root")),
         ("report_source", lambda d: d["output_identity"].__setitem__(
             "report_source", "/other/staging/report.json")),
+        ("custody_dev", lambda d: d["output_identity"].__setitem__(
+            "custody_dev", 2050)),
+        ("custody_ino", lambda d: d["output_identity"].__setitem__(
+            "custody_ino", 1048578)),
         ("static_gate_evidence", lambda d: d["static_gate_evidence"][
             "GATE_W_PRIME"].__setitem__("evidence_sha256", hex2)),
         ("gate_descriptor", lambda d: d["dynamic_gates"][
@@ -381,7 +385,8 @@ def test_ba25_dynamic_gate_frozen_pass_forbidden(gate):
 # dimensions of output_identity (fail-closed parse; digest-covered) ---
 
 
-@pytest.mark.parametrize("field", ["custody_root", "report_source"])
+@pytest.mark.parametrize("field", ["custody_root", "report_source",
+                                   "custody_dev", "custody_ino"])
 def test_ba_prep_missing_output_identity_dimension_refused(field):
     def mutate(doc):
         del doc["output_identity"][field]
@@ -409,9 +414,106 @@ def test_ba_prep_noncanonical_frozen_path_refused(bad):
 
 def test_ba_prep_frozen_output_identity_parsed_exact():
     doc = minimal_binding_doc(output_root="/operator/custody/attempt-01",
-                              staging="/operator/staging/report.json")
+                              staging="/operator/custody/attempt-01/"
+                                      "report.json",
+                              custody_dev=2049, custody_ino=1048577)
     parsed = bab.parse_binding(canonical(doc))
     assert parsed.output_identity["custody_root"] == \
         "/operator/custody/attempt-01"
     assert parsed.output_identity["report_source"] == \
-        "/operator/staging/report.json"
+        "/operator/custody/attempt-01/report.json"
+    assert parsed.output_identity["custody_dev"] == 2049
+    assert parsed.output_identity["custody_ino"] == 1048577
+
+
+# --- BA-PREP-RB2-001: the custody directory OBJECT identity (the
+# host-local st_dev/st_ino pair) is a mandatory frozen digest-covered
+# output_identity dimension, and the report sink is a DIRECT child of
+# the frozen custody root (one custody domain) ------------------------
+
+
+@pytest.mark.parametrize("bad", [
+    True,                      # bool for int refused
+    -1,                        # negative device number
+    1.5,                       # float
+    "2049",                    # string
+])
+def test_rb2_001_invalid_custody_dev_refused(bad):
+    def mutate(doc):
+        doc["output_identity"]["custody_dev"] = bad
+    with pytest.raises(bab.BindingError, match="OUTPUT_CUSTODY_DEV"):
+        bab.parse_binding(variant(minimal_binding_doc(), mutate))
+
+
+@pytest.mark.parametrize("bad", [True, 0, -7, 1.5, "17"])
+def test_rb2_001_invalid_custody_ino_refused(bad):
+    def mutate(doc):
+        doc["output_identity"]["custody_ino"] = bad
+    with pytest.raises(bab.BindingError, match="OUTPUT_CUSTODY_INO"):
+        bab.parse_binding(variant(minimal_binding_doc(), mutate))
+
+
+@pytest.mark.parametrize("bad_source", [
+    "/elsewhere/report.json",                     # outside the root
+    "/synthetic-operator-custody/output",         # the root itself
+    "/synthetic-operator-custody/output/nested/report.json",  # nested
+    "/synthetic-operator-custody/outputs/report.json",  # prefix trap
+])
+def test_rb2_001_report_source_not_direct_child_refused(bad_source):
+    def mutate(doc):
+        doc["output_identity"]["report_source"] = bad_source
+    with pytest.raises(bab.BindingError,
+                       match="REPORT_SOURCE_NOT_A_DIRECT_CHILD"):
+        bab.parse_binding(variant(minimal_binding_doc(), mutate))
+
+
+def test_rb2_002_sink_name_colliding_with_frozen_output_refused():
+    def mutate(doc):
+        doc["output_identity"]["report_source"] = (
+            doc["output_identity"]["custody_root"] + "/"
+            + doc["output_identity"]["name"])
+    with pytest.raises(bab.BindingError,
+                       match="REPORT_SINK_NAME_COLLIDES"):
+        bab.parse_binding(variant(minimal_binding_doc(), mutate))
+
+
+# --- BA-PREP-RB2-002 A: the frozen invocation's designated report
+# destination (the value of the single canonical --report option) must
+# equal the binding-frozen report source ------------------------------
+
+
+def test_rb2_002_invocation_report_sink_mismatch_refused():
+    def mutate(doc):
+        invocation = doc["auditor_invocation"]
+        invocation[invocation.index("--report") + 1] = \
+            "/elsewhere/report.json"
+    with pytest.raises(bab.BindingError,
+                       match="AUDITOR_INVOCATION_REPORT_SINK_MISMATCH"):
+        bab.parse_binding(variant(minimal_binding_doc(), mutate))
+
+
+def test_rb2_002_invocation_report_option_absent_refused():
+    def mutate(doc):
+        invocation = doc["auditor_invocation"]
+        invocation[invocation.index("--report")] = "--output"
+    with pytest.raises(bab.BindingError,
+                       match="AUDITOR_INVOCATION_REPORT_OPTION_ABSENT"):
+        bab.parse_binding(variant(minimal_binding_doc(), mutate))
+
+
+def test_rb2_002_invocation_report_option_duplicate_refused():
+    def mutate(doc):
+        invocation = doc["auditor_invocation"]
+        invocation.insert(invocation.index("--report"), "--report")
+    with pytest.raises(bab.BindingError,
+                       match="AUDITOR_INVOCATION_REPORT_OPTION_DUPLICATE"):
+        bab.parse_binding(variant(minimal_binding_doc(), mutate))
+
+
+def test_rb2_002_invocation_report_value_absent_refused():
+    def mutate(doc):
+        invocation = doc["auditor_invocation"]
+        del invocation[invocation.index("--report") + 1:]
+    with pytest.raises(bab.BindingError,
+                       match="AUDITOR_INVOCATION_REPORT_VALUE_ABSENT"):
+        bab.parse_binding(variant(minimal_binding_doc(), mutate))

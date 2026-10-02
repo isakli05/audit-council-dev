@@ -10,13 +10,18 @@ candidate only: not readback-accepted, not execution-ready, and it has
 NOT prepared an event package, instantiated the design event, granted
 attempt authorities, or consumed any model engagement. The BA-RB-001 /
 BA-RB-002 bounded source remediation (attempt-global O_EXCL claim;
-gates before credential materialization) and the BA-PREP-001 /
+gates before credential materialization), the BA-PREP-001 /
 BA-PREP-002 bounded source remediation (binding-frozen output-custody
 root and report source; caller path substitution refused fail-closed
-before any authority action) are each implemented AS A REMEDIATION
-CANDIDATE — no Control Room finding is closed by the implementer, and
-a fresh Control Room readback of each remediation candidate is
-required before any event-package preparation.
+before any authority action) and the BA-PREP-RB2-001 / RB2-002
+follow-up bounded source remediation (binding-frozen custody
+directory OBJECT identity st_dev/st_ino with the held-fd O_EXCL claim;
+the authority-CREATED attempt-owned report sink with the
+invocation-to-sink equality edge and held-fd snapshot acceptance) are
+each implemented AS A REMEDIATION CANDIDATE — no Control Room finding
+is closed by the implementer, and a fresh Control Room readback of
+each remediation candidate is required before any event-package
+preparation.
 
 ## What this package is
 
@@ -39,14 +44,14 @@ installation decisions, no auditor-output reconciliation.
 | `README.md` | this file |
 | `bootstrap_authority/__init__.py` | NEW authority-specific |
 | `bootstrap_authority/statemachine.py` | EXACT pre-target blob reuse |
-| `bootstrap_authority/accounting.py` | EXACT pre-target blob reuse |
+| `bootstrap_authority/accounting.py` | bounded RB2 derivative of the pre-target blob |
 | `bootstrap_authority/custody.py` | EXACT pre-target blob reuse |
-| `bootstrap_authority/reportcustody.py` | EXACT pre-target blob reuse |
+| `bootstrap_authority/reportcustody.py` | bounded RB2 derivative of the pre-target blob |
 | `bootstrap_authority/binding.py` | NEW authority-specific |
 | `bootstrap_authority/runtime.py` | NEW authority-specific |
 | `tests/conftest.py` | synthetic zero-provider fixtures |
 | `tests/test_binding.py` | BA-13..BA-25 binding/gate-contract tests |
-| `tests/test_runtime.py` | BA-26..BA-50 + BA-RB-001/BA-RB-002 + BA-PREP-001/BA-PREP-002 remediation regressions |
+| `tests/test_runtime.py` | BA-26..BA-50 + BA-RB-001/BA-RB-002 + BA-PREP-001/BA-PREP-002 + BA-PREP-RB2-001/RB2-002 remediation regressions |
 | `tests/test_static.py` | BA-01..BA-12, BA-51..BA-59 provenance/identity/governance tests |
 
 No CLI, no provider adapters, no real event package, no credential
@@ -54,15 +59,25 @@ files, no model/client binaries.
 
 ## Source provenance (summary)
 
-The four reused primitives are byte-for-byte the pre-candidate EBS
-blobs at `068f5e29904f446bf832138fd64c8833b9037cb7` (pinned per-file
-in `MANIFEST.json` `source_provenance` and re-verified at every
-`BootstrapAuthority` construction):
+`statemachine.py` and `custody.py` are byte-for-byte the pre-candidate
+EBS blobs at `068f5e29904f446bf832138fd64c8833b9037cb7` (pinned
+per-file in `MANIFEST.json` `source_provenance` and re-verified at
+every `BootstrapAuthority` construction):
 
 - `statemachine.py` — blob `cf563d2178907e7666ce661b81ab1bf16fb71201`
-- `accounting.py` — blob `03de6f663db283cf99f6a98e26e752a24457c52a`
 - `custody.py` — blob `37e6b5bb4365c7b29ba3632fe95362d5a7e16c09`
-- `reportcustody.py` — blob `18f1cc600c684e520b72026e0b4cdf8ba6287cb9`
+
+`accounting.py` and `reportcustody.py` are bounded RB2 derivatives of
+their exact pre-target blobs (BA-PREP-RB2-001/RB2-002: the narrow
+held-fd object-custody primitives ONLY — `create_at`,
+`create_report_sink`, `snapshot_held_sink`, `discard_held_sink` — with
+the superseded pathname snapshot/discard staging primitives removed);
+the derivation origin stays pinned per-file in `source_provenance`:
+
+- `accounting.py` — derived from blob
+  `03de6f663db283cf99f6a98e26e752a24457c52a`
+- `reportcustody.py` — derived from blob
+  `18f1cc600c684e520b72026e0b4cdf8ba6287cb9`
 
 `__init__.py`, `binding.py`, and `runtime.py` are NEW
 authority-specific source (`origin = THIS_BOUNDED_IMPLEMENTATION`).
@@ -110,7 +125,25 @@ any custody open, O_EXCL claim, dynamic gate or credential read, and
 every authority action then uses the FROZEN binding values
 exclusively — a caller-selected alternate custody root cannot mint a
 second same-attempt claim, and report acceptance cannot be redirected
-to a different pre-existing file), an **attempt-global O_EXCL
+to a different pre-existing file), a **binding-frozen custody
+directory OBJECT identity gate** (BA-PREP-RB2-001: `output_identity`
+additionally freezes the custody directory's host-local `st_dev`/
+`st_ino` pair; the frozen pathname is opened EXACTLY ONCE and the held
+fd must BE that object — a renamed-away custody directory with a fresh
+replacement at the exact frozen pathname is refused before any claim,
+and the attempt-global O_EXCL claim is created RELATIVE TO the held
+verified directory object, never a pathname re-open, so a mid-run
+pathname rebind cannot split accounting custody from output custody),
+the **authority-CREATED attempt-owned report sink**
+(BA-PREP-RB2-002: `report_source` must be a direct child of the frozen
+custody root, the frozen invocation's single canonical `--report`
+destination must equal it (parser-enforced), and the authority creates
+the sink `O_CREAT|O_EXCL|O_NOFOLLOW` under the same held object after
+the gates and before any credential read — a pre-existing object at
+the frozen sink name refuses, acceptance snapshots ONLY the held sink
+object (empty = honest `REPORT_MISSING`; a replacement object at the
+pathname is never accepted and never unlinked by cleanup)), an
+**attempt-global O_EXCL
 authority claim keyed by the exact reserved
 attempt id alone** (BA-RB-001: ONE reserved attempt id = ONE global
 claim, independent of the binding digest, while the exact binding
@@ -127,7 +160,8 @@ until every required pre-inference gate has durably passed**: a
 failing pre-inference gate leaves the real credential unread and
 unmaterialized — plus own-session
 bounded child execution with process-group kill on timeout, and the
-report lifecycle: one immutable snapshot → credential screen → frozen
+report lifecycle: one immutable snapshot of the HELD sink object →
+credential screen → frozen
 SHAPE-ONLY structural validator → **the authority's own independent
 semantic report binding** (exact `target_commit` ==
 `730d2b29f7c0e7d33af3451b6d9205ec27c143ed` plus event/role/attempt
@@ -145,8 +179,8 @@ canonical event instantiation.
 
 ## Production LOC bound
 
-`bootstrap_authority/*.py` (the four reused modules included) is
-bounded at **3000 LOC** (`wc -l`); the candidate reports its actual
+`bootstrap_authority/*.py` (the reused and derived modules included)
+is bounded at **3000 LOC** (`wc -l`); the candidate reports its actual
 final count in the canonical implementation record and
 `tests/test_static.py` enforces the ceiling. The package must remain
 smaller than the 3057-LOC candidate `bootstrap-supervisor` production
@@ -183,6 +217,6 @@ engagements 2/2 USED historical truth; non-transferable). This
 lineage's design budget: PROPOSED 2 / USED 0 — this implementation
 consumes ZERO engagements. No audit execution, no audit PASS, no
 qualification, no installation. The next action is a FRESH Control
-Room readback of THIS BA-PREP-001 / BA-PREP-002 remediation candidate
-and its generated-LAST handoff before any event-package preparation
-is authorized.
+Room readback of THIS BA-PREP-RB2-001 / RB2-002 follow-up remediation
+candidate and its generated-LAST handoff before any event-package
+preparation is authorized.

@@ -18,6 +18,7 @@ import pytest
 from conftest import (AUTHORITY_ROOT, REPO_ROOT, authority_package_pins,
                       canonical, git_blob_sha1, minimal_binding_doc,
                       sha256_bytes)
+from bootstrap_authority import runtime as barmod
 
 PRODUCTION = sorted(
     p.name for p in (AUTHORITY_ROOT / "bootstrap_authority").glob("*.py"))
@@ -26,8 +27,14 @@ EXPECTED_PRODUCTION = ["__init__.py", "accounting.py", "binding.py",
                        "statemachine.py"]
 PINNED_REUSE_BLOBS = {
     "statemachine.py": "cf563d2178907e7666ce661b81ab1bf16fb71201",
-    "accounting.py": "03de6f663db283cf99f6a98e26e752a24457c52a",
     "custody.py": "37e6b5bb4365c7b29ba3632fe95362d5a7e16c09",
+}
+# RB2 bounded derivatives: accounting.py / reportcustody.py derive from
+# the EXACT pre-target blobs below with ONLY the narrow held-fd
+# object-custody primitives added (BA-PREP-RB2-001 / RB2-002); the
+# pinned source_git_blob records the derivation ORIGIN.
+DERIVED_REUSE_BLOBS = {
+    "accounting.py": "03de6f663db283cf99f6a98e26e752a24457c52a",
     "reportcustody.py": "18f1cc600c684e520b72026e0b4cdf8ba6287cb9",
 }
 PRETARGET_COMMIT = "068f5e29904f446bf832138fd64c8833b9037cb7"
@@ -94,6 +101,13 @@ def test_ba03_reused_blob_identities():
     for name, blob in PINNED_REUSE_BLOBS.items():
         data = (AUTHORITY_ROOT / "bootstrap_authority" / name).read_bytes()
         assert git_blob_sha1(data) == blob, name
+    for name, blob in DERIVED_REUSE_BLOBS.items():
+        data = (AUTHORITY_ROOT / "bootstrap_authority" / name).read_bytes()
+        # RB2 bounded derivatives: the live bytes DIFFER from the
+        # pre-target blob (an honest derivation, never a silent reuse
+        # claim); the origin blob stays pinned in the manifest
+        # provenance (test_ba05)
+        assert git_blob_sha1(data) != blob, name
 
 
 # --- BA-04: binding/runtime are NEW blobs, not historical/candidate ----
@@ -127,6 +141,13 @@ def test_ba05_manifest_provenance():
                          "source_commit": PRETARGET_COMMIT,
                          "source_path": "bootstrap-supervisor/ebs/" + name,
                          "source_git_blob": blob}
+    for name, blob in DERIVED_REUSE_BLOBS.items():
+        entry = provenance["bootstrap_authority/%s" % name]
+        assert entry == {"kind": barmod.DERIVATION_KIND,
+                         "source_commit": PRETARGET_COMMIT,
+                         "source_path": "bootstrap-supervisor/ebs/" + name,
+                         "source_git_blob": blob,
+                         "derivation": barmod.DERIVATION_REASON}
     for name in ("__init__.py", "binding.py", "runtime.py"):
         assert provenance["bootstrap_authority/%s" % name] == {
             "kind": "NEW_AUTHORITY_SPECIFIC",

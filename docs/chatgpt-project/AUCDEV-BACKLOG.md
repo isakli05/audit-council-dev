@@ -3230,6 +3230,53 @@ append-only. Canonical report:
   transition; no backlog item marked DONE); NEXT (grants nothing): independent Control Room
   readback of this remediation publication and its generated-LAST handoff before any
   event-package preparation authority is considered).
+- - BA-PREP-001 / BA-PREP-002 FOLLOW-UP bounded source remediation
+  status (2026-10-02; FOLLOWUP_REMEDIATION_IMPLEMENTED_AS_CANDIDATE over
+  exact base `6258bc0b7268881bcada868bb532d14076f74245` (root tree `31f56b6cd739107123f9d64c24a6ae45555eca17`, sole parent `cfff321bd206b246f61cdc6ad6294bbe30489134` = the
+  BA-PREP-001/002 remediation candidate publication) by follow-up
+  remediation-implementation authority for the two independent-Control-Room
+  -readback blockers AUCDEV023-CR-PCH6B-BA-PREP-RB2-001
+  FROZEN_PATHNAME_DOES_NOT_BIND_CUSTODY_OBJECT and
+  AUCDEV023-CR-PCH6B-BA-PREP-RB2-002
+  REPORT_SOURCE_NOT_BOUND_TO_FROZEN_INVOCATION_AND_ATTEMPT_PRODUCTION
+  (both INPUT from the readback and operator authorization, NOT implementer
+  findings) plus the nonblocking evidence residual RB2-EV-001: all four
+  residual defects first re-demonstrated live by probes against the
+  UNMODIFIED base (replacement-directory second full lifecycle for ONE
+  reserved attempt; mid-run rebind splitting accounting from output
+  custody; mismatched invocation --report binding accepted; pre-existing
+  exact-path valid report accepted/frozen/discarded), then remediated at
+  IMPLEMENTATION strength — output_identity freezes the custody OBJECT
+  identity st_dev/st_ino (digest-covered; BA-22-extended) and the report
+  source as a DIRECT child of the custody root named exactly by the frozen
+  invocation's single canonical --report option; run_attempt opens the
+  frozen custody pathname EXACTLY ONCE, fstat-verifies the held fd IS the
+  frozen OBJECT (OUTPUT_CUSTODY_OBJECT_MISMATCH pre-advance), creates the
+  attempt-global O_EXCL claim RELATIVE TO the held object (new narrow
+  AccountingStore.create_at; BA-RB-001 semantics and RECORD_CREATE_REFUSED
+  duplicate token unchanged), and creates the attempt-owned report sink
+  O_CREAT|O_EXCL|O_NOFOLLOW under the SAME held object after the gates and
+  before any credential read (REPORT_SINK_PREEXISTING; acceptance snapshots
+  ONLY the held sink; empty = honest REPORT_MISSING; discard unlinks ONLY
+  the exact held object, never a replacement); accounting.py /
+  reportcustody.py bounded RB2 derivatives of their exact pre-target blobs
+  with statemachine.py / custody.py still exact reuses (MANIFEST
+  source_provenance 2 EXACT + 2 DERIVATIVE_RB2 + 3 NEW); four new runtime
+  RB2 regressions + binding-plane refusals + extended BA-22 matrix;
+  deterministic zero-network suite 147 passed; production LOC exactly 3000
+  within the unchanged ceiling; BA-PREP-001 / BA-PREP-002
+  FOLLOWUP_REMEDIATION_IMPLEMENTED and RB2-001 / RB2-002
+  REMEDIATION_IMPLEMENTED, ALL AWAITING_FRESH_CONTROL_ROOM_READBACK and
+  NOT CLOSED by the implementer; RB2-EV-001 packaging instrumentation
+  corrected in this publication's generated-LAST archive; prior BA-RB-001
+  / BA-RB-002 / BA-RB-003 closures RETAINED; event-package preparation
+  STILL FAIL-CLOSED HELD; event NOT instantiated; attempts NOT granted;
+  engagements USED 0; NO queue transition solely from this remediation
+  (queue recounted base == staged; no queue-row status transition; no
+  backlog item marked DONE); NEXT (grants nothing): independent Control
+  Room readback of the EXACT follow-up remediation publication and its
+  generated-LAST handoff before any event-package preparation authority
+  is considered).
 
 ### AUCDEV-024 — Auditor Model Selection Policy & Model Generation Migration
 
@@ -4241,3 +4288,87 @@ qualification, NO installation; canonical record
 docs/chatgpt-project/AUCDEV-023-PCH6-B-BA-PREP-001-002-BOUNDED-SOURCE-REMEDIATION-REPORT.md;
 NEXT (grants nothing): independent Control Room readback of this remediation publication and its
 generated-LAST handoff before any event-package preparation authority is considered)
+
+2026-10-02 (AUCDEV-023 PCH6-B PATH-B BA-PREP-001 / BA-PREP-002
+FOLLOW-UP BOUNDED SOURCE REMEDIATION (RB2-001 / RB2-002) —
+FOLLOWUP_REMEDIATION_IMPLEMENTED_AS_CANDIDATE over exact base
+`6258bc0b7268881bcada868bb532d14076f74245` (root tree `31f56b6cd739107123f9d64c24a6ae45555eca17`, sole parent `cfff321bd206b246f61cdc6ad6294bbe30489134` = the BA-PREP-001/002
+remediation candidate publication) by follow-up remediation-implementation
+authority (operator grant = FOLLOW-UP REMEDIATION IMPLEMENTATION ONLY, for
+the two Control-Room-readback blockers
+AUCDEV023-CR-PCH6B-BA-PREP-RB2-001 FROZEN_PATHNAME_DOES_NOT_BIND_CUSTODY_OBJECT
+and AUCDEV023-CR-PCH6B-BA-PREP-RB2-002
+REPORT_SOURCE_NOT_BOUND_TO_FROZEN_INVOCATION_AND_ATTEMPT_PRODUCTION, both
+INPUT from the independent Control Room readback and operator authorization,
+plus the nonblocking evidence residual
+AUCDEV023-CR-PCH6B-BA-PREP-RB2-EV-001
+GENERATED_LAST_SHA256SUMS_CONTAINED_STALE_SELF_ROW): all four residual
+defects were FIRST demonstrated live by synthetic probes against the
+UNMODIFIED base (a replacement 0700 directory at the EXACT frozen pathname
+gave the SAME reserved attempt a complete SECOND lifecycle with a second
+attempt-global claim and a second frozen artifact; a deterministic mid-run
+pathname rebind split accounting custody from output custody across two
+directory objects; an invocation designating a --report destination
+different from report_source parsed successfully; a VALID report
+pre-existing at the EXACT frozen report pathname was accepted, frozen and
+then discarded as staging under a no-report launcher), then remediated at
+IMPLEMENTATION strength: output_identity now freezes the custody
+directory's host-local OBJECT identity st_dev/st_ino (digest-covered;
+transport-projected; BA-22 matrix extended) and requires the report source
+to be a DIRECT child of the frozen custody root that the frozen
+invocation's single canonical --report option must name exactly
+(fail-closed parse); run_attempt opens the frozen custody pathname EXACTLY
+ONCE and fstat-verifies the held fd IS the frozen OBJECT before any claim
+(OUTPUT_CUSTODY_OBJECT_MISMATCH pre-advance refusal — rename+replacement
+can never provide a fresh O_EXCL namespace), creates the attempt-global
+O_EXCL claim RELATIVE TO the held object via the new narrow
+AccountingStore.create_at (BA-RB-001 semantics and the
+RECORD_CREATE_REFUSED duplicate token unchanged), and creates the
+attempt-owned report sink O_CREAT|O_EXCL|O_NOFOLLOW under the SAME held
+object after the three gates and BEFORE any credential read
+(REPORT_SINK_PREEXISTING refusal — a pre-existing exact-path report can
+never become the first pass); acceptance snapshots ONLY the held sink
+object (snapshot_held_sink; empty = honest REPORT_MISSING; a replacement
+object at the pathname is never accepted), the freeze goes through the
+SAME held custody fd, and discard_held_sink unlinks ONLY the exact held
+sink object (st_dev/st_ino compared before unlink — a replacement is
+never deleted); accounting.py and reportcustody.py became bounded RB2
+derivatives of their exact pre-target blobs (the narrow held-fd
+object-custody primitives only; the superseded pathname
+snapshot/discard staging primitives removed as dead surface) with
+statemachine.py and custody.py still byte-identical exact pre-target
+reuses (MANIFEST source_provenance: 2 EXACT_PRETARGET_BLOB_REUSE + 2
+EXACT_PRETARGET_BLOB_DERIVATIVE_RB2 + 3 NEW_AUTHORITY_SPECIFIC;
+test_static provenance pins updated and now also prove the derivatives
+DIFFER from their pinned pre-target blobs); four new adversarial runtime
+regressions + binding-plane refusal matrix + extended BA-22 digest
+coverage; deterministic zero-network suite 147 passed on /usr/bin/python3
+3.14.7 offline (binding 81 / runtime 33 / static 33; +24 vs the prior
+123); thirteen-path bounded change surface (10 package M + 1 NEW canonical
+report + CURRENT M + BACKLOG M; staged==working; queue recounted
+base==staged; no queue-row transition; no backlog item marked DONE);
+protected trees byte-identical; frozen target untouched; production LOC
+exactly 3000 within the unchanged ceiling (comment/blank-line budget
+compression only — NO safety logic deleted, NO ceiling change, NO test
+weakened); MANIFEST regenerated LAST from the final package bytes; honest
+iteration T-1..T-5 recorded (zsh modifier-quoting instrument defect,
+value-absent mutation instrument defect, manifest-regen discipline, LOC
+compression passes incl. two scripts that correctly aborted BEFORE any
+write on their own assertions, cosmetic echo defect) with every first
+output preserved in the untracked evidence workspace; BA-PREP-001 and
+BA-PREP-002 FOLLOWUP_REMEDIATION_IMPLEMENTED / AWAITING_FRESH_CONTROL_
+ROOM_READBACK and NOT CLOSED by the implementer; RB2-001 and RB2-002
+REMEDIATION_IMPLEMENTED / AWAITING_FRESH_CONTROL_ROOM_READBACK; RB2-EV-001
+packaging instrumentation corrected (this publication's generated-LAST
+archive mechanically demonstrates exactly-N-payload SHA256SUMS rows with
+no self-row, N/N PASS, payload-set equality TRUE); prior BA-RB-001 /
+BA-RB-002 / BA-RB-003 closures RETAINED; event-package preparation STILL
+FAIL-CLOSED HELD and NOT released; event NOT instantiated; attempts NOT
+granted; engagements USED 0; PCH6-B-SD-002 / PCH6-CR-BSD-001 NOT CLOSED;
+PCH6-B-SD-001 RETAINED / OPEN; ROOT_CAUSE_NOT_ESTABLISHED unchanged;
+provenance gate NOT_SATISFIED; NO audit execution, NO audit PASS, NO
+qualification, NO installation; canonical record
+docs/chatgpt-project/AUCDEV-023-PCH6-B-BA-PREP-001-002-FOLLOWUP-BOUNDED-SOURCE-REMEDIATION-REPORT.md;
+NEXT (grants nothing): independent Control Room readback of the EXACT
+follow-up remediation publication and its generated-LAST handoff before
+any event-package preparation authority is considered)
