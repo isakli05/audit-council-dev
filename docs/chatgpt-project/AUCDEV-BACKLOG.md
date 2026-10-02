@@ -3320,6 +3320,60 @@ append-only. Canonical report:
   BOUNDED AUCDEV-023 PCH6-B EVENT-PACKAGE PREPARATION AGAINST THE
   THEN-CURRENT EXACT LIVE HEAD FOR THE FROZEN TARGET
   `730d2b29f7c0e7d33af3451b6d9205ec27c143ed`).
+- Fresh bounded event-package preparation FAIL-CLOSED HOLD status
+  (2026-10-02; FAIL_CLOSED_HOLD over exact base
+  `72d7d1f8b3e2f81785e6f2968f38672224423958` (root tree `8cdcc6e03e47b9053b8d47e10e5a29d5806ef81f`, sole parent `3eb7901e75603fb786f2841782a30d0316fc431d` = the
+  BA-PREP follow-up remediation readback publication whose recorded NEXT
+  operator decision was received, started and then fail-closed HELD)
+  published by the EVENT-PACKAGE PREPARER under operator option C
+  (publication authority
+  AUCDEV-023-PCH6B-730D2B29-FRESH-EVENT-PACKAGE-PREPARATION-HOLD-20261002-01):
+  exact live bootstrap verified EXACT (trust anchor ancestor; protected
+  trees held EXACT; frozen target `730d2b29f7c0e7d33af3451b6d9205ec27c143ed`
+  present, ancestor, untouched; bootstrap-authority tree
+  `154975872e15d53e1706016f5bb60c83727004f0` with MANIFEST raw SHA-256
+  `7713b89e2618d27963be0df4dd5ebb33961a5b48c063c62ecacff2238da1425f` and
+  recomputed non-circular package_sha256
+  `4399cb062e3fe9a5c4e6e71ad90e8515b3f0b462b6a648c458068cd6f01263db`
+  EXACT); the current binding contract extracted; both clients resolved
+  with NON-INFERENCE metadata only (claude 2.1.281 ELF SHA-256
+  `56fe3da88458465fb27d7e9299dddb3fead55750fb9c2de795f233b5eea6dce1`;
+  codex-cli 0.159.3 shim SHA-256
+  `61b0194f3bb6534439c8d26a3ed57d0805f84b884588b761795323eeb92fcf70` on
+  node v24.14.0 SHA-256
+  `e237a2839d0cbdc9a9a2adda1a184afc0f5b20306ffbe923af5686550472d8a8`);
+  preparation workspace + EMPTY 0700 custody skeletons created OUTSIDE
+  Git and NEVER bound (zero `<attempt_id>.jsonl`, zero report sinks,
+  zero frozen artifacts — mechanically verified before staging);
+  preparation BLOCKED: the required GATE_W_PRIME boundary rehearsal is
+  NOT executable on this host (unprivileged user-namespace route
+  mechanically infeasible — inherited host mounts LOCKED, binds refused
+  EPERM; privileged route caused, during launcher de-risking, TWO HOST
+  FREEZES at 18:12:27 and 18:40:42 Europe/Istanbul — a preparer
+  privileged mount/pivot_root/umount2 prototype executed WITHOUT
+  unshare(CLONE_NEWNS); MS_PRIVATE is not a namespace constructor; the
+  pivot + umount2(MNT_DETACH) detached the real host root; the second
+  occurrence was an automatic re-run after the first session
+  interruption) recorded as
+  AUCDEV023-PCH6B-PREP-INCIDENT-20261002-001 (operator diagnostics at
+  ~/.local/state/freeze-check/20261002-184620/; SMART healthy; host mount
+  table clean after reboots; review-only fail-closed isolation gate +
+  operational rules prepared in the untracked workspace); the operator
+  prohibited further privileged sandbox experiments and automatic retry,
+  hence GATE_W_PRIME cannot honestly be recorded PASS and per the
+  tasking's fail-closed rule the preparation returns a truthful HOLD —
+  NO event package, NO binding, NO event manifest, NO sink, NO
+  accounting record; event NOT instantiated; attempts NOT granted;
+  engagements USED 0 with PROPOSED 2 unchanged; BA-PREP / BA-PREP-RB2
+  and BA-RB closures RETAINED and NOT reopened; PCH6-B-SD-002 /
+  PCH6-CR-BSD-001 NOT CLOSED; PCH6-B-SD-001 RETAINED / OPEN;
+  ROOT_CAUSE_NOT_ESTABLISHED unchanged; provenance gate NOT_SATISFIED;
+  NO queue transition solely from this publication (queue recounted
+  base == staged; no queue-row status transition; no backlog item marked
+  DONE); NEXT (grants nothing): OPERATOR DECISION ON A SAFE
+  GATE-W-PRIME REHEARSAL PATH BEFORE ANY NEW EVENT-PACKAGE PREPARATION
+  AUTHORIZATION; the fresh preparation authority of 2026-10-02 is NOT
+  completed and NOT silently revivable).
 
 ### AUCDEV-024 — Auditor Model Selection Policy & Model Generation Migration
 
@@ -4474,3 +4528,24 @@ NEXT (grants nothing): OPERATOR DECISION ON WHETHER TO AUTHORIZE A FRESH
 BOUNDED AUCDEV-023 PCH6-B EVENT-PACKAGE PREPARATION AGAINST THE
 THEN-CURRENT EXACT LIVE HEAD FOR THE FROZEN TARGET; recording it grants
 nothing)
+
+2026-10-02 — AUCDEV-023 PCH6-B fresh bounded event-package preparation
+FAIL-CLOSED HOLD published (publication authority
+AUCDEV-023-PCH6B-730D2B29-FRESH-EVENT-PACKAGE-PREPARATION-HOLD-20261002-01)
+over exact base `72d7d1f8b3e2f81785e6f2968f38672224423958` by the EVENT-PACKAGE PREPARER under operator
+option C: bootstrap identity verified EXACT; binding contract extracted;
+clients resolved NON-INFERENCE-only; workspace + empty custody skeletons
+OUTSIDE Git, never bound; preparation BLOCKED on GATE_W_PRIME (rehearsal
+not executable on this host: unprivileged route infeasible — locked
+mounts EPERM; privileged route caused the two host freezes of
+AUCDEV023-PCH6B-PREP-INCIDENT-20261002-001 during launcher de-risking;
+operator prohibited further privileged experiments and auto-retry); per
+the tasking's fail-closed rule a truthful HOLD is published — NO event
+package, NO binding, NO event manifest, NO sink, NO accounting record;
+event NOT instantiated; attempts NOT granted; engagements USED 0; NO
+queue transition (AUCDEV-023 remains P1 / READY / NOT DONE);
+qualification NONE; installation NONE; canonical record
+docs/chatgpt-project/AUCDEV-023-PCH6-B-FRESH-EVENT-PACKAGE-PREPARATION-HOLD.md;
+NEXT (grants nothing): OPERATOR DECISION ON A SAFE GATE-W-PRIME REHEARSAL
+PATH BEFORE ANY NEW EVENT-PACKAGE PREPARATION AUTHORIZATION; recording it
+grants nothing)
