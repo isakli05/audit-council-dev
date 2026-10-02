@@ -3440,6 +3440,59 @@ append-only. Canonical report:
   STRENGTH, GWP-12 USING THE EXACT BOOTSTRAP-AUTHORITY §15.4
   CREDENTIAL/REPORT SCREEN WITH SYNTHETIC BYTES, AND THE FULL
   GATE-W-PRIME AGAINST THE FINAL FROZEN NETWORKED EVENT BOUNDARY).
+- 2026-10-02 — AUCDEV-023 PCH6-B: NEW FRESH BOUNDED EVENT-PACKAGE
+  PREPARATION (KVM-BOUND) = PREPARED (publication authority
+  AUCDEV-023-PCH6B-730D2B29-FRESH-EVP-KVM-20261002-01 over exact base
+  `55cb840b8a70794f9c543a792b5a75cb76e40f1c`): the operator-authorized
+  NEW preparation completed with ALL mandatory gates passed — the
+  disposable VM was mechanically permitted as the future event host
+  (host-agnostic binding design; kernel/platform recorded per event; no
+  source/schema/trust-boundary change); fresh VM
+  aucdev-frevp-730d2b29-20261002-02 from the verified golden; both
+  clients pinned INSIDE the VM with SHA-verified exact bytes (node
+  v24.14.0 `e237a283…`; claude-code 2.1.281 `56fe3da8…`; codex-cli
+  0.159.3 vendored binary `8bf204b3…`); GWP-10 closed at
+  exact-application strength zero-provider via the pinned
+  `codex sandbox` surface with the frozen `[permissions.frevp-b]`
+  workspace-write profile `24a1b28d…` (positive write inside /out;
+  /etc, /opt and /usr writes denied; read-class split; loud
+  undefined-profile failure; netns-isolated; standalone AND
+  in-composition); GWP-12 closed with the EXACT bootstrap-authority
+  §15.4 screen on synthetic bytes (custody.py `f1c1d0f7…`;
+  contaminated report → screen TRUE / REPORT_SCREEN_FAIL class; clean
+  report → FALSE → validator PASS; screen fires BEFORE validator and
+  freeze in the live runtime chain); FULL FRESH GATE-W′ against the
+  FINAL frozen networked boundary inside the VM: formal run
+  formal-20261002T195222 = 18/18 PASS OVERALL PASS with exact-equality
+  aggregation only (six earlier honest FAIL/CRASH runs retained);
+  IR-1..IR-4 PASS against the final privileged boundary code; both role
+  packages BUILT and PRODUCTION-VERIFIED by the exact frozen
+  `verify_event_package` (Auditor-A package `17acc336…`, binding
+  digest `9dfe9bea…`; Auditor-B package `9004fe6d…`, binding digest
+  `4adda192…`; 18 payload rows each; A/B common evidence
+  byte-identical; first-pass blindness preserved; REAL_CLIENT_
+  CREDENTIAL_TOOL_ISOLATION PASS with the Auditor-A inference-time
+  enforcement class disclosed honestly); custody object identities
+  frozen in the VM (A dev 33 ino 60133; B dev 33 ino 60134;
+  re-verified unchanged; ZERO accounting records, ZERO report sinks,
+  ZERO frozen artifacts); host non-mutation verified on every baseline
+  dimension (boot-id, PID1 mnt-ns, root propagation shared, mount
+  count 84, sweep 0, golden hash unchanged; host privileged operations
+  = ordinary VM administration ONLY); zero-execution census all-zero
+  (REAL_PROVIDER_CALLS = 0; REAL_CLIENT_INFERENCE_CALLS = 0;
+  REAL_AUDITOR_EXECUTIONS = 0; BOOTSTRAP_AUTHORITY_REAL_RESERVED_
+  RUN_ATTEMPTS = 0; EVENT_INSTANTIATIONS = 0; ATTEMPT_AUTHORITIES_
+  GRANTED = 0; MODEL_ENGAGEMENTS_CONSUMED = 0; engagements USED 0 with
+  PROPOSED 2 unchanged); event NOT instantiated; attempts NOT granted;
+  provenance gate NOT_SATISFIED unchanged; PCH6-B-SD-002 /
+  PCH6-CR-BSD-001 NOT CLOSED; PCH6-B-SD-001 RETAINED / OPEN;
+  ROOT_CAUSE_NOT_ESTABLISHED unchanged; NO queue transition solely from
+  this publication (queue recounted base == staged); NO audit
+  execution; NO audit PASS; QUALIFICATION_NONE; INSTALLATION_NONE;
+  NEXT (grants nothing): INDEPENDENT CONTROL ROOM READBACK OF THE
+  EXACT FRESH KVM-BOUND EVENT-PACKAGE PREPARATION PUBLICATION AND ITS
+  GENERATED-LAST HANDOFF; canonical record
+  docs/chatgpt-project/AUCDEV-023-PCH6-B-FRESH-EVENT-PACKAGE-PREPARATION-KVM-BOUND-REPORT.md)
 
 ### AUCDEV-024 — Auditor Model Selection Policy & Model Generation Migration
 
@@ -4647,3 +4700,7 @@ FRESH BOUNDED EVENT-PACKAGE PREPARATION USING THE DISPOSABLE-KVM PATH
 AND REQUIRING THE FINAL PREPARATION TO CLOSE GWP-10, GWP-12 AND THE
 FULL GATE-W-PRIME AGAINST THE FINAL FROZEN NETWORKED EVENT BOUNDARY;
 recording it grants nothing)
+
+## Dated status record — 2026-10-02: AUCDEV-023 PCH6-B NEW FRESH EVENT-PACKAGE PREPARATION (KVM-BOUND) PREPARED
+
+Publication authority AUCDEV-023-PCH6B-730D2B29-FRESH-EVP-KVM-20261002-01 over exact base `55cb840b8a70794f9c543a792b5a75cb76e40f1c`: the operator-authorized NEW preparation completed with all mandatory gates passed. Disposition `AUCDEV_023_PCH6B_FRESH_EVENT_PACKAGE_PREPARATION = PREPARED / DISPOSABLE_KVM_EVENT_BOUNDARY_FROZEN / AUDITOR_A_PACKAGE_FROZEN / AUDITOR_B_PACKAGE_FROZEN / GWP10_EXACT_CODEX_APPLICATION_PROFILE_PASS_ZERO_PROVIDER / GWP12_EXACT_BOOTSTRAP_AUTHORITY_REPORT_SCREEN_PASS_SYNTHETIC / FULL_FRESH_GATE_W_PRIME_FINAL_BOUNDARY_PASS / INCIDENT_REGRESSION_IR_1_4_PASS / REAL_CLIENT_CREDENTIAL_TOOL_ISOLATION_PASS / STATIC_GATES_ALL_PASS / BINDINGS_PARSE_AND_PROJECT_EXACT / COMMON_EVIDENCE_PARITY_VERIFIED / FIRST_PASS_BLINDNESS_PRESERVED / CUSTODY_OBJECT_IDENTITIES_FROZEN / REAL_RESERVED_ATTEMPT_ACCOUNTING_ABSENT / REAL_REPORT_SINKS_ABSENT / EVENT_NOT_INSTANTIATED / ATTEMPT_AUTHORITIES_NOT_GRANTED / MODEL_ENGAGEMENTS_USED_0 / AWAITING_INDEPENDENT_CONTROL_ROOM_READBACK / NO_AUDIT_EXECUTION / NO_AUDIT_PASS / QUALIFICATION_NONE / INSTALLATION_NONE`. The event is NOT instantiated and no attempt authority exists; the packages are frozen preparation artifacts only. Canonical record: docs/chatgpt-project/AUCDEV-023-PCH6-B-FRESH-EVENT-PACKAGE-PREPARATION-KVM-BOUND-REPORT.md. NEXT (grants nothing): INDEPENDENT CONTROL ROOM READBACK OF THE EXACT FRESH KVM-BOUND EVENT-PACKAGE PREPARATION PUBLICATION AND ITS GENERATED-LAST HANDOFF.
