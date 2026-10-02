@@ -3155,6 +3155,42 @@ append-only. Canonical report:
   transition; no backlog item marked DONE); NEXT (grants nothing): independent Control Room
   verification of this HOLD publication before any remediation authority or event-package
   preparation is released).
+- - Event-package preparation preflight Control Room HOLD publication verification
+  status (2026-10-02; ACCEPTED_WITH_EVIDENCE_PRECISION_RESIDUALS over exact HOLD publication
+  `77563029873bf08d19dea3eee7d5b8ab13cead3d` (root tree
+  `5a5454bb94863679cf25fcd624ee34ce75e3fc9c`, sole parent
+  `9b5eaae814e61938dece05f5332f04f01b745e8b`) by record-only publication-verification authority
+  `AUCDEV-023-PCH6B-730D2B29-EVENT-PACKAGE-PREPARATION-PREFLIGHT-HOLD-PUBLICATION-CONTROL-ROOM-VERIFICATION-20261002-01`:
+  the independently reached Control Room verification ACCEPTED the HOLD publication — live
+  publication identity, one-commit three-path geometry (ADD HOLD record `538005ea…` +517/-0,
+  MODIFY CURRENT `bf035cae…` +46/-5, MODIFY BACKLOG `be5fc86f…` +70/-0, no fourth path),
+  generated-last handoff integrity (outer SHA-256 `a55606dd…` / 1058851 B, 28 = 27 payload + one
+  SHA256SUMS, 27/27, payload-set equality TRUE, canonical members Git-blob-equal), and the
+  source/protected-tree hold (bootstrap-authority `21437705…`, bootstrap-supervisor
+  `3056e577…`, qualification-harness `5b8d5e54…`, skill `efd8c2e4…`) all independently
+  re-derived; BA-PREP-001 `ATTEMPT_GLOBAL_ONE_SHOT_BYPASS_VIA_CALLER_SELECTED_OUTPUT_ROOT`
+  CONFIRMED OPEN BLOCKING (attempt-global O_EXCL claim lives inside a caller-selected root;
+  binding freezes no custody-root identity; a different otherwise-valid operator-custodied root
+  is a second authority namespace for the SAME reserved attempt; the BA-RB-001 regression pins
+  the SAME root and does not cover cross-root) and BA-PREP-002
+  `REPORT_ACCEPTANCE_SOURCE_NOT_BOUND_TO_FROZEN_OUTPUT_CUSTODY` CONFIRMED OPEN BLOCKING
+  (caller-supplied report staging path snapshotted with NO binding-frozen report-source
+  comparison; local no-follow / regular-file / single-snapshot protections do not bind the
+  report SOURCE to the attempt's frozen output custody); prior BA-RB-001 / BA-RB-002 / BA-RB-003
+  closures RETAINED and NOT reopened (additional trust-boundary dimensions, not reopenings); NEW
+  informational BA-PREP-HOLD-RB-001 (index member-map says T-1..T-5 for member 20 while the
+  member and FINAL-RETURN state T-1..T-8) and NEW completeness limitation BA-PREP-HOLD-RB-002
+  (raw T-2 precommit first-failure output not a distinct final archive member; host workspace
+  not independently verified; NOT a source finding), both nonblocking for the source findings;
+  preparation authority RECEIVED / NOT EXECUTED / NOT CONSUMED / FAIL-CLOSED HELD; NO event
+  package created; event NOT instantiated; attempts NOT granted; engagements USED 0; frozen
+  target unchanged; PCH6-B-SD-002 / PCH6-CR-BSD-001 NOT CLOSED; PCH6-B-SD-001 RETAINED / OPEN;
+  ROOT_CAUSE_NOT_ESTABLISHED unchanged; provenance gate NOT_SATISFIED; AUCDEV-023 / AUCDEV-024
+  both P1 / READY / NOT DONE; qualification NONE; installation NONE; NO queue transition solely
+  from this verification (queue recounted base == staged on every dimension; no queue-row status
+  transition; no backlog item marked DONE); NEXT (grants nothing): operator decision on whether
+  to authorize a bounded source remediation of BA-PREP-001 / BA-PREP-002 against the
+  then-current exact live HEAD — remediation implementation ONLY).
 
 ### AUCDEV-024 — Auditor Model Selection Policy & Model Generation Migration
 
@@ -4095,3 +4131,49 @@ PASS, NO qualification, NO installation; canonical record
 docs/chatgpt-project/AUCDEV-023-PCH6-B-EVENT-PACKAGE-PREPARATION-PREFLIGHT-CONTROL-ROOM-HOLD.md;
 NEXT (grants nothing): independent Control Room verification of this HOLD publication before any
 remediation authority or event-package preparation is released)
+
+2026-10-02 (AUCDEV-023 PCH6-B PATH-B EVENT-PACKAGE PREPARATION PREFLIGHT — CONTROL ROOM HOLD
+PUBLICATION — CONTROL ROOM VERIFICATION — ACCEPTED_WITH_EVIDENCE_PRECISION_RESIDUALS over exact
+base `77563029873bf08d19dea3eee7d5b8ab13cead3d` (root tree
+`5a5454bb94863679cf25fcd624ee34ce75e3fc9c`, sole parent
+`9b5eaae814e61938dece05f5332f04f01b745e8b` = the BA-RB-001 / BA-RB-002 remediation readback
+publication Control Room verification) by record-only publication-verification authority
+`AUCDEV-023-PCH6B-730D2B29-EVENT-PACKAGE-PREPARATION-PREFLIGHT-HOLD-PUBLICATION-CONTROL-ROOM-VERIFICATION-20261002-01`:
+the independently reached Control Room verification ACCEPTED the HOLD publication with evidence
+precision residuals — live publication identity, one-commit three-path geometry (ADD HOLD record
+blob `538005ea…` +517/-0, MODIFY CURRENT blob `bf035cae…` +46/-5 1256 -> 1297 wc-l, MODIFY
+BACKLOG blob `be5fc86f…` +70/-0 4027 -> 4097 wc-l, NO fourth path), generated-last handoff
+integrity (outer SHA-256 `a55606dd…` / 1058851 B, census 28 = 27 payload + one SHA256SUMS, 27/27
+checksums, payload-set equality TRUE, canonical members byte-identical to the live Git blobs),
+and source/protected-tree hold (bootstrap-authority `21437705…`, bootstrap-supervisor
+`3056e577…`, qualification-harness `5b8d5e54…`, skill `efd8c2e4…`; zero source modification) all
+independently re-derived DATA-ONLY at the exact base; BA-PREP-001
+`ATTEMPT_GLOBAL_ONE_SHOT_BYPASS_VIA_CALLER_SELECTED_OUTPUT_ROOT` CONFIRMED OPEN BLOCKING
+(run_attempt receives output_root from the caller at runtime.py:1210-1212; binding schema
+TOP_LEVEL at binding.py:174-181 freezes no custody-root identity; accounting_name returns the
+reserved attempt id alone at runtime.py:202-208 — the BA-RB-001 remediation INTACT; runtime
+opens the caller-selected root at runtime.py:1258 and AccountingStore.create obtains the O_EXCL
+claim at <caller-selected-root>/<attempt_id>.jsonl per accounting.py:98-123; the existing
+regression pins second.output_root = first.output_root at test_runtime.py:229 and does not cover
+cross-root) and BA-PREP-002 `REPORT_ACCEPTANCE_SOURCE_NOT_BOUND_TO_FROZEN_OUTPUT_CUSTODY`
+CONFIRMED OPEN BLOCKING (run_attempt accepts report_staging_path from the caller at
+runtime.py:1211, type-validated only at runtime.py:1240-1245; binding.py has zero staging
+occurrences; runtime stores the caller path at runtime.py:1259 and snapshots it at
+runtime.py:1625-1628 with NO comparison to any binding-frozen report-source identity anywhere in
+runtime.py; reportcustody.py:48-78 provides valid local file-object protections only); prior
+BA-RB-001 / BA-RB-002 / BA-RB-003 closures RETAINED and NOT reopened; NEW informational residual
+BA-PREP-HOLD-RB-001 (handoff index member-map T-1..T-5 vs actual member-20 / FINAL-RETURN
+T-1..T-8; historical handoff NOT repacked) and NEW completeness limitation BA-PREP-HOLD-RB-002
+(raw T-2 precommit-battery-v1 first-failure output not a distinct final archive member; host
+evidence workspace not part of the archive and not independently verified; NOT converted into a
+source finding; the BA-PREP source findings rest on live Git blobs independently re-derived by
+THIS session); the operator's event-package preparation authority remains RECEIVED / NOT
+EXECUTED / NOT CONSUMED / FAIL-CLOSED HELD and is NOT converted into remediation authority; NO
+event package created; event NOT instantiated; attempts NOT granted; engagements USED 0;
+PCH6-B-SD-002 / PCH6-CR-BSD-001 NOT CLOSED; PCH6-B-SD-001 RETAINED / OPEN;
+ROOT_CAUSE_NOT_ESTABLISHED unchanged; provenance gate NOT_SATISFIED; NO audit execution, NO
+audit PASS, NO qualification, NO installation; canonical record
+docs/chatgpt-project/AUCDEV-023-PCH6-B-EVENT-PACKAGE-PREPARATION-PREFLIGHT-CONTROL-ROOM-HOLD-PUBLICATION-CONTROL-ROOM-VERIFICATION.md;
+NEXT (grants nothing): operator decision on whether to authorize a bounded source remediation of
+BA-PREP-001 / BA-PREP-002 against the then-current exact live HEAD — remediation implementation
+ONLY)
