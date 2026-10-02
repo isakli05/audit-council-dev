@@ -3277,6 +3277,49 @@ append-only. Canonical report:
   Room readback of the EXACT follow-up remediation publication and its
   generated-LAST handoff before any event-package preparation authority
   is considered).
+- - BA-PREP-001 / BA-PREP-002 FOLLOW-UP remediation Control Room readback
+  status (2026-10-02; ACCEPTED over exact candidate
+  `3eb7901e75603fb786f2841782a30d0316fc431d` (root tree
+  `3aaeecaba7162299a7aa296aa4cb432e8dac2ea9`, sole parent
+  `6258bc0b7268881bcada868bb532d14076f74245` = the follow-up remediation
+  candidate) recorded RECORD-ONLY by publication authority
+  AUCDEV-023-PCH6B-730D2B29-BA-PREP-001-002-FOLLOWUP-REMEDIATION-CONTROL-ROOM-READBACK-20261002-01:
+  the independently reached Control Room readback verified the live
+  candidate identity, the one-commit 13-path geometry (+1647/-593) and the
+  DATA-ONLY handoff integrity (28 regular members = 27 payload + exactly
+  one SHA256SUMS; 27/27 PASS; NO self-row; payload-set equality TRUE;
+  canonical + all ten changed package members byte-equal to the live Git
+  blobs; the two held pre-target files verified EXACT directly from Git)
+  and closed all four findings at Control Room remediation-readback
+  strength — BA-PREP-001 / RB2-001 on the frozen custody-OBJECT binding
+  (custody_root + st_dev/st_ino frozen, digest-covered, transport-projected;
+  single frozen-pathname open with fstat match of the HELD fd;
+  OUTPUT_CUSTODY_OBJECT_MISMATCH before claim/gates/credential;
+  AccountingStore.create_at claim relative to the held object with no
+  pathname re-open; rename/replacement can never provide a fresh
+  same-attempt O_EXCL namespace; mid-run rebind cannot split accounting
+  from output custody) and BA-PREP-002 / RB2-002 on the authority-created
+  report-sink binding (report source a direct child of the frozen custody
+  root; exactly one canonical --report option that must equal the frozen
+  report_source with ABSENT / DUPLICATE / VALUE_ABSENT / SINK_MISMATCH
+  fail-closed; O_CREAT|O_EXCL|O_NOFOLLOW sink after durable GATES_PASSED
+  and before any credential read; REPORT_SINK_PREEXISTING; acceptance
+  snapshots ONLY the held sink object; replacements never accepted and
+  never unlinked; empty = honest REPORT_MISSING); RB2-EV-001 corrected by
+  the exactly-N-payload no-self-row generated-LAST mechanics; prior
+  BA-RB-001 / BA-RB-002 / BA-RB-003 closures RETAINED; deterministic
+  147/147 accepted at IMPLEMENTATION-READBACK STRENGTH only (NOT
+  independent audit evidence, NOT an audit PASS); NO known BA-PREP
+  implementation blocker remains in THIS scope; event-package preparation
+  NOT automatically released (the previously received authority remains
+  HELD, not silently revived; a fresh explicit operator decision required);
+  event NOT instantiated; attempts NOT granted; engagements USED 0; NO
+  queue transition solely from this publication (queue recounted base ==
+  staged; no queue-row status transition; no backlog item marked DONE);
+  NEXT (grants nothing): OPERATOR DECISION ON WHETHER TO AUTHORIZE A FRESH
+  BOUNDED AUCDEV-023 PCH6-B EVENT-PACKAGE PREPARATION AGAINST THE
+  THEN-CURRENT EXACT LIVE HEAD FOR THE FROZEN TARGET
+  `730d2b29f7c0e7d33af3451b6d9205ec27c143ed`).
 
 ### AUCDEV-024 — Auditor Model Selection Policy & Model Generation Migration
 
@@ -4372,3 +4415,62 @@ docs/chatgpt-project/AUCDEV-023-PCH6-B-BA-PREP-001-002-FOLLOWUP-BOUNDED-SOURCE-R
 NEXT (grants nothing): independent Control Room readback of the EXACT
 follow-up remediation publication and its generated-LAST handoff before
 any event-package preparation authority is considered)
+
+2026-10-02 (AUCDEV-023 PCH6-B PATH-B BA-PREP-001 / BA-PREP-002
+FOLLOW-UP REMEDIATION — CONTROL ROOM READBACK PUBLICATION — ACCEPTED /
+LIVE_CANDIDATE_3EB7901E_VERIFIED / ONE_COMMIT_13_PATH_GEOMETRY_VERIFIED /
+HANDOFF_INTEGRITY_VERIFIED / RB2_EV_001_CORRECTED /
+BA_PREP_001_CLOSED_AT_CONTROL_ROOM_REMEDIATION_READBACK_STRENGTH /
+BA_PREP_002_CLOSED_AT_CONTROL_ROOM_REMEDIATION_READBACK_STRENGTH /
+RB2_001_CLOSED_AT_CONTROL_ROOM_REMEDIATION_READBACK_STRENGTH /
+RB2_002_CLOSED_AT_CONTROL_ROOM_REMEDIATION_READBACK_STRENGTH /
+BA_RB_001_002_003_PRIOR_CLOSURES_RETAINED /
+DETERMINISTIC_TESTS_147_OF_147_ACCEPTED_AT_IMPLEMENTATION_READBACK_STRENGTH /
+NO_KNOWN_BA_PREP_IMPLEMENTATION_BLOCKER_REMAINS_IN_THIS_SCOPE /
+EVENT_PACKAGE_PREPARATION_NOT_AUTOMATICALLY_RELEASED /
+AUCDEV_023_REMAINS_P1_READY_NOT_DONE / NO_AUDIT_EXECUTION / NO_AUDIT_PASS /
+QUALIFICATION_NONE / INSTALLATION_NONE) — RECORD-ONLY publication session
+for the independently reached Control Room readback disposition over the
+follow-up remediation candidate `3eb7901e75603fb786f2841782a30d0316fc431d`
+(sole parent `6258bc0b7268881bcada868bb532d14076f74245`; root tree
+`3aaeecaba7162299a7aa296aa4cb432e8dac2ea9`): live identity EXACT (live
+GitHub master == local HEAD == origin/master; fetch clean; ahead 1 / behind
+0; trust anchor `3058868416241d394cfaaa40cc585085db486f37` ancestor; zero
+merges); exactly 13 changed paths (+1647/-593; 10 bootstrap-authority
+package M + 1 NEW follow-up report + CURRENT M + BACKLOG M); input
+generated-LAST handoff verified DATA-ONLY in memory (outer SHA-256
+`6d4a27a6a0c563870726616f18095b0e1dda5f307a971587dd6a322b5d1db948`,
+1148995 B; 28 regular members = 27 payload + exactly one SHA256SUMS; all
+0600 flat unique; 27/27 PASS; NO self-row; payload-set equality TRUE;
+canonical record / CURRENT / BACKLOG / all ten changed package members
+byte-equal to the live Git blobs at the candidate; zero members executed);
+MANIFEST raw SHA-256
+`7713b89e2618d27963be0df4dd5ebb33961a5b48c063c62ecacff2238da1425f` with
+package_sha256
+`4399cb062e3fe9a5c4e6e71ad90e8515b3f0b462b6a648c458068cd6f01263db` and
+all 12 rows re-hashed equal to the live candidate blobs; every closure
+mechanics token mechanically present in the frozen candidate package
+bytes; protected trees held EXACT (bootstrap-supervisor /
+qualification-harness / skill); frozen target
+`730d2b29f7c0e7d33af3451b6d9205ec27c143ed` UNTOUCHED as AUDIT SUBJECT /
+NOT AUTHORITY; all four findings (BA-PREP-001 / BA-PREP-002 / RB2-001 /
+RB2-002) CLOSED at Control Room remediation-readback strength — NOT an
+independent audit PASS; RB2-EV-001 corrected; BA-RB-001 / BA-RB-002 /
+BA-RB-003 prior closures RETAINED; historical informational findings and
+handoffs retained WITHOUT rewriting or repacking; the deterministic
+147/147 result remains implementation-readback evidence ONLY (this session
+ran NO source tests); the previously received event-package preparation
+authority is NOT automatically released and NOT silently revived (no event
+package created; event NOT instantiated; attempts NOT granted; engagements
+USED 0); PCH6-B-SD-002 / PCH6-CR-BSD-001 NOT CLOSED; PCH6-B-SD-001
+RETAINED / OPEN; ROOT_CAUSE_NOT_ESTABLISHED unchanged; provenance gate
+NOT_SATISFIED (installed Audit Council source
+`8ae33444f349ce73c1359b963722e2d16acba630`; independently-qualified
+predecessor provenance NOT ESTABLISHED); AUCDEV-023 remains P1 / READY /
+NOT DONE (no queue transition solely from this publication); qualification
+NONE; installation NONE; canonical record
+docs/chatgpt-project/AUCDEV-023-PCH6-B-BA-PREP-001-002-FOLLOWUP-REMEDIATION-CONTROL-ROOM-READBACK.md;
+NEXT (grants nothing): OPERATOR DECISION ON WHETHER TO AUTHORIZE A FRESH
+BOUNDED AUCDEV-023 PCH6-B EVENT-PACKAGE PREPARATION AGAINST THE
+THEN-CURRENT EXACT LIVE HEAD FOR THE FROZEN TARGET; recording it grants
+nothing)
