@@ -5,6 +5,7 @@ synthetic world is required)."""
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 
 import pytest
@@ -517,3 +518,350 @@ def test_rb2_002_invocation_report_value_absent_refused():
     with pytest.raises(bab.BindingError,
                        match="AUDITOR_INVOCATION_REPORT_VALUE_ABSENT"):
         bab.parse_binding(variant(minimal_binding_doc(), mutate))
+
+
+# =====================================================================
+# V2 REPLACEMENT binding contract (G2; ARD-AC-01..AC-13 parse level)
+# =====================================================================
+
+from conftest import minimal_binding_doc_v2, replacement_attempt_id, \
+    synthetic_grant_bytes, synthetic_grant_doc          # noqa: E402
+
+
+def test_v2_exact_replacement_contract_accepted():
+    parsed = bab.parse_binding_v2(canonical(minimal_binding_doc_v2()))
+    assert parsed.schema == bab.BINDING_SCHEMA_V2
+    assert parsed.auditor_role == "AUDITOR_A"                    # ARD-AC-03
+    assert parsed.attempt_slot == "AUDITOR_A_REPLACEMENT_1"      # ARD-AC-04
+    assert parsed.attempt_id == \
+        bab.REPLACEMENT_ATTEMPT_SLOTS["AUDITOR_A_REPLACEMENT_1"]
+    assert parsed.attempt_id == bab.EVENT_ID + "-AUDITOR-A-R1"
+    assert parsed.auditor_role != parsed.attempt_slot   # slot never a role
+    assert parsed.target == bab.FROZEN_TARGET                     # AC-37
+    assert parsed.event_id == bab.EVENT_ID
+    assert parsed.attempt_id not in \
+        set(bab.RESERVED_ATTEMPT_IDS.values())
+
+
+def test_v2_v1_parse_routes_never_fall_back_either_direction():
+    # a V2 document is REFUSED by the V1 route (closed-world key check
+    # first, then schema — no downgrade to V1 interpretation) — ARD-AC-01
+    with pytest.raises(bab.BindingError, match="attempt_slot"):
+        bab.parse_binding(canonical(minimal_binding_doc_v2()))
+    # a V1 document is REFUSED by the V2 route at the explicit
+    # attempt_slot presence gate (no upgrade either) — and a document
+    # that DOES carry the slot but the V1 schema tag is refused with
+    # the schema token
+    with pytest.raises(bab.BindingError, match="ATTEMPT_SLOT_MISSING"):
+        bab.parse_binding_v2(canonical(minimal_binding_doc()))
+    import copy
+    tagged = copy.deepcopy(minimal_binding_doc())
+    tagged["attempt_slot"] = "AUDITOR_A_REPLACEMENT_1"
+    with pytest.raises(bab.BindingError,
+                       match="BINDING_SCHEMA_UNEXPECTED"):
+        bab.parse_binding_v2(canonical(tagged))
+
+
+def test_v2_missing_slot_refused():
+    def mutate(doc):
+        del doc["attempt_slot"]
+    with pytest.raises(bab.BindingError, match="ATTEMPT_SLOT_MISSING"):
+        bab.parse_binding_v2(variant_v2(mutate))                 # ARD-AC-05
+
+
+def variant_v2(mutate):
+    import copy
+    doc = copy.deepcopy(minimal_binding_doc_v2())
+    mutate(doc)
+    return canonical(doc)
+
+
+@pytest.mark.parametrize("bad_slot", [
+    "AUDITOR_A_REPLACEMENT_2",        # the refused R2 ordinal
+    "AUDITOR_B_REPLACEMENT_1",        # no Auditor-B replacement exists
+    "AUDITOR_A_REPLACEMENT_1_X",
+    "",
+])
+def test_v2_unknown_slot_refused(bad_slot):
+    def mutate(doc):
+        doc["attempt_slot"] = bad_slot
+    with pytest.raises(bab.BindingError, match="ATTEMPT_SLOT_UNKNOWN"):
+        bab.parse_binding_v2(variant_v2(mutate))                 # ARD-AC-06
+
+
+@pytest.mark.parametrize("spent", [
+    bab.RESERVED_ATTEMPT_IDS["AUDITOR_A"],   # the SPENT A-01 identity
+    bab.RESERVED_ATTEMPT_IDS["AUDITOR_B"],
+])
+def test_v2_spent_v1_identity_refused_before_generic_equality(spent):
+    def mutate(doc):
+        doc["attempt_id"] = spent
+    with pytest.raises(
+            bab.BindingError,
+            match="REPLACEMENT_ATTEMPT_ID_MAY_NOT_REUSE_SPENT"):
+        bab.parse_binding_v2(variant_v2(mutate))                 # ARD-AC-07
+
+
+@pytest.mark.parametrize("bad_attempt", [
+    "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01-AUDITOR-A-02",
+    bab.EVENT_ID + "-AUDITOR-A-R1-X",
+    "arbitrary-attacker-id",
+    bab.EVENT_ID + "-AUDITOR-A-R2",
+])
+def test_v2_arbitrary_attempt_id_refused(bad_attempt):
+    def mutate(doc):
+        doc["attempt_id"] = bad_attempt
+    with pytest.raises(
+            bab.BindingError,
+            match="ATTEMPT_ID_NOT_THE_RESERVED_IDENTITY_FOR_SLOT"):
+        bab.parse_binding_v2(variant_v2(mutate))                 # ARD-AC-08
+
+
+def test_v2_slot_label_as_auditor_role_refused():
+    def mutate(doc):
+        doc["auditor_role"] = "AUDITOR_A_REPLACEMENT_1"
+    with pytest.raises(
+            bab.BindingError,
+            match="REPLACEMENT_SLOT_LABEL_NOT_AN_AUDITOR_ROLE"):
+        bab.parse_binding_v2(variant_v2(mutate))                 # ARD-AC-09
+
+
+def test_v2_role_b_refused():
+    def mutate(doc):
+        doc["auditor_role"] = "AUDITOR_B"
+    with pytest.raises(bab.BindingError,
+                       match="AUDITOR_ROLE_NOT_PERMITTED_IN_V2"):
+        bab.parse_binding_v2(variant_v2(mutate))
+
+
+def test_v2_wrong_event_refused():
+    def mutate(doc):
+        doc["event_id"] = "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-99999999-99"
+    with pytest.raises(bab.BindingError, match="EVENT_ID_UNEXPECTED"):
+        bab.parse_binding_v2(variant_v2(mutate))                 # ARD-AC-33
+
+
+def test_v2_wrong_policy_refused():
+    def mutate(doc):
+        doc["policy_id"] = "OTHER-POLICY"
+    with pytest.raises(bab.BindingError, match="POLICY_ID_UNEXPECTED"):
+        bab.parse_binding_v2(variant_v2(mutate))
+
+
+def test_v2_unknown_field_refused():
+    def mutate(doc):
+        doc["surprise"] = 1
+    with pytest.raises(bab.BindingError, match="KEYS_INVALID"):
+        bab.parse_binding_v2(variant_v2(mutate))
+
+
+def test_v2_selection_resolves_via_auditor_a():
+    parsed = bab.parse_binding_v2(canonical(minimal_binding_doc_v2()))
+    frozen = bab.AUDITOR_SELECTIONS["AUDITOR_A"]                 # AC-10
+    for key in ("provider_role", "client_family", "model", "effort"):
+        assert parsed.auditor_selection[key] == frozen[key]
+
+
+def test_v2_selection_substitution_refused():
+    def mutate(doc):
+        doc["auditor_selection"]["model"] = "gpt-6.1-sol"  # B's model
+    with pytest.raises(bab.BindingError, match="MODEL_SUBSTITUTED"):
+        bab.parse_binding_v2(variant_v2(mutate))
+
+
+def test_v2_wrong_target_refused():
+    def mutate(doc):
+        doc["target"]["commit"] = WRONG["commit"]
+    with pytest.raises(bab.BindingError, match="FROZEN_TARGET_MISMATCH"):
+        bab.parse_binding_v2(variant_v2(mutate))
+
+
+def test_v2_digest_covers_the_slot_dimension():
+    base = minimal_binding_doc_v2()
+    base_digest = bab.parse_binding_v2(canonical(base)).digest
+    mutated = copy.deepcopy(base)
+    mutated["attempt_slot"] = "AUDITOR_A_REPLACEMENT_2"
+    canonical_mutated = canonical(mutated)
+    # the mutated doc is REFUSED long before digest comparison; prove
+    # digest coverage directly on the canonical bytes instead
+    assert hashlib_sha256_canonical(mutated) != base_digest
+
+
+def test_v2_gate_evidence_attempt_mismatch_refused():
+    def mutate(doc):
+        doc["static_gate_evidence"]["GATE_W_PRIME"]["attempt_id"] = \
+            bab.RESERVED_ATTEMPT_IDS["AUDITOR_A"]
+    with pytest.raises(bab.BindingError,
+                       match="GATE_GATE_W_PRIME_ATTEMPT_MISMATCH"):
+        bab.parse_binding_v2(variant_v2(mutate))
+
+
+# =====================================================================
+# Immutable package-binding grant V2 mechanics (ARD-AC-16..AC-20)
+# =====================================================================
+
+
+def test_grant_schema_closed_world():
+    assert len(bab.GRANT_FIELDS) == 20
+    assert len(set(bab.GRANT_FIELDS)) == 20                      # AC-16
+    identity = bab.parse_package_grant(synthetic_grant_bytes())
+    assert len(identity) == 64
+    doc = synthetic_grant_doc()
+    doc["twenty_first"] = "x"
+    with pytest.raises(bab.BindingError,
+                       match="GRANT_FIELD_UNKNOWN_OR_MISSING"):
+        bab.grant_canonical_bytes(doc)
+    missing = synthetic_grant_doc()
+    del missing["expiry_policy"]
+    with pytest.raises(bab.BindingError,
+                       match="GRANT_FIELD_UNKNOWN_OR_MISSING"):
+        bab.grant_canonical_bytes(missing)
+
+
+def test_grant_mutable_lifecycle_field_refused():
+    doc = synthetic_grant_doc(lifecycle_state="MINTED")
+    with pytest.raises(bab.BindingError,
+                       match="GRANT_MUTABLE_FIELD_PRESENT"):
+        bab.grant_canonical_bytes(doc)                           # AC-19
+    raw_with_lifecycle = json.dumps(doc, separators=(",", ":")).encode()
+    with pytest.raises(bab.BindingError,
+                       match="GRANT_MUTABLE_FIELD_PRESENT"):
+        bab.parse_package_grant(raw_with_lifecycle)
+
+
+def test_grant_canonical_bytes_exact():
+    raw = synthetic_grant_bytes()
+    assert isinstance(raw, bytes)
+    assert not raw.endswith(b"\n")                               # AC-17
+    assert b": " not in raw and b'", "' not in raw
+    # sorted-key (alphabetical) serialization is NOT canonical
+    doc = synthetic_grant_doc()
+    alphabetic = json.dumps(doc, sort_keys=True,
+                            separators=(",", ":")).encode()
+    assert alphabetic != raw
+    with pytest.raises(bab.BindingError,
+                       match="GRANT_CANONICALIZATION_INVALID"):
+        bab.parse_package_grant(alphabetic)
+    # whitespace / pretty-print / trailing newline all refused
+    with pytest.raises(bab.BindingError,
+                       match="GRANT_CANONICALIZATION_INVALID"):
+        bab.parse_package_grant(raw + b"\n")
+    with pytest.raises(bab.BindingError,
+                       match="GRANT_CANONICALIZATION_INVALID"):
+        bab.parse_package_grant(json.dumps(doc, indent=2).encode())
+    # the exact canonical bytes parse to a stable identity
+    assert bab.parse_package_grant(raw) == \
+        bab.parse_package_grant(raw)
+
+
+def test_grant_identity_stable_and_deterministic():
+    raw = synthetic_grant_bytes()
+    identity = bab.parse_package_grant(raw)
+    assert identity == bab.grant_identity(raw)                   # AC-18
+    assert identity == hashlib.sha256(raw).hexdigest()
+    other = synthetic_grant_bytes(
+        operator_authority_id="SYNTHETIC-OTHER-AUTHORITY-20261007-02")
+    assert bab.parse_package_grant(other) != identity
+
+
+@pytest.mark.parametrize("overrides,token", [
+    ({"schema": "AUCDEV-023-PACKAGE-BINDING-GRANT-V1"},
+     "GRANT_SCHEMA_UNEXPECTED"),
+    ({"purpose": "EXECUTION_AUTHORITY"}, "GRANT_PURPOSE_INVALID"),
+    ({"governance_event_id": "OTHER-EVENT"}, "GRANT_EVENT_MISMATCH"),
+    ({"auditor_role": "AUDITOR_B"}, "GRANT_ROLE_SLOT_MISMATCH"),
+    ({"auditor_role": "AUDITOR_A_REPLACEMENT_1"},
+     "GRANT_ROLE_SLOT_MISMATCH"),
+    ({"attempt_slot": "AUDITOR_B_REPLACEMENT_1"},
+     "GRANT_ATTEMPT_SLOT_MISMATCH"),
+    ({"future_machine_attempt_id":
+      bab.RESERVED_ATTEMPT_IDS["AUDITOR_A"]},
+     "GRANT_ATTEMPT_SLOT_MISMATCH"),
+    ({"frozen_target_commit": "1" * 40}, "GRANT_TARGET_MISMATCH"),
+    ({"frozen_target_tree": "2" * 40}, "GRANT_TARGET_MISMATCH"),
+    ({"accepted_active_v3_procedure_sha256": "a" * 64},
+     "GRANT_ACTIVE_V3_STALE"),
+    ({"accepted_active_v3_binding_sha256": "b" * 64},
+     "GRANT_ACTIVE_V3_STALE"),
+    ({"execution_authority": "GRANTED"},
+     "GRANT_EXECUTION_AUTHORITY_CLAIM_INVALID"),
+    ({"secret_material": "SEALED_CREDENTIAL"},
+     "GRANT_SECRET_MATERIAL_INVALID"),
+    ({"one_package_only": False}, "GRANT_LIFECYCLE_FIELD_INVALID"),
+    ({"expiry_policy": "EXPIRES_30D"}, "GRANT_LIFECYCLE_FIELD_INVALID"),
+    ({"issuance_semantics": "REVOCABLE"},
+     "GRANT_LIFECYCLE_FIELD_INVALID"),
+    ({"authorization_commit_sha": "not-hex"},
+     "GRANT_AUTHORIZATION_COMMIT_SHA_INVALID"),
+    ({"authorization_record_path": "../escape"},
+     "GRANT_AUTHORIZATION_RECORD_PATH_NOT_A_SAFE_RELATIVE_PATH"),
+])
+def test_grant_semantic_refusals(overrides, token):
+    with pytest.raises(bab.BindingError, match=token):
+        bab.parse_package_grant(synthetic_grant_bytes(**overrides))
+
+
+def test_grant_reference_crosscheck_single_namespace():
+    raw = synthetic_grant_bytes()
+    identity = bab.parse_package_grant(raw)
+    assert bab.check_package_grant_reference(identity, raw) == identity
+    other = synthetic_grant_bytes(
+        operator_authority_id="SYNTHETIC-OTHER-AUTHORITY-20261007-02")
+    other_identity = bab.parse_package_grant(other)
+    with pytest.raises(bab.BindingError, match="GRANT_IDENTITY_MISMATCH"):
+        bab.check_package_grant_reference(identity, other)       # AC-20
+    with pytest.raises(bab.BindingError, match="GRANT_IDENTITY_MALFORMED"):
+        bab.check_package_grant_reference("not-hex")
+
+
+# =====================================================================
+# NON-RUNTIME package-binding receipt V1 mechanics (parse level)
+# =====================================================================
+
+
+def synthetic_receipt_doc(**overrides):
+    doc = {
+        "schema": bab.RECEIPT_SCHEMA,
+        "grant_identity": bab.parse_package_grant(synthetic_grant_bytes()),
+        "package_sha256": "e" * 64,
+        "governance_event_id": bab.EVENT_ID,
+        "auditor_role": "AUDITOR_A",
+        "attempt_slot": "AUDITOR_A_REPLACEMENT_1",
+        "attempt_id": replacement_attempt_id(),
+        "operator_authority_id":
+            "SYNTHETIC-TEST-OPERATOR-AUTHORITY-20261007-01",
+        "created_under_package_binding_authority": True,
+        "binding_semantics": bab.RECEIPT_BINDING_SEMANTICS,
+    }
+    doc.update(overrides)
+    return doc
+
+
+def test_receipt_parse_exact_and_refusals():
+    doc = synthetic_receipt_doc()
+    parsed = bab.parse_package_binding_receipt(
+        bab.receipt_canonical_bytes(doc))
+    assert parsed["attempt_id"] == replacement_attempt_id()
+    assert parsed["grant_identity"] == \
+        bab.parse_package_grant(synthetic_grant_bytes())
+    with pytest.raises(bab.BindingError,
+                       match="RECEIPT_SCHEMA_UNEXPECTED"):
+        bab.parse_package_binding_receipt(bab.receipt_canonical_bytes(
+            synthetic_receipt_doc(schema="OTHER-V0")))
+    with pytest.raises(bab.BindingError, match="RECEIPT_KEYS_INVALID"):
+        doc2 = synthetic_receipt_doc()
+        doc2["extra"] = 1
+        bab.receipt_canonical_bytes(doc2)
+    for overrides in ({"governance_event_id": "OTHER-EVENT"},
+                      {"auditor_role": "AUDITOR_B"},
+                      {"auditor_role": "AUDITOR_A_REPLACEMENT_1"},
+                      {"attempt_slot": "AUDITOR_A_REPLACEMENT_2"},
+                      {"attempt_id":
+                       bab.RESERVED_ATTEMPT_IDS["AUDITOR_A"]},
+                      {"binding_semantics": "REVOCABLE"},
+                      {"created_under_package_binding_authority":
+                       False}):
+        with pytest.raises(bab.BindingError,
+                           match="RECEIPT_MISMATCH_REFUSED"):
+            bab.parse_package_binding_receipt(bab.receipt_canonical_bytes(
+                synthetic_receipt_doc(**overrides)))

@@ -23,6 +23,25 @@ is closed by the implementer, and a fresh Control Room readback of
 each remediation candidate is required before any event-package
 preparation.
 
+The **G2 V2 replacement contract** (published 2026-10-07 under the
+operator's G1 authorization at base `c8ffd8b`; see the canonical
+record `docs/chatgpt-project/AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-`
+`AUDITOR-A-AUTHORITY-PROTOCOL-V2-IMPLEMENTATION.md`) is implemented
+**AS AN IMPLEMENTATION CANDIDATE ONLY**: the historical V1 semantics
+are byte-preserved, and exactly ONE source-level replacement slot
+(`AUDITOR_A_REPLACEMENT_1`, actual auditor role `AUDITOR_A`,
+deterministic identity `EVENT_ID + "-AUDITOR-A-R1"`) is now
+representable in protected source, together with the separate V2
+authority-manifest schema, the immutable 20-field
+`AUCDEV-023-PACKAGE-BINDING-GRANT-V2` canonicalization/identity
+mechanics and the NON-RUNTIME
+`AUCDEV-023-PACKAGE-BINDING-RECEIPT-V1` source primitive. **No grant
+has been minted, no GRANT_ISSUED evidence exists, no receipt has been
+created, no package-binding authority exists, and nothing here grants
+execution authority**; an INDEPENDENT Control Room (G3) implementation
+readback of this exact publication is required before ANY
+package-binding (G4) consideration.
+
 ## What this package is
 
 A deliberately minimal replacement authority TCB for the wholly NEW
@@ -180,11 +199,63 @@ canonical event instantiation.
 ## Production LOC bound
 
 `bootstrap_authority/*.py` (the reused and derived modules included)
-is bounded at **3000 LOC** (`wc -l`); the candidate reports its actual
-final count in the canonical implementation record and
-`tests/test_static.py` enforces the ceiling. The package must remain
-smaller than the 3057-LOC candidate `bootstrap-supervisor` production
-tree under audit.
+is pinned at **exactly 3577 LOC** (`wc -l`), enforced as an exact
+equality by `tests/test_static.py` (any further growth fails closed).
+The original V1 ceiling was 3000 LOC — deliberately below the 3057-LOC
+candidate `bootstrap-supervisor` EBS production tree under audit. The
+authorized G2 V2 replacement contract (a separate versioned parse
+route, V2 authority-manifest admission, the immutable 20-field grant
+mechanics and the NON-RUNTIME receipt primitive — all confined to the
+two authorized production files `binding.py`/`runtime.py`) required
++577 production lines; the ceiling was EXPLICITLY REVISED to the exact
+final count as a recorded, G3-reviewable deviation rather than
+compressing the held V1 documentation or splitting contract code into
+unauthorized files. The package is therefore no longer smaller than
+the audit subject's EBS tree; that V1-era hygiene property is
+superseded by the explicit G1 authorization, honestly recorded here
+and in the canonical V2 implementation record.
+
+## V2 replacement contract (implementation candidate only)
+
+`binding.py` additionally implements the **separate explicitly
+versioned V2 parse route** (`parse_binding_v2`;
+`AUCDEV-023-CAND730D2B29-BOOTSTRAP-AUTHORITY-BINDING-V2`): no
+field-presence auto-detection, no fallback in either direction
+between V1 and V2, ordered fail-closed identity gates
+(`BINDING_SCHEMA_UNEXPECTED`, `POLICY_ID_UNEXPECTED`,
+`EVENT_ID_UNEXPECTED`, `ATTEMPT_SLOT_MISSING`,
+`REPLACEMENT_SLOT_LABEL_NOT_AN_AUDITOR_ROLE`,
+`AUDITOR_ROLE_NOT_PERMITTED_IN_V2`, `ATTEMPT_SLOT_UNKNOWN`,
+`REPLACEMENT_ATTEMPT_ID_MAY_NOT_REUSE_SPENT_IDENTITY`,
+`ATTEMPT_ID_NOT_THE_RESERVED_IDENTITY_FOR_SLOT`,
+`ATTEMPT_SLOT_ATTEMPT_MISMATCH`, closed-world keys,
+`AUDITOR_SELECTION_<KEY>_SUBSTITUTED`, `FROZEN_TARGET_MISMATCH`), the
+closed one-element replacement mapping
+`REPLACEMENT_ATTEMPT_SLOTS = {"AUDITOR_A_REPLACEMENT_1":
+EVENT_ID + "-AUDITOR-A-R1"}` (no R2, no allocator, no counter, no
+UUID, no timestamp, no discovery, no fallback) and the shared V1
+dimension tail unchanged — every role-bound consumer (dynamic gates,
+credential custody, validator, semantic report binding) continues to
+receive the ACTUAL role `AUDITOR_A`, never the slot label. The
+**separate V2 authority-manifest schema**
+(`AUCDEV-023-BOOTSTRAP-AUTHORITY-PACKAGE-MANIFEST-V2`) carries every
+V1 historical provenance check verbatim (`design_event_id`,
+`design_attempt_ids` NOT extended with the replacement identity) plus
+exactly `design_replacement_attempt_slots == REPLACEMENT_ATTEMPT_SLOTS`
+and `package_grant_identity`; `runtime.py` admits it in a narrow
+additive dispatch (public surface unchanged at exactly
+`{state, store, run_attempt}`). The **immutable non-execution grant**
+(`AUCDEV-023-PACKAGE-BINDING-GRANT-V2`, exactly 20 fields in the exact
+fixed canonical order; `grant_identity = SHA-256(exact canonical
+bytes)`; `execution_authority NONE`; `secret_material NONE`;
+`expiry_policy NO_EXPIRY`; no `lifecycle_state`, no twenty-first
+field) and the **NON-RUNTIME receipt primitive**
+(`AUCDEV-023-PACKAGE-BINDING-RECEIPT-V1`;
+O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW mode 0600, one canonical record per
+grant_identity, duplicate/substitution/mismatch refusals) are
+implemented as SOURCE MECHANICS ONLY — UNISSUED and UNCREATED; the
+Git-tracked `MANIFEST.json` stays V1 and fabricates NO operative
+grant identity.
 
 ## Tests
 
@@ -203,7 +274,13 @@ temporary accounting/output directories). No fixture invokes any
 provider, network route, or real client. The historical frozen
 structural validator (`6aff0e7e…`, 7228 B) MAY be pinned by a future
 event package as a SHAPE-ONLY structural component; tests use inert
-validators with the same result-envelope contract.
+validators with the same result-envelope contract. The G2 V2 tests
+exercise the replacement binding/manifest contract, the full synthetic
+V2 replacement lifecycle in a subprocess rooted at a temporary V2
+package copy (roles stay `AUDITOR_A` everywhere), the grant
+schema/canonicalization/identity refusals and the receipt one-shot
+bind mechanics — all with synthetic non-secret digests (ARD-AC-01..40
+matrix in the canonical V2 implementation record).
 
 ## Governance
 
@@ -216,7 +293,15 @@ PCH6 authority is CONSUMED / TERMINAL / CLOSED / NO_RERUN (model
 engagements 2/2 USED historical truth; non-transferable). This
 lineage's design budget: PROPOSED 2 / USED 0 — this implementation
 consumes ZERO engagements. No audit execution, no audit PASS, no
-qualification, no installation. The next action is a FRESH Control
-Room readback of THIS BA-PREP-RB2-001 / RB2-002 follow-up remediation
-candidate and its generated-LAST handoff before any event-package
-preparation is authorized.
+qualification, no installation. PKGIDENT-001 and PKGIDENT-002 remain
+OPEN / IMPLEMENTATION_CANDIDATE_AVAILABLE /
+AWAITING_G3_INDEPENDENT_IMPLEMENTATION_READBACK / NOT_CLOSED (this G2
+publication closes NOTHING and grants NO package-binding authority);
+the AUTHDESIGN-003 G6-001 EVIDENCE-001 PUBID-001 DIFFSEM-001 design
+chain remains CLOSED_AT_DESIGN_LAYER. The next action is the G3
+INDEPENDENT Control Room implementation readback of THIS exact V2
+publication (binding the resulting commit/root tree, implementation
+record, protected-source blobs, held blobs, MANIFEST self-identity,
+full zero-provider test evidence and all accepted design invariants)
+and its generated-LAST handoff BEFORE any G4 package-binding
+consideration is permitted.

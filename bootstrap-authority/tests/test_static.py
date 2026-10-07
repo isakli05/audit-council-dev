@@ -41,7 +41,15 @@ PRETARGET_COMMIT = "068f5e29904f446bf832138fd64c8833b9037cb7"
 HISTORICAL_BINDING_BLOB = "47eeb5171e9b50b09668aa672b6458c2ea33dd05"
 HISTORICAL_LAUNCH_BLOB = "063b6ce1f4c726bd6ba809f605a115511667fb09"
 CANDIDATE_LAUNCH_BLOB = "1d6b8d6d5751dbf9a73a84e6b2f1ee594f6ca49e"
-LOC_BOUND = 3000
+# LOC ceiling: the V1 implementation was bounded at 3000 (< the
+# 3057-LOC audit-subject EBS tree).  The G2 V2 replacement contract
+# (separate versioned parse route, V2 authority-manifest admission,
+# immutable 20-field grant mechanics, NON-RUNTIME receipt primitive)
+# grows the protected production source to exactly 3577 lines under an
+# EXPLICITLY REVISED tight pin — an authorized, recorded, G3-reviewable
+# deviation (the package is no longer smaller than the audit subject;
+# see README and the canonical V2 implementation record).
+LOC_BOUND = 3577
 EXPECTED_PACKAGE_PATHS = {
     "MANIFEST.json", "README.md",
     "bootstrap_authority/__init__.py",
@@ -412,3 +420,166 @@ def test_ba53_no_engagement_accounting_anywhere_in_package():
         dirnames[:] = [d for d in dirnames if d != "__pycache__"]
         for name in filenames:
             assert not name.endswith(".jsonl"), name
+
+
+# =====================================================================
+# G2 V2 REPLACEMENT contract — structural / held-governance tests
+# (ARD-AC-01/02, ARD-AC-14/15, ARD-AC-25..40)
+# =====================================================================
+
+from bootstrap_authority import binding as bab                  # noqa: E402
+
+# The exact authorized-base (G2 base c8ffd8b) git blob identities of
+# every byte-held production module: NOTHING protected outside the
+# authorized binding.py/runtime.py pair may change.
+BASE_HELD_BLOBS = {
+    "accounting.py": "26368783dd88782dd3c63a76fbf11582ee16caa1",
+    "statemachine.py": "cf563d2178907e7666ce661b81ab1bf16fb71201",
+    "custody.py": "37e6b5bb4365c7b29ba3632fe95362d5a7e16c09",
+    "reportcustody.py": "dd09e1e54c9246aa6de5f38391984c35e8baac87",
+}
+EXPECTED_RESERVED_ATTEMPT_IDS = {
+    "AUDITOR_A":
+        "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01-AUDITOR-A-01",
+    "AUDITOR_B":
+        "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01-AUDITOR-B-01",
+}
+EXPECTED_FROZEN_TARGET = {
+    "repository": "isakli05/audit-council-dev",
+    "commit": "730d2b29f7c0e7d33af3451b6d9205ec27c143ed",
+    "root_tree": "2585796efd5cb6902226cfff785bb901297a15e3",
+    "bootstrap_supervisor_tree":
+        "3056e577259ab0b0b0472f82ebc306506f3e084c",
+    "qualification_harness_tree":
+        "5b8d5e5465923740470ff63ed9b8683f257a3787",
+    "skill_tree": "efd8c2e48edbb25795b3aacb1ce3c23fde10082a",
+    "remediation_parent":
+        "068f5e29904f446bf832138fd64c8833b9037cb7",
+}
+RESERVED_CANONICAL_PATHS = (
+    "docs/chatgpt-project/AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-"
+    "A-PACKAGE-BINDING-AUTHORITY.md",
+    "docs/chatgpt-project/AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-"
+    "A-GRANT-MINT-PUBLICATION.md",
+)
+FORBIDDEN_CAPABILITY_NAMES = (
+    "grant", "consume", "resume", "retry", "adopt_report", "finish",
+    "mint_attempt", "create_event", "mint_grant", "bind_package",
+    "create_receipt",
+)
+
+
+def test_ard_01_v1_constants_byte_exact():
+    """ARD-AC-01/02/40: every held V1 constant retains its exact
+    historical value (historical records keep their original meaning;
+    the spent A-01 identity is NOT reinterpreted as a replacement
+    registry entry)."""
+    assert bab.POLICY_ID == ("AUCDEV-023-PCH6B-CAND730D2B29-TARGET-"
+                             "INDEPENDENT-BOOTSTRAP-AUTHORITY-V1")
+    assert bab.EVENT_ID == \
+        "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01"
+    assert bab.RESERVED_ATTEMPT_IDS == EXPECTED_RESERVED_ATTEMPT_IDS
+    assert bab.ROLES == ("AUDITOR_A", "AUDITOR_B")
+    assert bab.BINDING_SCHEMA == \
+        "AUCDEV-023-CAND730D2B29-BOOTSTRAP-AUTHORITY-BINDING-V1"
+    assert bab.FROZEN_TARGET == EXPECTED_FROZEN_TARGET           # AC-37
+    assert bab.AUTHORITY_MANIFEST_SCHEMA == \
+        "AUCDEV-023-BOOTSTRAP-AUTHORITY-PACKAGE-MANIFEST-V1"
+    assert bab.AUTHORITY_MANIFEST_KEYS == frozenset(
+        ("schema", "package", "policy_id", "target", "design_event_id",
+         "design_attempt_ids", "status", "qualification_claim",
+         "runtime_dependencies", "source_provenance", "files",
+         "package_sha256"))
+    assert bab.V2_PERMITTED_AUDITOR_ROLES == ("AUDITOR_A",)
+
+
+def test_ard_held_production_blobs_exact():
+    """ARD-AC-35/36 + the byte-held file requirement: accounting.py,
+    statemachine.py, custody.py and reportcustody.py keep their exact
+    authorized-base git blob identities."""
+    for name, blob in BASE_HELD_BLOBS.items():
+        data = (AUTHORITY_ROOT / "bootstrap_authority" / name).read_bytes()
+        assert git_blob_sha1(data) == blob, name
+
+
+def test_ard_replacement_mapping_exactly_one_slot():
+    assert list(bab.REPLACEMENT_ATTEMPT_SLOTS) == \
+        ["AUDITOR_A_REPLACEMENT_1"]                    # one slot only
+    assert bab.REPLACEMENT_ATTEMPT_SLOTS["AUDITOR_A_REPLACEMENT_1"] == \
+        bab.EVENT_ID + "-AUDITOR-A-R1"
+    assert "AUDITOR_A_REPLACEMENT_1" not in bab.ROLES
+    assert "AUDITOR_A_REPLACEMENT_1" not in bab.RESERVED_ATTEMPT_IDS
+    assert "AUDITOR_A_REPLACEMENT_1" not in \
+        bab.V2_PERMITTED_AUDITOR_ROLES
+    for slot in bab.REPLACEMENT_ATTEMPT_SLOTS:         # no Auditor-B slot
+        assert "AUDITOR_B" not in slot                  # ARD-AC-34
+    assert set(bab.REPLACEMENT_ATTEMPT_SLOTS.values()).isdisjoint(
+        set(bab.RESERVED_ATTEMPT_IDS.values()))
+
+
+def test_ard_14_15_public_surface_and_forbidden_capabilities():
+    """ARD-AC-14/15: the public BootstrapAuthority surface remains
+    EXACTLY {state, store, run_attempt} and NONE of the forbidden
+    capability names (grant mint / package bind / receipt create /
+    attempt mint / event create included) exists anywhere on the
+    class."""
+    public = {name for name, member in
+              vars(barmod.BootstrapAuthority).items()
+              if not name.startswith("_")
+              and not isinstance(member, (classmethod, staticmethod))}
+    assert public == {"state", "store", "run_attempt"}
+    for name in FORBIDDEN_CAPABILITY_NAMES:
+        assert not hasattr(barmod.BootstrapAuthority, name), name
+    import inspect
+    params = list(inspect.signature(
+        barmod.BootstrapAuthority.run_attempt).parameters)
+    assert params == ["self", "credential_source_fd", "launcher_path",
+                      "auditor_executable_path", "report_staging_path",
+                      "output_root"]
+    # the runtime never consumes grant bytes
+    assert "parse_package_grant" not in \
+        (AUTHORITY_ROOT / "bootstrap_authority" / "runtime.py").read_text()
+
+
+def test_ard_25_32_reserved_canonical_paths_absent():
+    """The design-reserved G5/G7 canonical paths remain ABSENT (on disk,
+    tracked, and across ALL history) and the repository MANIFEST
+    fabricates NO operative grant identity."""
+    for rel in RESERVED_CANONICAL_PATHS:
+        assert not (REPO_ROOT / rel).exists(), rel
+        history = git("log", "--oneline", "--", rel)
+        assert history.stdout == "", (rel, history.stdout)
+    doc = json.loads((AUTHORITY_ROOT / "MANIFEST.json").read_text())
+    assert doc["schema"] == bab.AUTHORITY_MANIFEST_SCHEMA    # stays V1
+    assert "package_grant_identity" not in doc
+    assert "design_replacement_attempt_slots" not in doc
+
+
+def test_ard_33_single_governance_event_constant():
+    """ARD-AC-33: exactly ONE governance event constant; the V2 route
+    admits only that event (no second event is representable)."""
+    text = (AUTHORITY_ROOT / "bootstrap_authority" / "binding.py"
+            ).read_text()
+    assert text.count('EVENT_ID = "') == 1
+    assert "FRESH-AUDIT-20261002-01" in text
+    assert "FRESH-AUDIT-20261002-02" not in text
+
+
+def test_ard_no_credential_or_channel_surface_in_production():
+    """No real credential literal and no channel/VM surface appears in
+    the production source (zero-runtime census, mechanical side)."""
+    for name in PRODUCTION:
+        text = (AUTHORITY_ROOT / "bootstrap_authority" / name).read_text()
+        for banned in ("OPERATOR_SEND_NOW", "send_once_v2", "bridge-v2",
+                       "virsh", "QGA", "sk-ant", "BEGIN PRIVATE KEY"):
+            assert banned not in text, (name, banned)
+
+
+def test_ard_06_loc_ceiling():
+    """The production LOC ceiling is the EXACT pinned final count of the
+    G2 V2 implementation (3577) — any further growth fails closed."""
+    total = 0
+    for name in PRODUCTION:
+        total += len((AUTHORITY_ROOT / "bootstrap_authority" / name)
+                     .read_text().splitlines())
+    assert total == LOC_BOUND, total

@@ -829,3 +829,283 @@ def test_ba48_unparseable_dup_key_report(tmp_path):
     assert record["records"][-2]["terminal_reason"] == \
         "REPORT_BINDING_UNPARSEABLE"
     assert not list(world.output_root.glob("*.json"))
+
+
+# =====================================================================
+# V2 REPLACEMENT-contract runtime admission, manifest, one-shot run,
+# grant/receipt mechanics (G2; ARD-AC-11..AC-24, AC-38, AC-39)
+# =====================================================================
+
+import subprocess                                                    # noqa: E402
+import sys                                                           # noqa: E402
+from bootstrap_authority import binding as bab                      # noqa: E402
+from conftest import (build_v2_authority_package, build_world_v2,    # noqa: E402
+                      canonical, minimal_binding_doc_v2,
+                      replacement_attempt_id, sha256_bytes,
+                      synthetic_grant_bytes, synthetic_grant_doc)
+
+V2_RUN_DRIVER = r'''
+import json, os, sys
+sys.path.insert(0, sys.argv[1])                     # the V2 package COPY
+from bootstrap_authority import binding as bab, runtime as bar
+doc = json.loads(open(sys.argv[2], "rb").read().decode())
+binding = bab.parse_binding_v2(json.dumps(doc).encode())
+try:
+    authority = bar.BootstrapAuthority(binding, sys.argv[3])
+    r, w = os.pipe()
+    with open(sys.argv[4], "rb") as handle:
+        os.write(w, handle.read())
+    os.close(w)
+    try:
+        result = authority.run_attempt(
+            r, sys.argv[5], sys.argv[6], sys.argv[7], sys.argv[8])
+        print("RESULT " + json.dumps({
+            "returncode": result.returncode,
+            "exec_failed": result.exec_failed,
+            "report_state": result.report_state,
+            "report_sha256": result.report_sha256,
+            "report_size": result.report_size}))
+    finally:
+        try:
+            os.close(r)
+        except OSError:
+            pass
+except Exception as exc:
+    print("REFUSED " + type(exc).__name__ + " " + str(exc)[:400])
+'''
+
+
+def _run_v2_driver(tmp_path, world, pkg, mode="ok"):
+    """Drive ONE complete V2 run_attempt inside a subprocess rooted at
+    the temporary V2 package copy (the REAL executing package is never
+    touched); returns the parsed stdout verdict."""
+    script = tmp_path / "v2-driver.py"
+    script.write_text(V2_RUN_DRIVER)
+    cred = tmp_path / "credential.bin"
+    cred.write_bytes(world.credential)
+    out = subprocess.run(
+        [sys.executable, str(script), str(pkg), str(tmp_path / "binding.json"),
+         str(world.event_root), str(cred), str(world.launcher_path),
+         str(world.auditor_path), str(world.staging),
+         str(world.output_root)],
+        capture_output=True, text=True, timeout=180,
+        env={**os.environ,
+             "PYTHONPATH": os.path.dirname(Path(__file__).parent)})
+    assert out.returncode == 0, out.stderr
+    return out.stdout.strip()
+
+
+def _write_v2_binding(tmp_path, world):
+    (tmp_path / "binding.json").write_text(json.dumps(world.doc))
+    return tmp_path / "binding.json"
+
+
+def test_v2_full_replacement_run_roles_stay_auditor_a(tmp_path):
+    """ARD-AC-11/12/13: ONE complete synthetic V2 replacement attempt in
+    a subprocess rooted at the temporary V2 package copy — the dynamic
+    gates, credential custody, validator and semantic report binding all
+    see auditor_role AUDITOR_A and the R1 replacement attempt id; the
+    attempt-global O_EXCL accounting claim is keyed by the replacement
+    identity; the frozen report name is replacement-derived."""
+    world, pkg = build_world_v2(tmp_path)
+    _write_v2_binding(tmp_path, world)
+    stdout = _run_v2_driver(tmp_path, world, pkg)
+    assert stdout.startswith("RESULT"), stdout
+    verdict = json.loads(stdout[len("RESULT "):])
+    assert verdict["report_state"] == REPORT_FROZEN
+    assert verdict["returncode"] == 0 and verdict["exec_failed"] is False
+    record = world.inspect_record()
+    assert record["attempt_id"] == replacement_attempt_id()
+    assert record["states"] == [PREPARED, GATES_PASSED, CONSUMED_PRE_EXEC,
+                                EXEC_ATTEMPTED, REPORT_FROZEN, TERMINAL]
+    consumed = [rec for rec in record["records"]
+                if rec["state"] == CONSUMED_PRE_EXEC][0]
+    assert consumed["auditor_role"] == "AUDITOR_A"
+    assert consumed["attempt_slot"] == "AUDITOR_A_REPLACEMENT_1"
+    assert consumed["attempt_id"] == replacement_attempt_id()
+    gate_evidence = [rec for rec in record["records"]
+                     if rec["state"] == GATES_PASSED][0]
+    frozen_model = bab.AUDITOR_SELECTIONS["AUDITOR_A"]["model"]
+    for gate in ("client_selection", "network_readiness", "resource_gate"):
+        result = json.loads(gate_evidence[f"{gate}_result"])
+        assert result["auditor_role"] == "AUDITOR_A"            # ARD-AC-11
+        assert result["attempt_id"] == replacement_attempt_id()
+        if gate == "client_selection":
+            assert result["model"] == frozen_model
+    frozen_report = world.output_root / (
+        "%s.first-pass-report.json" % replacement_attempt_id())
+    assert frozen_report.is_file()                              # ARD-AC-13
+    assert world.order_file.read_text().splitlines() == [
+        "CLIENT_SELECTION_PREFLIGHT", "NETWORK_READINESS",
+        "RESOURCE_GATE"]
+
+
+def test_v2_authority_manifest_admission(tmp_path):
+    """A V2 binding constructs ONLY against a package whose manifest is
+    the exact V2 schema with the exact replacement mapping and a
+    well-formed 64-hex grant reference; a package whose manifest is a
+    V1-schema manifest is refused at the closed key world."""
+    world, pkg = build_world_v2(tmp_path)
+    _write_v2_binding(tmp_path, world)
+    assert _run_v2_driver(tmp_path, world, pkg).startswith("RESULT")
+
+    # V2 binding against a package carrying a V1-schema manifest (the
+    # exact key shape of the Git-tracked repository manifest, rows
+    # recomputed over the copy's own bytes): refused at the closed key
+    # world
+    import copy
+    import shutil
+    v1_pkg = tmp_path / "pkg-v1"
+    shutil.copytree(pkg, v1_pkg,
+                    ignore=shutil.ignore_patterns("__pycache__"))
+    v1_doc = json.loads((pkg / "MANIFEST.json").read_text())
+    v1_doc["schema"] = bab.AUTHORITY_MANIFEST_SCHEMA
+    del v1_doc["design_replacement_attempt_slots"]
+    del v1_doc["package_grant_identity"]
+    v1_doc["package_sha256"] = sha256_bytes(canonical(
+        {k: v for k, v in v1_doc.items() if k != "package_sha256"}))
+    (v1_pkg / "MANIFEST.json").write_text(
+        json.dumps(v1_doc, indent=2, sort_keys=True) + "\n")
+    raw = (v1_pkg / "MANIFEST.json").read_bytes()
+    doc = copy.deepcopy(world.doc)
+    doc["authority_package"] = {"manifest_sha256": sha256_bytes(raw),
+                                "package_sha256": json.loads(
+                                    raw.decode())["package_sha256"]}
+    (tmp_path / "binding.json").write_text(json.dumps(doc))
+    out = _run_v2_driver(tmp_path, world, v1_pkg)
+    assert "REFUSED" in out and "AUTHORITY_MANIFEST_KEYS_INVALID" in out, out
+
+
+def _mutate_v2_manifest(pkg, mutate):
+    doc = json.loads((pkg / "MANIFEST.json").read_text())
+    mutate(doc)
+    doc["package_sha256"] = sha256_bytes(canonical(
+        {k: v for k, v in doc.items() if k != "package_sha256"}))
+    (pkg / "MANIFEST.json").write_text(
+        json.dumps(doc, indent=2, sort_keys=True) + "\n")
+
+
+def test_v2_manifest_replacement_slots_equality(tmp_path):
+    world, pkg = build_world_v2(tmp_path)
+    _mutate_v2_manifest(pkg, lambda doc: doc.__setitem__(
+        "design_replacement_attempt_slots",
+        {"AUDITOR_A_REPLACEMENT_1": bab.EVENT_ID + "-AUDITOR-A-R2"}))
+    # re-pin the binding to the mutated (self-consistent) copy manifest
+    raw = (pkg / "MANIFEST.json").read_bytes()
+    import copy
+    doc = copy.deepcopy(world.doc)
+    doc["authority_package"] = {"manifest_sha256": sha256_bytes(raw),
+                                "package_sha256": json.loads(
+                                    raw.decode())["package_sha256"]}
+    (tmp_path / "binding.json").write_text(json.dumps(doc))
+    out = _run_v2_driver(tmp_path, world, pkg)
+    assert "AUTHORITY_MANIFEST_REPLACEMENT_SLOTS_UNEXPECTED" in out, out
+
+
+def test_v2_manifest_grant_identity_format(tmp_path):
+    world, pkg = build_world_v2(tmp_path)
+    _mutate_v2_manifest(pkg, lambda doc: doc.__setitem__(
+        "package_grant_identity", "not-hex"))
+    raw = (pkg / "MANIFEST.json").read_bytes()
+    import copy
+    doc = copy.deepcopy(world.doc)
+    doc["authority_package"] = {"manifest_sha256": sha256_bytes(raw),
+                                "package_sha256": json.loads(
+                                    raw.decode())["package_sha256"]}
+    (tmp_path / "binding.json").write_text(json.dumps(doc))
+    out = _run_v2_driver(tmp_path, world, pkg)
+    assert "AUTHORITY_MANIFEST_GRANT_IDENTITY_INVALID" in out, out
+
+
+def test_v2_manifest_grant_reference_matches_grant_bytes(tmp_path):
+    """ARD-AC-20: the manifest package_grant_identity must be the exact
+    grant_identity of the accepted grant bytes (single namespace)."""
+    grant = synthetic_grant_bytes()
+    identity = bab.parse_package_grant(grant)
+    world, pkg = build_world_v2(tmp_path, package_grant_identity=identity)
+    assert bab.check_package_grant_reference(identity, grant) == identity
+    with pytest.raises(bab.BindingError, match="GRANT_IDENTITY_MISMATCH"):
+        bab.check_package_grant_reference(
+            identity, synthetic_grant_bytes(
+                operator_authority_id="SYNTHETIC-OTHER-AUTHORITY-01"))
+    _write_v2_binding(tmp_path, world)
+    assert _run_v2_driver(tmp_path, world, pkg).startswith("RESULT")
+
+
+def test_v2_grant_cannot_invoke_run_attempt(tmp_path):
+    """ARD-AC-38: a parsed grant confers NO runtime surface — the grant
+    identity is a plain string, not a Binding; constructing the
+    authority from grant material is refused; run_attempt requires its
+    own separately authorized parsed binding."""
+    from bootstrap_authority import binding as bab
+    identity = bab.parse_package_grant(synthetic_grant_bytes())
+    assert isinstance(identity, str)
+    with pytest.raises(bar.AuthorityError,
+                       match="REQUIRES_A_PARSED_BINDING"):
+        bar.BootstrapAuthority({"schema": bab.GRANT_SCHEMA,
+                                "grant_identity": identity}, "anywhere")
+    # the runtime module NEVER consumes grant bytes: no reference to
+    # the grant parser anywhere in the runtime source
+    assert "parse_package_grant" not in open(bar.__file__).read()
+    assert not hasattr(bar.BootstrapAuthority, "grant")
+    assert not hasattr(bar.BootstrapAuthority, "mint_grant")
+    assert not hasattr(bar.BootstrapAuthority, "bind_package")
+    assert not hasattr(bar.BootstrapAuthority, "create_receipt")
+
+
+def test_v2_receipt_one_shot_bind_mechanics(tmp_path):
+    """ARD-AC-21/22/23/24: the NON-RUNTIME receipt source primitive —
+    one canonical record per grant_identity, O_EXCL duplicate refusal,
+    package-substitution refusal, mode 0600, and ZERO AccountingStore
+    state / zero .jsonl anywhere in the receipt namespace."""
+    from bootstrap_authority import binding as bab
+    receipt_root = tmp_path / "receipts"
+    receipt_root.mkdir()
+    grant = synthetic_grant_bytes()
+    identity = bab.parse_package_grant(grant)
+    package_digest = sha256_bytes(b"SYNTHETIC-NON-SECRET-PACKAGE")
+    record = {
+        "schema": bab.RECEIPT_SCHEMA,
+        "grant_identity": identity,
+        "package_sha256": package_digest,
+        "governance_event_id": bab.EVENT_ID,
+        "auditor_role": "AUDITOR_A",
+        "attempt_slot": "AUDITOR_A_REPLACEMENT_1",
+        "attempt_id": replacement_attempt_id(),
+        "operator_authority_id":
+            "SYNTHETIC-TEST-OPERATOR-AUTHORITY-20261007-01",
+        "created_under_package_binding_authority": True,
+        "binding_semantics": bab.RECEIPT_BINDING_SEMANTICS,
+    }
+    created = bab.write_package_binding_receipt(receipt_root, record)
+    assert created["grant_identity"] == identity                # AC-21
+    assert created["package_sha256"] == package_digest
+    receipt_file = receipt_root / created["path"]
+    assert stat.S_IMODE(os.stat(receipt_file).st_mode) == 0o600
+    verified = bab.verify_package_binding_receipt(
+        receipt_root, identity, package_digest)
+    assert verified["attempt_id"] == replacement_attempt_id()
+    # duplicate bind fails closed — ARD-AC-22
+    with pytest.raises(bab.BindingError,
+                       match="DUPLICATE_PACKAGE_BINDING_REFUSED"):
+        bab.write_package_binding_receipt(receipt_root, record)
+    # substituted package digest fails closed — ARD-AC-23
+    with pytest.raises(bab.BindingError,
+                       match="PACKAGE_SUBSTITUTION_REFUSED"):
+        bab.verify_package_binding_receipt(
+            receipt_root, identity, sha256_bytes(b"SUBSTITUTED-PACKAGE"))
+    # ZERO AccountingStore state: no .jsonl anywhere, no attempt
+    # record claimable from the receipt plane — ARD-AC-24/39
+    for dirpath, dirnames, filenames in os.walk(tmp_path):
+        for name in filenames:
+            assert not name.endswith(".jsonl"), name
+    from bootstrap_authority.accounting import inspect_accounting_record
+    with pytest.raises(AccountingError):
+        inspect_accounting_record(
+            receipt_root, replacement_attempt_id(), "0" * 64)
+
+
+def test_v1_binding_admission_unchanged_for_v1(world_a):
+    """The V2 admission re-derivation is a strict NO-OP for a V1
+    binding (narrow additive delta only)."""
+    assert bar.verify_replacement_binding_identity(world_a.binding) is None

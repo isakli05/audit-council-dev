@@ -6,9 +6,9 @@
   "design_event_id": "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01",
   "files": [
     {
-      "bytes": 12205,
+      "bytes": 17303,
       "path": "README.md",
-      "sha256": "8e6075c2fc3436c4068d701a4953e5e1eb0f8f8f923bf1eeddee147683b62927"
+      "sha256": "0778dac1a068cb46512b361494a159a255ff923827dfa69599fbf924a96e1c4a"
     },
     {
       "bytes": 1972,
@@ -21,9 +21,9 @@
       "sha256": "4ea6d871b175a5354448b650fbbbd03ff77f6e98940a343ccc95eca50382b2b4"
     },
     {
-      "bytes": 28615,
+      "bytes": 52882,
       "path": "bootstrap_authority/binding.py",
-      "sha256": "fa94691d23a84a917e98d38f57eeda4bb15fadbd8012f4d83515b9f18c4715c0"
+      "sha256": "a3ffdfe33d090a9d4230647bbdcbc8a34c0b81aeff2d7ef751606832ea214e0c"
     },
     {
       "bytes": 7341,
@@ -36,9 +36,9 @@
       "sha256": "0ce217e8bddeb325bbc5576b48ad20255f1fa32c5ecae1038c44495894adc46a"
     },
     {
-      "bytes": 81525,
+      "bytes": 86733,
       "path": "bootstrap_authority/runtime.py",
-      "sha256": "f90338087f214ce0b4af5659afff9b4001398c5896a4dc97ffeae6885225427a"
+      "sha256": "a20a3d4e87cc5a58f4619391fc52fb8fc8152a11d5747455a0cd63c8bbe6cc86"
     },
     {
       "bytes": 3868,
@@ -46,28 +46,28 @@
       "sha256": "f60fcb9108d353a11f3ff8916780b3e91108a1d2c2d278e0b2c40e2b6643c57a"
     },
     {
-      "bytes": 21914,
+      "bytes": 32257,
       "path": "tests/conftest.py",
-      "sha256": "3adb4ebd2d82128633f64d3d2e22077a7a6514512d2ec606a52a916c780e756d"
+      "sha256": "285c387474ab8ebd65aeb2f25b2f11ac29f2ad7c56e39fa2b2531ba4ab696e17"
     },
     {
-      "bytes": 21360,
+      "bytes": 35895,
       "path": "tests/test_binding.py",
-      "sha256": "e94db3c8909f3a73583a1c635b140be69fbceb0285f813ffd43a83b9b3817033"
+      "sha256": "004c88edb6b332601d0eaf0f6370c7f289b20bb60f6a71e404900773bde82dc4"
     },
     {
-      "bytes": 36290,
+      "bytes": 49756,
       "path": "tests/test_runtime.py",
-      "sha256": "48cecb5d2beb04484f5d5196b5d6c22978f80b36e019a58423feaf3fa8a3fcdb"
+      "sha256": "237cafcd4364c6d572d6f7dbf35fa81015f4c5e254d4695a8152f826325e1650"
     },
     {
-      "bytes": 16538,
+      "bytes": 24605,
       "path": "tests/test_static.py",
-      "sha256": "baccb9a8c3550ae170036ba40959add181abe9e8d2c7be763b96f81aaac82af2"
+      "sha256": "515c6b450cb2ed0ba70a1ab7c8c22466358ae9c92e9bca14dae976bb728fc521"
     }
   ],
   "package": "bootstrap-authority",
-  "package_sha256": "4399cb062e3fe9a5c4e6e71ad90e8515b3f0b462b6a648c458068cd6f01263db",
+  "package_sha256": "7a72bc7a3a2b9531147c06c9b5120d015a3f7fa864dd49a4c5bdc6a32ce6ae27",
   "policy_id": "AUCDEV-023-PCH6B-CAND730D2B29-TARGET-INDEPENDENT-BOOTSTRAP-AUTHORITY-V1",
   "qualification_claim": "NONE",
   "runtime_dependencies": [

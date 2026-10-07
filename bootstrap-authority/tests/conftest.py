@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -492,6 +493,215 @@ def variant(doc: dict, mutate) -> bytes:
     mutated = copy.deepcopy(doc)
     mutate(mutated)
     return canonical(mutated)
+
+
+# --- V2 REPLACEMENT-contract synthetic fixtures (G2; all SYNTHETIC /
+# NON-AUTHORITATIVE / ZERO-PROVIDER / NON-PERSISTENT: the replacement
+# identity is exercised only as a binding CONSTRAINT inside throwaway
+# temporary worlds; NO runtime attempt, grant, receipt or accounting
+# state is created anywhere) -------------------------------------------
+
+
+def replacement_attempt_id() -> str:
+    """The exact protected source-level replacement slot identity
+    (SYNTHETIC-world accessor; the constant itself lives only in
+    protected source)."""
+    return bab.REPLACEMENT_ATTEMPT_SLOTS["AUDITOR_A_REPLACEMENT_1"]
+
+
+def minimal_binding_doc_v2(event_files=None, staging=None,
+                           auditor_sha=None, wall_timeout=60,
+                           authority_pins=None, output_root=None,
+                           custody_dev=2049, custody_ino=1048577) -> dict:
+    """A complete VALID V2 REPLACEMENT binding document (schema
+    BINDING_SCHEMA_V2; auditor_role AUDITOR_A; attempt_slot
+    AUDITOR_A_REPLACEMENT_1; attempt_id the exact replacement slot
+    identity) with the same synthetic-digest discipline as the V1
+    builder; the output name, report sink and gate-evidence attempt ids
+    are all REPLACEMENT-derived (never the spent A-01 identity)."""
+    doc = minimal_binding_doc("AUDITOR_A", event_files=None,
+                              auditor_sha=auditor_sha,
+                              wall_timeout=wall_timeout,
+                              authority_pins=authority_pins,
+                              output_root=output_root,
+                              custody_dev=custody_dev,
+                              custody_ino=custody_ino)
+    attempt = replacement_attempt_id()
+    custody_root = doc["output_identity"]["custody_root"]
+    sink = str(staging) if staging is not None else \
+        "%s/%s.staging-report.json" % (custody_root, attempt)
+    doc["schema"] = bab.BINDING_SCHEMA_V2
+    doc["auditor_role"] = "AUDITOR_A"
+    doc["attempt_slot"] = "AUDITOR_A_REPLACEMENT_1"
+    doc["attempt_id"] = attempt
+    doc["output_identity"]["report_source"] = sink
+    doc["output_identity"]["name"] = "%s.first-pass-report.json" % attempt
+    for gate in doc["static_gate_evidence"].values():
+        gate["auditor_role"] = "AUDITOR_A"
+        gate["attempt_id"] = attempt
+    invocation = doc["auditor_invocation"]
+    invocation[invocation.index("--report") + 1] = sink
+    if event_files is not None:
+        rows = {row["path"]: row for row in event_files}
+        for key, rel in (("boundary_launcher", "boundary/launcher.bin"),
+                         ("tool_wrapper", "tools/wrapper.bin"),
+                         ("output_validator", "validator/validator.py")):
+            doc[key]["sha256"] = rows[rel]["sha256"]
+            doc[key]["bytes"] = rows[rel]["bytes"]
+        for gate in bab.DYNAMIC_GATE_ORDER:
+            row = rows["gates/%s.py" % gate.lower()]
+            doc["dynamic_gates"][gate]["sha256"] = row["sha256"]
+            doc["dynamic_gates"][gate]["bytes"] = row["bytes"]
+    return doc
+
+
+def build_v2_authority_package(tmp_path, package_grant_identity=None):
+    """Copy the REAL authority package into a temporary root and rewrite
+    its MANIFEST.json into the V2 authority-manifest schema with a
+    SYNTHETIC NON-SECRET 64-hex grant reference (NO real grant minted;
+    the Git-tracked repository manifest stays V1); returns
+    (package_root, binding_pins)."""
+    pkg = Path(tmp_path) / "pkg"
+    shutil.copytree(AUTHORITY_ROOT, pkg,
+                    ignore=shutil.ignore_patterns("__pycache__"))
+    rows = []
+    for dirpath, dirnames, filenames in os.walk(pkg, followlinks=False):
+        dirnames[:] = [d for d in dirnames if d != "__pycache__"]
+        for name in filenames:
+            full = os.path.join(dirpath, name)
+            rel = os.path.relpath(full, pkg)
+            if rel == "MANIFEST.json" or os.path.islink(full):
+                continue
+            data = open(full, "rb").read()
+            rows.append({"path": rel, "bytes": len(data),
+                         "sha256": sha256_bytes(data)})
+    doc = json.loads((pkg / "MANIFEST.json").read_text())
+    doc["schema"] = bab.AUTHORITY_MANIFEST_SCHEMA_V2
+    doc["design_replacement_attempt_slots"] = dict(
+        bab.REPLACEMENT_ATTEMPT_SLOTS)
+    doc["package_grant_identity"] = \
+        package_grant_identity if package_grant_identity is not None \
+        else "f" * 64
+    doc["files"] = sorted(rows, key=lambda row: row["path"])
+    doc["package_sha256"] = sha256_bytes(canonical(
+        {k: v for k, v in doc.items() if k != "package_sha256"}))
+    (pkg / "MANIFEST.json").write_text(
+        json.dumps(doc, indent=2, sort_keys=True) + "\n")
+    raw = (pkg / "MANIFEST.json").read_bytes()
+    return pkg, {"manifest_sha256": sha256_bytes(raw),
+                 "package_sha256": doc["package_sha256"]}
+
+
+def synthetic_grant_doc(**overrides) -> dict:
+    """A complete SYNTHETIC non-secret V2 grant document (the exact
+    accepted 20-field schema with synthetic provenance digests; NO real
+    operator authority, NO real authorization record, NO mint)."""
+    doc = {
+        "schema": bab.GRANT_SCHEMA,
+        "purpose": bab.GRANT_PURPOSE,
+        "operator_authority_id":
+            "SYNTHETIC-TEST-OPERATOR-AUTHORITY-20261007-01",
+        "authorization_record_path":
+            "docs/chatgpt-project/SYNTHETIC-TEST-AUTHORITY-RECORD.md",
+        "authorization_commit_sha": "1" * 40,
+        "authorization_record_blob_sha1": "2" * 40,
+        "authorization_record_sha256": "3" * 64,
+        "governance_event_id": bab.EVENT_ID,
+        "auditor_role": "AUDITOR_A",
+        "attempt_slot": "AUDITOR_A_REPLACEMENT_1",
+        "future_machine_attempt_id": replacement_attempt_id(),
+        "frozen_target_commit": bab.GRANT_FROZEN_TARGET_COMMIT,
+        "frozen_target_tree": bab.GRANT_FROZEN_TARGET_TREE,
+        "accepted_active_v3_procedure_sha256":
+            bab.GRANT_ACTIVE_V3_PROCEDURE_SHA256,
+        "accepted_active_v3_binding_sha256":
+            bab.GRANT_ACTIVE_V3_BINDING_SHA256,
+        "one_package_only": True,
+        "execution_authority": "NONE",
+        "secret_material": "NONE",
+        "expiry_policy": "NO_EXPIRY",
+        "issuance_semantics": bab.GRANT_ISSUANCE_SEMANTICS,
+    }
+    doc.update(overrides)
+    return doc
+
+
+def synthetic_grant_bytes(**overrides) -> bytes:
+    """The EXACT canonical bytes of a synthetic grant document."""
+    return bab.grant_canonical_bytes(synthetic_grant_doc(**overrides))
+
+
+def build_world_v2(tmp_path, package_grant_identity=None,
+                   launcher_mode="ok", report=None):
+    """Assemble one complete SYNTHETIC V2 replacement world: a temporary
+    V2 authority-package COPY (synthetic grant reference; construction
+    must run in a subprocess rooted at the copy — World.authority() is
+    V1-live-package-only), an inert synthetic event package, inert
+    executables, synthetic credentials and a V2 binding — all inside one
+    throwaway temporary directory.  Returns (world, package_root)."""
+    root = Path(tmp_path) / "world-v2"
+    event_root = root / "event"
+    output_root = Path(tmp_path) / "output-v2"
+    output_root.mkdir(parents=True, exist_ok=True)
+    os.chmod(output_root, 0o700)
+    attempt = replacement_attempt_id()
+    staging = output_root / ("%s.staging-report.json" % attempt)
+    custody_stat = os.stat(output_root)
+    order_file = Path(tmp_path) / "order-v2.log"
+    sleep_pid_file = Path(tmp_path) / "sleep-v2.pid"
+    credential = SYNTHETIC_CREDENTIAL_PREFIX + b"AUDITOR_A"
+    if report is None:
+        report = canonical({"attempt_id": attempt,
+                            "auditor_role": "AUDITOR_A",
+                            "event_id": bab.EVENT_ID, "findings": "[]",
+                            "target_commit":
+                                bab.FROZEN_TARGET["commit"]}) + b"\n"
+    auditor_path = event_root / "client" / "auditor.bin"
+    auditor_bytes = _write_exec(
+        auditor_path,
+        "#!/usr/bin/python3\nprint('INERT-SYNTHETIC-AUDITOR-EXECUTABLE')\n")
+    launcher_path = event_root / "boundary" / "launcher.bin"
+    launcher_bytes = _write_exec(
+        launcher_path, launcher_script(launcher_mode, report, credential,
+                                       sleep_pid_file))
+    wrapper_path = event_root / "tools" / "wrapper.bin"
+    wrapper_bytes = _write_bytes(wrapper_path, b"INERT-TOOL-WRAPPER\n")
+    gate_bytes = {}
+    for gate in bab.DYNAMIC_GATE_ORDER:
+        gate_bytes[gate] = _write_exec(
+            event_root / "gates" / f"{gate.lower()}.py",
+            gate_script(gate, order_file,
+                        bab.DYNAMIC_GATE_RESULT_SCHEMAS[gate], None))
+    validator_bytes = _write_exec(event_root / "validator" / "validator.py",
+                                  VALIDATOR_SCRIPT)
+    files = []
+    for rel, data in (
+            ("client/auditor.bin", auditor_bytes),
+            ("boundary/launcher.bin", launcher_bytes),
+            ("tools/wrapper.bin", wrapper_bytes),
+            ("validator/validator.py", validator_bytes),
+            *[(f"gates/{g.lower()}.py", b) for g, b in
+              gate_bytes.items()]):
+        files.append({"path": rel, "bytes": len(data),
+                      "sha256": sha256_bytes(data)})
+    pkg, pins = build_v2_authority_package(tmp_path,
+                                           package_grant_identity)
+    doc = minimal_binding_doc_v2(
+        event_files=files, staging=staging,
+        auditor_sha=sha256_bytes(auditor_bytes), wall_timeout=60,
+        authority_pins=pins, output_root=output_root,
+        custody_dev=custody_stat.st_dev, custody_ino=custody_stat.st_ino)
+    binding = bab.parse_binding_v2(canonical(doc))
+    manifest = {"schema": bab.EVENT_MANIFEST_SCHEMA,
+                "transport_binding": bab.binding_projection(binding),
+                "files": files}
+    manifest["package_sha256"] = sha256_bytes(canonical(manifest))
+    (event_root / "MANIFEST.json").write_bytes(canonical(manifest) + b"\n")
+    doc["event_package"]["package_sha256"] = manifest["package_sha256"]
+    binding = bab.parse_binding_v2(canonical(doc))
+    return (World(root, "AUDITOR_A", doc, binding, event_root, output_root,
+                  staging, order_file, launcher_path, auditor_path,
+                  credential, sleep_pid_file), pkg)
 
 
 @pytest.fixture

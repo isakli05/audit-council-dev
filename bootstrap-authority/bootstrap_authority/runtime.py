@@ -53,12 +53,17 @@ from dataclasses import dataclass
 
 from .accounting import AccountingStore, open_custody_dir
 from .binding import (AUTHORITY_MANIFEST_KEYS, AUTHORITY_MANIFEST_SCHEMA,
-                      AUTHORITY_STATUS, AUTHORITY_QUALIFICATION_CLAIM,
+                      AUTHORITY_MANIFEST_KEYS_V2,
+                      AUTHORITY_MANIFEST_SCHEMA_V2, AUTHORITY_STATUS,
+                      AUTHORITY_QUALIFICATION_CLAIM, BINDING_SCHEMA_V2,
                       DYNAMIC_GATE_ORDER, EVENT_MANIFEST_KEYS,
                       EVENT_MANIFEST_SCHEMA, EVENT_ID, FROZEN_TARGET,
-                      POLICY_ID, RESERVED_ATTEMPT_IDS, Binding, BindingError,
-                      binding_projection, canonical_bytes, strict_loads,
-                      REPORT_ATTEMPT_ID_MISMATCH, REPORT_AUDITOR_ROLE_MISMATCH,
+                      POLICY_ID, REPLACEMENT_ATTEMPT_SLOTS,
+                      REPLACEMENT_SLOT_ROLES, RESERVED_ATTEMPT_IDS,
+                      SHA256_RE, V2_PERMITTED_AUDITOR_ROLES, Binding,
+                      BindingError, binding_projection, canonical_bytes,
+                      strict_loads, REPORT_ATTEMPT_ID_MISMATCH,
+                      REPORT_AUDITOR_ROLE_MISMATCH,
                       REPORT_BINDING_UNPARSEABLE, REPORT_EVENT_ID_MISMATCH,
                       REPORT_TARGET_COMMIT_MISMATCH)
 from .custody import (F_ADD_SEALS, F_GET_SEALS, MFD_ALLOW_SEALING,
@@ -399,27 +404,46 @@ def verify_package_bytes(root, expected_package_sha256: str,
             "manifest_sha256": live_manifest, "package_sha256": declared,
             "document": doc}
 
-def verify_own_package(binding) -> dict:
-    """MANDATORY self-identity of THE EXECUTING authority package at
-    EVERY construction: pinned identities + per-file/payload-set
-    verification of the LIVE bytes at THIS module's own package root
-    (never caller-provided), then the strict authority-manifest
-    semantic checks (keys/schema/policy/target/ids/status/provenance)."""
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    result = verify_package_bytes(
-        root, binding.authority_package["package_sha256"],
-        binding.authority_package["manifest_sha256"])
-    manifest = result["document"]
-    keys = set(manifest)
-    if keys != set(AUTHORITY_MANIFEST_KEYS):
+def verify_replacement_binding_identity(binding) -> None:
+    """Narrow additive V2 binding admission (the runtime-side
+    re-derivation of the source-level replacement contract): a binding
+    that carries the replacement dimension MUST be the exact one-slot
+    V2 contract — schema BINDING_SCHEMA_V2; auditor_role AUDITOR_A
+    (never a slot label); attempt_slot the single closed slot;
+    attempt_id the exact slot value and NEVER a spent historical V1
+    identity.  A V1 binding (no replacement dimension) passes through
+    UNCHANGED (this admission is a no-op for it)."""
+    if getattr(binding, "attempt_slot", None) is None:
+        return
+    if binding.schema != BINDING_SCHEMA_V2:
         raise AuthorityRefused(
-            f"AUTHORITY_MANIFEST_KEYS_INVALID: "
-            f"unknown={sorted(keys - set(AUTHORITY_MANIFEST_KEYS))} "
-            f"missing={sorted(set(AUTHORITY_MANIFEST_KEYS) - keys)}")
-    if manifest["schema"] != AUTHORITY_MANIFEST_SCHEMA:
+            "REPLACEMENT_BINDING_SCHEMA_UNEXPECTED: a binding carrying "
+            "the replacement dimension must be the explicit V2 schema")
+    if not isinstance(binding.auditor_role, str) \
+            or binding.auditor_role in REPLACEMENT_ATTEMPT_SLOTS:
         raise AuthorityRefused(
-            f"AUTHORITY_MANIFEST_SCHEMA_UNEXPECTED: "
-            f"{manifest['schema']!r}")
+            "REPLACEMENT_SLOT_LABEL_NOT_AN_AUDITOR_ROLE")
+    if binding.auditor_role not in V2_PERMITTED_AUDITOR_ROLES:
+        raise AuthorityRefused("AUDITOR_ROLE_NOT_PERMITTED_IN_V2")
+    if binding.attempt_slot not in REPLACEMENT_ATTEMPT_SLOTS:
+        raise AuthorityRefused("ATTEMPT_SLOT_UNKNOWN")
+    if binding.attempt_id in set(RESERVED_ATTEMPT_IDS.values()):
+        raise AuthorityRefused(
+            "REPLACEMENT_ATTEMPT_ID_MAY_NOT_REUSE_SPENT_IDENTITY")
+    if binding.attempt_id != \
+            REPLACEMENT_ATTEMPT_SLOTS[binding.attempt_slot]:
+        raise AuthorityRefused(
+            "ATTEMPT_ID_NOT_THE_RESERVED_IDENTITY_FOR_SLOT")
+    if REPLACEMENT_SLOT_ROLES[binding.attempt_slot] \
+            != binding.auditor_role:
+        raise AuthorityRefused("ATTEMPT_SLOT_ATTEMPT_MISMATCH")
+
+
+def _verify_authority_manifest_common(manifest) -> None:
+    """Every V1 historical provenance check of the strict
+    authority-manifest semantic contract, SHARED verbatim by BOTH
+    manifest versions (the version-specific closed key set and schema
+    tag are checked first by each version's admission)."""
     if manifest["package"] != "bootstrap-authority":
         raise AuthorityRefused(
             f"AUTHORITY_MANIFEST_PACKAGE_UNEXPECTED: "
@@ -455,6 +479,82 @@ def verify_own_package(binding) -> dict:
             "source path must carry the EXACT expected provenance (four "
             "EXACT_PRETARGET_BLOB_REUSE entries pinned to "
             f"{PRETARGET_REUSE_SOURCE_COMMIT} plus NEW_AUTHORITY_SPECIFIC)")
+
+
+def _verify_authority_manifest_v1(manifest) -> None:
+    """The HISTORICAL V1 authority-manifest admission, semantics
+    byte-preserved: closed key world and schema tag, then the shared
+    provenance checks."""
+    keys = set(manifest)
+    if keys != set(AUTHORITY_MANIFEST_KEYS):
+        raise AuthorityRefused(
+            f"AUTHORITY_MANIFEST_KEYS_INVALID: "
+            f"unknown={sorted(keys - set(AUTHORITY_MANIFEST_KEYS))} "
+            f"missing={sorted(set(AUTHORITY_MANIFEST_KEYS) - keys)}")
+    if manifest["schema"] != AUTHORITY_MANIFEST_SCHEMA:
+        raise AuthorityRefused(
+            f"AUTHORITY_MANIFEST_SCHEMA_UNEXPECTED: "
+            f"{manifest['schema']!r}")
+    _verify_authority_manifest_common(manifest)
+
+
+def _verify_authority_manifest_v2(manifest) -> None:
+    """The SEPARATE V2 authority-manifest admission: the exact V1
+    historical provenance checks (design_event_id == EVENT_ID and
+    design_attempt_ids == RESERVED_ATTEMPT_IDS verbatim — the pins are
+    NOT extended with the replacement identity) PLUS exactly the two
+    accepted replacement dimensions: design_replacement_attempt_slots
+    == REPLACEMENT_ATTEMPT_SLOTS and a well-formed
+    package_grant_identity — the SINGLE 64-hex grant identity
+    namespace, cross-checkable against the exact accepted grant bytes
+    via binding.check_package_grant_reference; NEVER minted, derived
+    or trusted from the package claim alone."""
+    keys = set(manifest)
+    if keys != set(AUTHORITY_MANIFEST_KEYS_V2):
+        raise AuthorityRefused(
+            f"AUTHORITY_MANIFEST_KEYS_INVALID: "
+            f"unknown={sorted(keys - set(AUTHORITY_MANIFEST_KEYS_V2))} "
+            f"missing={sorted(set(AUTHORITY_MANIFEST_KEYS_V2) - keys)}")
+    if manifest["schema"] != AUTHORITY_MANIFEST_SCHEMA_V2:
+        raise AuthorityRefused(
+            f"AUTHORITY_MANIFEST_SCHEMA_UNEXPECTED: "
+            f"{manifest['schema']!r}")
+    _verify_authority_manifest_common(manifest)
+    if manifest["design_replacement_attempt_slots"] != \
+            REPLACEMENT_ATTEMPT_SLOTS:
+        raise AuthorityRefused(
+            "AUTHORITY_MANIFEST_REPLACEMENT_SLOTS_UNEXPECTED: the "
+            "manifest does not carry exactly the closed one-slot "
+            "replacement mapping")
+    grant_reference = manifest["package_grant_identity"]
+    if not isinstance(grant_reference, str) \
+            or not SHA256_RE.match(grant_reference):
+        raise AuthorityRefused(
+            "AUTHORITY_MANIFEST_GRANT_IDENTITY_INVALID: the immutable "
+            "package-grant reference must be the exact 64-hex "
+            "grant_identity of the accepted grant bytes")
+
+
+def verify_own_package(binding) -> dict:
+    """MANDATORY self-identity of THE EXECUTING authority package at
+    EVERY construction: pinned identities + per-file/payload-set
+    verification of the LIVE bytes at THIS module's own package root
+    (never caller-provided), then the strict authority-manifest
+    semantic checks — the manifest version matching the binding's OWN
+    explicit schema version (V1 binding -> the historical V1 manifest
+    admission; V2 replacement binding -> the V2 admission with the
+    design_replacement_attempt_slots equality and the package-grant
+    reference dimension; no field-presence auto-detection, no
+    fallback)."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    result = verify_package_bytes(
+        root, binding.authority_package["package_sha256"],
+        binding.authority_package["manifest_sha256"])
+    manifest = result["document"]
+    if getattr(binding, "attempt_slot", None) is not None:
+        _verify_authority_manifest_v2(manifest)
+    else:
+        _verify_authority_manifest_v1(manifest)
     return result
 
 def verify_event_package(root, binding) -> dict:
@@ -994,6 +1094,7 @@ class BootstrapAuthority:
                 "BOOTSTRAP_AUTHORITY_REQUIRES_EVENT_PACKAGE_ROOT: a "
                 "frozen event package root is mandatory — no default, "
                 "no bypass")
+        verify_replacement_binding_identity(binding)   # V2 admission
         verify_own_package(binding)             # (1) own live bytes
         event_result = verify_event_package(event_package_root, binding)
         self._gate_fds = {              # (3) hold ALL verified gate fds
@@ -1039,6 +1140,8 @@ class BootstrapAuthority:
                  "output_custody_ino": b.output_identity["custody_ino"],
                  "report_source": b.output_identity["report_source"],
                  "binding_digest": b.digest}
+        if b.attempt_slot is not None:
+            facts["attempt_slot"] = b.attempt_slot
         for key in ("commit", "root_tree", "bootstrap_supervisor_tree",
                     "qualification_harness_tree", "skill_tree",
                     "remediation_parent"):
