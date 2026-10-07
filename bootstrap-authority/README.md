@@ -38,9 +38,18 @@ mechanics and the NON-RUNTIME
 `AUCDEV-023-PACKAGE-BINDING-RECEIPT-V1` source primitive. **No grant
 has been minted, no GRANT_ISSUED evidence exists, no receipt has been
 created, no package-binding authority exists, and nothing here grants
-execution authority**; an INDEPENDENT Control Room (G3) implementation
-readback of this exact publication is required before ANY
-package-binding (G4) consideration.
+execution authority**; the G3 Control Room implementation readback of
+the initial G2 publication recorded three OPEN harness/protocol
+findings (RECEIPTCTX-001 receipt canonical-context binding;
+G1CONTRACT-001 runtime grant-cross-check wording; G1SCOPE-LOC-001 LOC
+guardrail), and the operator-authorized G2 REMEDIATION (see the
+canonical record `docs/chatgpt-project/AUCDEV-023-PCH6-B-PATH-B-`
+`REPLACEMENT-AUDITOR-A-AUTHORITY-PROTOCOL-V2-IMPLEMENTATION-G2-`
+`REMEDIATION.md`) is implemented AS A REMEDIATION CANDIDATE ONLY —
+no finding is closed by the implementer, and a FRESH INDEPENDENT
+Control Room (G3) implementation readback of the exact remediation
+publication is required before ANY package-binding (G4)
+consideration.
 
 ## What this package is
 
@@ -199,21 +208,21 @@ canonical event instantiation.
 ## Production LOC bound
 
 `bootstrap_authority/*.py` (the reused and derived modules included)
-is pinned at **exactly 3577 LOC** (`wc -l`), enforced as an exact
-equality by `tests/test_static.py` (any further growth fails closed).
-The original V1 ceiling was 3000 LOC — deliberately below the 3057-LOC
-candidate `bootstrap-supervisor` EBS production tree under audit. The
-authorized G2 V2 replacement contract (a separate versioned parse
-route, V2 authority-manifest admission, the immutable 20-field grant
-mechanics and the NON-RUNTIME receipt primitive — all confined to the
-two authorized production files `binding.py`/`runtime.py`) required
-+577 production lines; the ceiling was EXPLICITLY REVISED to the exact
-final count as a recorded, G3-reviewable deviation rather than
-compressing the held V1 documentation or splitting contract code into
-unauthorized files. The package is therefore no longer smaller than
-the audit subject's EBS tree; that V1-era hygiene property is
-superseded by the explicit G1 authorization, honestly recorded here
-and in the canonical V2 implementation record.
+is bounded at **3577 LOC** (`wc -l`), enforced as a CEILING
+(`total <= 3577`) by `tests/test_static.py` — any further growth
+fails closed, and no exact-equality filler pin exists. The original
+V1 ceiling was 3000 LOC — deliberately below the 3057-LOC candidate
+`bootstrap-supervisor` EBS production tree under audit. The G2 V2
+replacement contract required +577 production lines and revised the
+bound to 3577 (a recorded, G3-reviewable deviation); the operator's
+G2 remediation authorization then EXPLICITLY ACCEPTED the 3577
+baseline as a CEILING for this V2 lineage (G3 finding G1SCOPE-LOC-001
+disposition) and required the remediation to fit inside it, which it
+does via narrow docstring/comment consolidation (current total 3576).
+The package is therefore no longer smaller than the audit subject's
+EBS tree; that V1-era hygiene property is superseded by the explicit
+operator dispositions, honestly recorded here and in the canonical
+V2 implementation and G2 remediation records.
 
 ## V2 replacement contract (implementation candidate only)
 
@@ -255,7 +264,19 @@ O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW mode 0600, one canonical record per
 grant_identity, duplicate/substitution/mismatch refusals) are
 implemented as SOURCE MECHANICS ONLY — UNISSUED and UNCREATED; the
 Git-tracked `MANIFEST.json` stays V1 and fabricates NO operative
-grant identity.
+grant identity.  The G2 remediation (RECEIPTCTX-001) additionally
+binds the receipt primitive to ONE canonical NON-RUNTIME namespace
+pinned by the strict **VERIFIED future G7 mint-publication context**
+(`parse_verified_g7_context`: closed-world nine-field document
+carrying the G7 publication identity, the exact `grant_identity`, the
+reserved canonical record path and the namespace directory's absolute
+path + `st_dev`/`st_ino` OBJECT identity — never a caller-selected
+root), derives the full receipt context from the EXACT canonical
+grant bytes (including the grant-derived `operator_authority_id` and
+every event/role/slot/attempt dimension) and derives `package_sha256`
+from the EXACT frozen package artifact bytes (never a naked
+caller-supplied digest); BootstrapAuthority remains entirely
+grant/receipt-blind.
 
 ## Tests
 
@@ -294,14 +315,18 @@ engagements 2/2 USED historical truth; non-transferable). This
 lineage's design budget: PROPOSED 2 / USED 0 — this implementation
 consumes ZERO engagements. No audit execution, no audit PASS, no
 qualification, no installation. PKGIDENT-001 and PKGIDENT-002 remain
-OPEN / IMPLEMENTATION_CANDIDATE_AVAILABLE /
-AWAITING_G3_INDEPENDENT_IMPLEMENTATION_READBACK / NOT_CLOSED (this G2
-publication closes NOTHING and grants NO package-binding authority);
-the AUTHDESIGN-003 G6-001 EVIDENCE-001 PUBID-001 DIFFSEM-001 design
-chain remains CLOSED_AT_DESIGN_LAYER. The next action is the G3
-INDEPENDENT Control Room implementation readback of THIS exact V2
-publication (binding the resulting commit/root tree, implementation
-record, protected-source blobs, held blobs, MANIFEST self-identity,
-full zero-provider test evidence and all accepted design invariants)
-and its generated-LAST handoff BEFORE any G4 package-binding
-consideration is permitted.
+OPEN / REMEDIATION_CANDIDATE_AVAILABLE / AWAITING_FRESH_G3 /
+NOT_CLOSED (neither the G2 publication nor its remediation closes
+ANYTHING or grants ANY package-binding authority;
+`package_binding_consideration_permitted` stays FALSE and G4 stays
+FORBIDDEN); the AUTHDESIGN-003 G6-001 EVIDENCE-001 PUBID-001
+DIFFSEM-001 design chain remains CLOSED_AT_DESIGN_LAYER. The next
+action is the FRESH INDEPENDENT Control Room (G3) implementation
+readback of THIS exact G2 REMEDIATION publication (binding the
+resulting commit/root tree, remediation record, protected-source
+blobs, held blobs, the canonical receipt-namespace contract, the
+grant-derived receipt context, the exact package-digest binding, the
+no-grant-consuming BootstrapAuthority boundary, the 3577-LOC ceiling,
+MANIFEST self-identity, full zero-provider test evidence and all
+accepted design invariants) and its generated-LAST handoff BEFORE any
+G4 package-binding consideration is permitted.

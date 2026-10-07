@@ -3,12 +3,11 @@
 NEW authority-specific source for the AUCDEV-023 PCH6-B PATH-B wholly
 NEW lineage (Control Room design readback 2026-10-02); shares NO code
 with, and imports NOTHING from, the audit target
-`730d2b29:bootstrap-supervisor/**` (AUDIT SUBJECT: never authority here)
-or the legacy EBS at `068f5e2` (REFERENCE_ONLY).  The pre-target EBS
-lineage provides the state machine and the sealed credential custody as
-EXACT reused blobs and the hash-chained O_EXCL accounting and the
-report snapshot/freeze discipline as bounded RB2 derivatives (held-fd
-object custody; MANIFEST.json source_provenance); else NEW.
+`730d2b29:bootstrap-supervisor/**` (AUDIT SUBJECT: never authority
+here) or the legacy EBS at `068f5e2` (REFERENCE_ONLY).  The pre-target
+EBS lineage provides the state machine / sealed credential custody as
+EXACT reused blobs and the accounting / report-custody discipline as
+bounded RB2 derivatives (MANIFEST.json source_provenance); else NEW.
 
 Primary launch authority is NON-EXPORTABLE AUTHORITY PROCESS STATE
 plus state-machine control flow: the whole attempt lifecycle —
@@ -23,8 +22,8 @@ grant/consume/resume/retry/adopt_report/finish/mint_attempt/
 create_event surface exists, and no caller ever regains control
 between GATES_PASSED, CONSUMED_PRE_EXEC and the exec.  Every
 construction fail-closed-verifies ITS OWN live package bytes and the
-frozen event package against the binding pins.  The authority OWNS the sealed
-credential custody (SOURCE fd only; ingest strictly AFTER every
+frozen event package against the binding pins.  The authority OWNS the
+sealed credential custody (SOURCE fd only; ingest strictly AFTER every
 required pre-inference gate has durably passed; role ONLY from the
 binding; no credential byte is ever logged, hashed, persisted or
 returned — custody.py); the launcher and LIVE auditor executable are
@@ -157,13 +156,10 @@ for _path, (_src, _blob) in PRETARGET_DERIVED.items():
         "source_commit": PRETARGET_REUSE_SOURCE_COMMIT,
         "source_path": _src, "source_git_blob": _blob,
         "derivation": DERIVATION_REASON}
-
 class AuthorityError(RuntimeError):
     """Refused or failed authority-path operation (fail closed)."""
-
 class AuthorityRefused(AuthorityError):
     """Identity/verification refusal before any exec attempt."""
-
 class PostConsumptionTerminalAccountingError(AuthorityError):
     """The durable post-consumption terminal accounting chain did NOT
     complete: the attempt is already in-process TERMINAL, custody and
@@ -185,19 +181,16 @@ class PostConsumptionTerminalAccountingError(AuthorityError):
         self.accounting_error = durable_error
         self.original_error = original_error
         self.related_error = related_error
-
 def accounting_name(binding) -> str:
     """Attempt-GLOBAL O_EXCL authority-claim name (BA-RB-001): ONE
     reserved attempt id = ONE global claim, independent of the binding
     digest (which stays durable, inspection-bound in-record evidence)."""
     return binding.attempt_id
-
 def _char_array(items) -> "ctypes.Array":
     array = (ctypes.c_char_p * (len(items) + 1))()
     for index, item in enumerate(items):
         array[index] = item.encode() if isinstance(item, str) else item
     return array
-
 def _execveat(fd: int, argv, envp) -> None:
     number = SYS_EXECVEAT.get(platform.machine())
     if number is None:
@@ -211,7 +204,6 @@ def _execveat(fd: int, argv, envp) -> None:
     if result != 0:
         err = ctypes.get_errno()
         raise OSError(err, os.strerror(err))
-
 def _fexecve(fd: int, argv, envp) -> None:
     libc = ctypes.CDLL(None, use_errno=True)
     entry = getattr(libc, "fexecve", None)
@@ -223,7 +215,6 @@ def _fexecve(fd: int, argv, envp) -> None:
     if result != 0:
         err = ctypes.get_errno()
         raise OSError(err, os.strerror(err))
-
 def fd_exec(fd: int, argv, env: dict) -> None:
     """Exec the ALREADY-OPEN verified fd; no pathname fallback."""
     envp = [f"{key}={value}" for key, value in sorted(env.items())]
@@ -233,7 +224,6 @@ def fd_exec(fd: int, argv, env: dict) -> None:
         if exc.errno == errno.ENOSYS:
             _fexecve(fd, argv, envp)
         raise
-
 def _hash_fd(fd: int) -> str:
     digest = hashlib.sha256()
     os.lseek(fd, 0, os.SEEK_SET)
@@ -243,7 +233,6 @@ def _hash_fd(fd: int) -> str:
             break
         digest.update(chunk)
     return digest.hexdigest()
-
 def _open_verified(path, expected_sha256: str, kind: str,
                    require_executable: bool) -> int:
     """Verified-open core: no final symlink, regular (+executable when
@@ -268,18 +257,15 @@ def _open_verified(path, expected_sha256: str, kind: str,
         os.close(fd)
         raise
     return fd
-
 def open_verified_launcher(path, expected_sha256: str) -> int:
     """Verify and hold the frozen boundary-launcher executable."""
     return _open_verified(path, expected_sha256, "LAUNCHER", False)
-
 def open_verified_auditor_executable(path, expected_sha256: str) -> int:
     """Verify and HOLD the LIVE auditor executable (regular +
     executable + exact SHA-256; PREEXEC refusal, no same-attempt
     retry)."""
     return _open_verified(path, expected_sha256,
                           "PREEXEC_EXECUTABLE_IDENTITY_FAIL", True)
-
 def make_invocation_fd(argv_list) -> int:
     """Sealed read-only memfd carrying the EXACT frozen auditor argv;
     no caller string, argv tail, or environment override enters it."""
@@ -295,7 +281,6 @@ def make_invocation_fd(argv_list) -> int:
         os.close(fd)
         raise
     return fd
-
 def verify_package_bytes(root, expected_package_sha256: str,
                          expected_manifest_sha256: str = None) -> dict:
     """Fail-closed package verification: non-circular package_sha256,
@@ -403,7 +388,6 @@ def verify_package_bytes(root, expected_package_sha256: str,
     return {"files": len(rows), "bytes": total_bytes,
             "manifest_sha256": live_manifest, "package_sha256": declared,
             "document": doc}
-
 def verify_replacement_binding_identity(binding) -> None:
     """Narrow additive V2 binding admission (the runtime-side
     re-derivation of the source-level replacement contract): a binding
@@ -437,8 +421,6 @@ def verify_replacement_binding_identity(binding) -> None:
     if REPLACEMENT_SLOT_ROLES[binding.attempt_slot] \
             != binding.auditor_role:
         raise AuthorityRefused("ATTEMPT_SLOT_ATTEMPT_MISMATCH")
-
-
 def _verify_authority_manifest_common(manifest) -> None:
     """Every V1 historical provenance check of the strict
     authority-manifest semantic contract, SHARED verbatim by BOTH
@@ -479,8 +461,6 @@ def _verify_authority_manifest_common(manifest) -> None:
             "source path must carry the EXACT expected provenance (four "
             "EXACT_PRETARGET_BLOB_REUSE entries pinned to "
             f"{PRETARGET_REUSE_SOURCE_COMMIT} plus NEW_AUTHORITY_SPECIFIC)")
-
-
 def _verify_authority_manifest_v1(manifest) -> None:
     """The HISTORICAL V1 authority-manifest admission, semantics
     byte-preserved: closed key world and schema tag, then the shared
@@ -496,19 +476,18 @@ def _verify_authority_manifest_v1(manifest) -> None:
             f"AUTHORITY_MANIFEST_SCHEMA_UNEXPECTED: "
             f"{manifest['schema']!r}")
     _verify_authority_manifest_common(manifest)
-
-
 def _verify_authority_manifest_v2(manifest) -> None:
     """The SEPARATE V2 authority-manifest admission: the exact V1
     historical provenance checks (design_event_id == EVENT_ID and
     design_attempt_ids == RESERVED_ATTEMPT_IDS verbatim — the pins are
     NOT extended with the replacement identity) PLUS exactly the two
     accepted replacement dimensions: design_replacement_attempt_slots
-    == REPLACEMENT_ATTEMPT_SLOTS and a well-formed
-    package_grant_identity — the SINGLE 64-hex grant identity
-    namespace, cross-checkable against the exact accepted grant bytes
-    via binding.check_package_grant_reference; NEVER minted, derived
-    or trusted from the package claim alone."""
+    == REPLACEMENT_ATTEMPT_SLOTS and a STRUCTURALLY well-formed
+    package_grant_identity reference (exact 64-hex, nothing more).
+    BootstrapAuthority NEVER consumes, parses or hashes grant bytes:
+    the grant-byte identity/reference cross-check belongs EXCLUSIVELY
+    to NON-RUNTIME binding/package tooling and the independent
+    readback."""
     keys = set(manifest)
     if keys != set(AUTHORITY_MANIFEST_KEYS_V2):
         raise AuthorityRefused(
@@ -533,8 +512,6 @@ def _verify_authority_manifest_v2(manifest) -> None:
             "AUTHORITY_MANIFEST_GRANT_IDENTITY_INVALID: the immutable "
             "package-grant reference must be the exact 64-hex "
             "grant_identity of the accepted grant bytes")
-
-
 def verify_own_package(binding) -> dict:
     """MANDATORY self-identity of THE EXECUTING authority package at
     EVERY construction: pinned identities + per-file/payload-set
@@ -556,7 +533,6 @@ def verify_own_package(binding) -> dict:
     else:
         _verify_authority_manifest_v1(manifest)
     return result
-
 def verify_event_package(root, binding) -> dict:
     """Fail-closed verification of the frozen event package BEFORE any
     gate: pinned identity plus exact transport-projection equality with
@@ -579,7 +555,6 @@ def verify_event_package(root, binding) -> dict:
             "EVENT_PACKAGE_PROJECTION_MISMATCH: the frozen event package "
             "declares component identities that differ from this binding")
     return result
-
 def _open_bound_artifact(event_package_root, descriptor, rows,
                          label: str) -> int:
     """Verified-open for an event-package artifact (gate/validator):
@@ -609,7 +584,6 @@ def _open_bound_artifact(event_package_root, descriptor, rows,
         raise
     os.lseek(fd, 0, os.SEEK_SET)
     return fd
-
 def open_dynamic_gate(event_package_root, binding, event_manifest,
                       gate: str) -> int:
     """Open + verify ONE frozen dynamic-gate artifact (by gate name)
@@ -618,7 +592,6 @@ def open_dynamic_gate(event_package_root, binding, event_manifest,
     return _open_bound_artifact(
         event_package_root, binding.dynamic_gates[gate],
         {row["path"] for row in event_manifest["files"]}, gate)
-
 def open_output_validator(event_package_root, binding,
                           event_manifest) -> int:
     """Open + verify the frozen STRUCTURAL OUTPUT VALIDATOR from the
@@ -628,7 +601,6 @@ def open_output_validator(event_package_root, binding,
         event_package_root, binding.output_validator,
         {row["path"] for row in event_manifest["files"]},
         "OUTPUT_VALIDATOR")
-
 def _kill_and_reap(child_pid: int) -> None:
     """SIGKILL + reap the child (best effort)."""
     try:
@@ -639,7 +611,6 @@ def _kill_and_reap(child_pid: int) -> None:
         os.waitpid(child_pid, 0)
     except OSError:
         pass
-
 def _close_all_except(keep) -> None:
     """Close every open fd not in keep (child-side hygiene)."""
     for entry in os.listdir("/proc/self/fd"):
@@ -649,7 +620,6 @@ def _close_all_except(keep) -> None:
                 os.close(fd)
             except OSError:
                 pass
-
 def _close_fds(*fds) -> None:
     """Close every non-None fd, absorbing failures."""
     for fd in fds:
@@ -658,7 +628,6 @@ def _close_fds(*fds) -> None:
                 os.close(fd)
             except OSError:
                 pass
-
 def _sanitize_structural_diagnostic(stderr: bytes) -> str:
     """Bounded STRUCTURAL-ONLY diagnostic grammar: accepted ONLY when the
     first stderr line is the frozen VALIDATION_ERROR emission, reduced
@@ -678,7 +647,6 @@ def _sanitize_structural_diagnostic(stderr: bytes) -> str:
     if not all(ch in STRUCTURAL_TOKEN_CHARS for ch in token):
         return ""
     return token
-
 def _gate_child(gate_fd: int, result_w: int, devnull: int,
                 argv, env: dict, report_fd: int = None,
                 stderr_w: int = None) -> None:
@@ -711,7 +679,6 @@ def _gate_child(gate_fd: int, result_w: int, devnull: int,
         fd_exec(exec_target, argv, env)
     except BaseException:
         os._exit(CHILD_EXIT_EXEC_FAIL)
-
 def _run_child_once(label: str, gate_fd: int, argv, env: dict,
                     timeout: float, max_result: int,
                     report_bytes: bytes = None,
@@ -842,7 +809,6 @@ def _run_child_once(label: str, gate_fd: int, argv, env: dict,
         return output
     finally:
         _close_fds(result_r, result_w, devnull, report_fd, err_r, err_w)
-
 def _strict_envelope(output: bytes, binding, label: str, fields,
                      schema: str) -> dict:
     """Strict fail-closed envelope core shared by ALL gate/validator
@@ -874,7 +840,6 @@ def _strict_envelope(output: bytes, binding, label: str, fields,
         raise AuthorityRefused(f"{label}_RESULT_NOT_PASS: "
                                f"{result['status']!r}")
     return result
-
 def _result_evidence(prefix: str, result: dict) -> dict:
     """Durable fresh-evidence fields for one validated gate result."""
     canonical = canonical_bytes(result).decode()
@@ -882,7 +847,6 @@ def _result_evidence(prefix: str, result: dict) -> dict:
             f"{prefix}_result_sha256": hashlib.sha256(
                 canonical.encode()).hexdigest(),
             f"{prefix}_result_size": len(canonical.encode())}
-
 def _validate_client_selection_result(output: bytes, binding) -> dict:
     """Strict validation of the FRESH client-selection preflight
     envelope: the shared core PLUS exact equality of the bound provider
@@ -907,7 +871,6 @@ def _validate_client_selection_result(output: bytes, binding) -> dict:
                 "differs from the governance-frozen binding selection; "
                 "failing closed pre-inference with NO fallback")
     return _result_evidence("client_selection", result)
-
 def _validate_network_readiness_result(output: bytes, binding) -> dict:
     """Strict validation of the FRESH network-readiness envelope: the
     shared core plus the exact transport-binding context and the EXACT
@@ -945,7 +908,6 @@ def _validate_network_readiness_result(output: bytes, binding) -> dict:
                 f"NETWORK_READINESS_CHECK_NOT_PASS: {name} "
                 f"{check['status']!r}")
     return _result_evidence("network_readiness", result)
-
 def _validate_resource_gate_result(output: bytes, binding) -> dict:
     """Strict validation of the FRESH resource-gate envelope: the
     shared core plus EXACTLY three samples each explicitly PASS with
@@ -980,7 +942,6 @@ _DYNAMIC_GATE_VALIDATORS = {
     "NETWORK_READINESS": _validate_network_readiness_result,
     "RESOURCE_GATE": _validate_resource_gate_result,
 }
-
 def _validate_validator_result(output: bytes, binding, digest: str,
                                size: int) -> None:
     """Strict validation of the structural-validator result: the shared
@@ -996,7 +957,6 @@ def _validate_validator_result(output: bytes, binding, digest: str,
         raise AuthorityRefused(
             "OUTPUT_VALIDATOR_RESULT_SNAPSHOT_MISMATCH: result output/"
             "digest/size differ from the exact screened snapshot")
-
 def check_report_binding(snapshot: bytes, binding) -> None:
     """THE authority's OWN semantic report binding (readback 6.6) on
     the SAME screened snapshot AFTER validator PASS and BEFORE freeze,
@@ -1019,7 +979,6 @@ def check_report_binding(snapshot: bytes, binding) -> None:
         got = report.get(key)
         if got != want or isinstance(got, bool):
             raise AuthorityRefused(token)
-
 def _child_setup(launcher_fd: int, metadata_w: int, fail_w: int,
                  devnull: int, custody_fd: int, auditor_fd: int,
                  invocation_fd: int, argv, env: dict) -> None:
@@ -1056,7 +1015,6 @@ def _child_setup(launcher_fd: int, metadata_w: int, fail_w: int,
         except OSError:
             pass
         os._exit(CHILD_EXIT_EXEC_FAIL)
-
 @dataclass(frozen=True)
 class AttemptResult:
     """Outcome DATA ONLY — never authority.  Returned strictly AFTER the
@@ -1071,7 +1029,6 @@ class AttemptResult:
     report_state: str
     report_sha256: str
     report_size: int
-
 class BootstrapAuthority:
     """One-shot controllerless target-independent authority for a single
     attempt of the wholly NEW PATH-B lineage.  Startup (fail closed at

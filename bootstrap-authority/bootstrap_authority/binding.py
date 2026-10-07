@@ -5,37 +5,32 @@ NEW authority-specific source for the wholly NEW PATH-B lineage
 (Control Room design readback 2026-10-02); shares NO code with, and
 imports NOTHING from, the audit target
 `730d2b29:bootstrap-supervisor/**` (AUDIT SUBJECT, never authority)
-or the legacy EBS at `068f5e2` (REFERENCE_ONLY).
-
-Fail-closed validation of the operator-declared attempt binding
-document against the PATH-B policy identity, the frozen fresh-audit
-target, the design-reserved event/attempt identities and the
-governance-frozen auditor selections: unknown fields, wrong types,
-malformed digests, wrong target identity, wrong event/role/attempt
-pairing, substituted model/effort/client selections, and incomplete or
-non-PASS static gate evidence are all refused.  The output identity
-additionally freezes the authoritative output-custody root and
-report-source path as canonical absolute paths, the custody
-directory's host-local OBJECT identity (st_dev/st_ino) and the
-invocation-to-report-sink equality edge (BA-PREP-001/002 +
-BA-PREP-RB2-001/002).  The policy is candidate-specific — NOT standing
-authority for any other candidate.  Every dimension is mandatory and
-digest-covered by `Binding.digest`; synthetic test documents are built
-in tests/conftest.py (no doc-builder in the TCB).
+or the legacy EBS at `068f5e2` (REFERENCE_ONLY).  Fail-closed
+validation of the operator-declared attempt binding document against
+the PATH-B policy identity, the frozen fresh-audit target, the
+design-reserved event/attempt identities and the governance-frozen
+auditor selections: unknown fields, wrong types, malformed digests,
+wrong target identity, wrong event/role/attempt pairing, substituted
+model/effort/client selections, and incomplete or non-PASS static
+gate evidence are all refused.  The output identity additionally
+freezes the output-custody root and report-source path as canonical
+absolute paths, the custody directory's host-local OBJECT identity
+(st_dev/st_ino) and the invocation-to-report-sink equality edge
+(BA-PREP-001/002 + BA-PREP-RB2-001/002).  The policy is
+candidate-specific — NOT standing authority for any other candidate;
+every dimension is mandatory and digest-covered by `Binding.digest`;
+synthetic test documents are built in tests/conftest.py.
 
 Gate split (PATH-B): the EIGHT STATIC preparation gates are frozen
 PASS evidence members; the THREE DYNAMIC runtime gates are NOT frozen
 evidence: each is an exact executable-artifact DESCRIPTOR executed
-fresh exactly once inside the ONE public preexec-consumption operation
-(a package-time PASS cannot exist in a valid binding);
-CLIENT_SELECTION_PREFLIGHT is the NO-FALLBACK enforcement point.
-
-This module also defines the VERSIONED STRICT EVENT-PACKAGE MANIFEST
-and AUTHORITY-PACKAGE MANIFEST contracts (exact key sets, schema tags,
-file rows, non-circular package identities: package_sha256 covers the
-document EXCLUDING its own field) and the canonical transport
-projection `binding_projection`, verified by runtime before
-GATES_PASSED.
+fresh exactly once inside the ONE public preexec-consumption
+operation (a package-time PASS cannot exist in a valid binding);
+CLIENT_SELECTION_PREFLIGHT is the NO-FALLBACK enforcement point.  The
+VERSIONED STRICT EVENT-PACKAGE / AUTHORITY-PACKAGE MANIFEST contracts
+(exact key sets, schema tags, file rows, non-circular identities) and
+the canonical transport projection `binding_projection` (verified by
+runtime before GATES_PASSED) are defined here too.
 
 The SEPARATE explicitly versioned V2 REPLACEMENT contract (G2 of the
 accepted G0-G12 governance order) adds exactly ONE source-level
@@ -44,9 +39,10 @@ role stays AUDITOR_A) with a CLOSED mapping — plus an additive V2
 authority-manifest schema, the immutable 20-field
 AUCDEV-023-PACKAGE-BINDING-GRANT-V2 canonicalization/identity
 mechanics and the NON-RUNTIME package-binding receipt V1 source
-primitive.  All UNISSUED/UNCREATED (implementation candidate only):
-no attempt, grant, receipt, accounting state or execution authority
-is created by anything in this module.
+primitive, whose ONE canonical namespace is pinned by the strict
+VERIFIED future G7 mint-publication context (never a caller-selected
+root).  All UNISSUED/UNCREATED: nothing in this module creates an
+attempt, grant, receipt, accounting state or execution authority.
 """
 from __future__ import annotations
 
@@ -61,8 +57,7 @@ POLICY_ID = ("AUCDEV-023-PCH6B-CAND730D2B29-TARGET-INDEPENDENT-"
              "BOOTSTRAP-AUTHORITY-V1")
 
 # The one frozen fresh-audit target accepted by this policy (readback
-# 6.5); any other target is refused before inference can become
-# reachable.
+# 6.5); any other target is refused before inference can be reachable.
 FROZEN_TARGET = {
     "repository": "isakli05/audit-council-dev",
     "commit": "730d2b29f7c0e7d33af3451b6d9205ec27c143ed",
@@ -79,9 +74,8 @@ TARGET_KEYS = ("repository", "commit", "root_tree",
                "bootstrap_supervisor_tree", "qualification_harness_tree",
                "skill_tree", "remediation_parent")
 # Design-reserved identities for the wholly NEW lineage (readback 6.7):
-# binding constants ONLY — parsing them does NOT instantiate the event,
-# mint attempt capability, grant execution, or consume an engagement;
-# synthetic fixtures using them are NON-AUTHORITATIVE / ZERO-PROVIDER.
+# binding constants ONLY — parsing them instantiates nothing; synthetic
+# fixtures using them are NON-AUTHORITATIVE / ZERO-PROVIDER.
 EVENT_ID = "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01"
 RESERVED_ATTEMPT_IDS = {
     "AUDITOR_A":
@@ -92,9 +86,9 @@ RESERVED_ATTEMPT_IDS = {
 ROLES = ("AUDITOR_A", "AUDITOR_B")
 
 # Governance-frozen auditor selections (readback 6.8) — explicit, never
-# ambient/default/current/auto, never inherited, NO fallback of any
-# kind; the client executable identity/version/SHA-256 are frozen from
-# values supplied by the LATER event package.
+# ambient/default/auto, never inherited, NO fallback; the client
+# executable identity/version/SHA-256 come from the LATER event
+# package.
 AUDITOR_SELECTIONS = {
     "AUDITOR_A": {"provider_role": "CLAUDE_FIRSTPARTY",
                   "client_family": "CLAUDE_FIRSTPARTY",
@@ -121,9 +115,9 @@ REQUIRED_STATIC_GATES = (
 
 # The THREE DYNAMIC gates in the REQUIRED execution order —
 # CLIENT_SELECTION_PREFLIGHT first (the no-fallback enforcement point),
-# NETWORK_READINESS second, RESOURCE_GATE LAST before durable
-# consumption.  None may EVER appear as a frozen PASS evidence member
-# (a package-time PASS would go stale).
+# NETWORK_READINESS second, RESOURCE_GATE LAST; none may EVER appear
+# as a frozen PASS evidence member (a package-time PASS would go
+# stale).
 DYNAMIC_GATE_ORDER = ("CLIENT_SELECTION_PREFLIGHT", "NETWORK_READINESS",
                       "RESOURCE_GATE")
 CLIENT_SELECTION_RESULT_SCHEMA = \
@@ -139,10 +133,9 @@ DYNAMIC_GATE_RESULT_SCHEMAS = {
 }
 # Descriptor field sets: an EXECUTABLE descriptor (launcher/wrapper)
 # pins identity/path/sha256/bytes; a RUNNABLE descriptor (a dynamic
-# gate or the structural validator) adds the result schema tag, a
-# bounded timeout and a bounded result size.  The structural validator
-# is SHAPE-ONLY for target_commit (check_report_binding is the binding
-# authority).
+# gate or the structural validator) adds the result schema tag and
+# bounded timeout/result size.  The structural validator is SHAPE-ONLY
+# for target_commit (check_report_binding is the binding authority).
 EXECUTABLE_DESCRIPTOR_FIELDS = ("identity", "path", "sha256", "bytes")
 RUNNABLE_DESCRIPTOR_FIELDS = ("identity", "path", "sha256", "bytes",
                               "result_schema", "timeout_seconds",
@@ -189,13 +182,12 @@ TOP_LEVEL = ("schema", "policy_id", "event_id", "auditor_role",
 # (G2 of the accepted G0-G12 governance order): exactly ONE source-level
 # replacement slot for the ACTUAL auditor role AUDITOR_A within the SAME
 # single governance event — a CLOSED mapping with NO R2, NO allocator,
-# NO sequence counter, NO UUID, NO timestamp-derived id, NO discovery of
-# a "next" identity and NO fallback.  The slot label is NEVER an
-# auditor_role value; the spent historical V1 attempt identities are
-# mechanically refused from the V2 replacement path.  This is
+# NO sequence counter, NO UUID, NO timestamp-derived id, NO discovery
+# and NO fallback; the slot label is NEVER an auditor_role value and
+# the spent historical V1 attempt identities are mechanically refused.
 # SOURCE-LEVEL CONTRACT MATERIALIZATION ONLY: parsing a V2 document
-# creates NO runtime attempt, NO AccountingStore state, NO execution
-# authority, NO grant and NO package binding. ---
+# creates NO runtime attempt, AccountingStore state, execution
+# authority, grant or package binding. ---
 BINDING_SCHEMA_V2 = ("AUCDEV-023-CAND730D2B29-BOOTSTRAP-AUTHORITY-"
                      "BINDING-V2")
 REPLACEMENT_ATTEMPT_SLOTS = {
@@ -210,15 +202,14 @@ TOP_LEVEL_V2 = ("schema", "policy_id", "event_id", "auditor_role",
 # package's manifest has an EXACT key set, an EXACT schema tag, exact
 # per-file rows, a non-circular package identity, and the COMPLETE
 # transport projection below (every binding security dimension EXCEPT
-# event_package itself, pinned independently by the binding). ---
+# event_package itself) ---
 EVENT_MANIFEST_SCHEMA = "AUCDEV-023-CAND730D2B29-EVENT-PACKAGE-MANIFEST-V1"
 EVENT_MANIFEST_KEYS = frozenset(
     ("schema", "transport_binding", "files", "package_sha256"))
 
 # --- versioned strict AUTHORITY-PACKAGE manifest contract (verified
 # against the live package bytes at EVERY construction): exact key set
-# + the exact semantic values below; the design ids stay RESERVED-ONLY
-# binding constants.
+# + the exact semantic values; design ids stay RESERVED-ONLY constants.
 AUTHORITY_MANIFEST_SCHEMA = "AUCDEV-023-BOOTSTRAP-AUTHORITY-PACKAGE-MANIFEST-V1"
 AUTHORITY_MANIFEST_KEYS = frozenset(
     ("schema", "package", "policy_id", "target", "design_event_id",
@@ -227,14 +218,13 @@ AUTHORITY_MANIFEST_KEYS = frozenset(
      "package_sha256"))
 # The SEPARATE V2 authority-manifest schema: every V1 key and every V1
 # historical provenance check (design_event_id == EVENT_ID and
-# design_attempt_ids == RESERVED_ATTEMPT_IDS verbatim — the historical
-# pins are NOT extended with the replacement identity) PLUS exactly the
-# two accepted replacement dimensions: design_replacement_attempt_slots
-# == REPLACEMENT_ATTEMPT_SLOTS and package_grant_identity as the exact
+# design_attempt_ids == RESERVED_ATTEMPT_IDS verbatim — the pins are
+# NOT extended with the replacement identity) PLUS exactly the two
+# accepted replacement dimensions: design_replacement_attempt_slots ==
+# REPLACEMENT_ATTEMPT_SLOTS and package_grant_identity as the exact
 # immutable package-grant reference (the SINGLE 64-hex grant identity
 # namespace; the Git-tracked repository MANIFEST stays V1 — NO
-# operative grant identity is fabricated for the implementation
-# candidate; the V2 schema is exercised with synthetic fixtures only).
+# operative grant identity is fabricated; synthetic fixtures only).
 AUTHORITY_MANIFEST_SCHEMA_V2 = ("AUCDEV-023-BOOTSTRAP-AUTHORITY-"
                                 "PACKAGE-MANIFEST-V2")
 AUTHORITY_MANIFEST_KEYS_V2 = frozenset(AUTHORITY_MANIFEST_KEYS | {
@@ -247,24 +237,20 @@ PROJECTION_FIELDS_V2 = tuple(name for name in TOP_LEVEL_V2
                              if name != "event_package")
 
 # Fixed safe semantic report-binding failure tokens (readback 6.6): the
-# submitted wrong value, report prose, parser prose and credentials
-# NEVER enter a durable reason or accounting record.
+# submitted wrong value, report prose, parser prose and credentials NEVER
+# enter a durable reason or accounting record.
 REPORT_BINDING_UNPARSEABLE = "REPORT_BINDING_UNPARSEABLE"
 REPORT_TARGET_COMMIT_MISMATCH = "REPORT_TARGET_COMMIT_MISMATCH"
 REPORT_EVENT_ID_MISMATCH = "REPORT_EVENT_ID_MISMATCH"
 REPORT_AUDITOR_ROLE_MISMATCH = "REPORT_AUDITOR_ROLE_MISMATCH"
 REPORT_ATTEMPT_ID_MISMATCH = "REPORT_ATTEMPT_ID_MISMATCH"
-
 class BindingError(ValueError):
     """Refused binding document (fail closed)."""
-
 def output_name_for(attempt_id: str) -> str:
     return f"{attempt_id}.first-pass-report.json"
-
 def canonical_bytes(document: dict) -> bytes:
     return json.dumps(document, sort_keys=True,
                       separators=(",", ":")).encode()
-
 def _no_duplicate_keys(pairs):
     obj = {}
     for key, value in pairs:
@@ -272,10 +258,8 @@ def _no_duplicate_keys(pairs):
             raise BindingError(f"DUPLICATE_KEY: {key}")
         obj[key] = value
     return obj
-
 def _reject_constant(name):
     raise BindingError(f"NON_FINITE_JSON_CONSTANT: {name}")
-
 def strict_loads(data):
     """Strict JSON parse (binding, reports, gate envelopes, manifests):
     UTF-8 only, duplicate keys and non-finite constants refused."""
@@ -293,7 +277,6 @@ def strict_loads(data):
         raise
     except json.JSONDecodeError as exc:
         raise BindingError(f"NOT_VALID_JSON: {exc}") from exc
-
 def _exact_keys(mapping, expected, where):
     if not isinstance(mapping, dict):
         raise BindingError(f"{where}_NOT_AN_OBJECT")
@@ -302,39 +285,32 @@ def _exact_keys(mapping, expected, where):
         raise BindingError(
             f"{where}_KEYS_INVALID: unknown={sorted(got - want)} "
             f"missing={sorted(want - got)}")
-
 def _sha_field(value, where):
     if not isinstance(value, str) or not SHA256_RE.match(value):
         raise BindingError(f"{where}_NOT_SHA256")
     return value
-
 def _identity_field(value, where):
     if not isinstance(value, str) or not IDENTITY_RE.match(value):
         raise BindingError(f"{where}_NOT_A_SAFE_IDENTITY")
     return value
-
 def _positive_int(value, where, maximum):
     if isinstance(value, bool) or not isinstance(value, int) \
             or not 0 < value <= maximum:
         raise BindingError(f"{where}_INVALID: {value!r}")
     return value
-
 def _safe_relpath(value, where):
     """Safe package-relative POSIX path (charset-bounded segments;
-    absolute paths, empty segments, "."/".." and non-str refused)."""
+    absolute/empty/"."/".." and non-str refused)."""
     if not isinstance(value, str) or not 0 < len(value) <= 512:
         raise BindingError(f"{where}_NOT_A_SAFE_RELATIVE_PATH")
     for segment in value.split("/"):
         if segment in ("", ".", "..") or not PATH_SEGMENT_RE.match(segment):
             raise BindingError(f"{where}_NOT_A_SAFE_RELATIVE_PATH")
     return value
-
 def _frozen_abs_path(value, where):
     """One frozen authoritative HOST path dimension (BA-PREP-001/002):
-    a canonical absolute POSIX path — printable, no control characters,
-    no empty/'.'/'..' segment, no trailing '/', bounded length; every
-    non-canonical form is refused at parse so the frozen form IS the
-    canonical comparison form."""
+    a canonical absolute POSIX path — printable, no control chars, no
+    empty/'.'/'..' segment, no trailing '/', bounded length."""
     if not isinstance(value, str) or not 2 <= len(value) <= 4096:
         raise BindingError(f"{where}_NOT_A_FROZEN_ABSOLUTE_PATH")
     if any(ord(ch) < 0x20 or ord(ch) == 0x7f for ch in value):
@@ -344,30 +320,26 @@ def _frozen_abs_path(value, where):
             or "." in segments or ".." in segments:
         raise BindingError(f"{where}_NOT_A_FROZEN_ABSOLUTE_PATH")
     return value
-
 def _frozen_object_id(value, where, minimum):
     """One frozen host-local filesystem OBJECT identity component
-    (BA-PREP-RB2-001): a plain int (bool refused) at or above `minimum`
-    (a device number may be 0; an inode number never is)."""
+    (BA-PREP-RB2-001): a plain int (bool refused) at or above `minimum`."""
     if isinstance(value, bool) or not isinstance(value, int) \
             or value < minimum:
         raise BindingError(f"{where}_INVALID: {value!r}")
     return value
-
 def _executable_descriptor(value, where):
-    """Frozen executable-artifact descriptor (launcher/wrapper): exact
-    keys identity/path/sha256/bytes, safe relative path, positive size."""
+    """Frozen executable descriptor: exact keys identity/path/sha256/
+    bytes, safe relative path, positive size."""
     _exact_keys(value, EXECUTABLE_DESCRIPTOR_FIELDS, where)
     _identity_field(value["identity"], f"{where}_IDENTITY")
     _safe_relpath(value["path"], f"{where}_PATH")
     _sha_field(value["sha256"], f"{where}_SHA256")
     _positive_int(value["bytes"], f"{where}_BYTES", 2 ** 31 - 1)
     return dict(value)
-
 def _runnable_descriptor(value, where, result_schema):
     """Frozen RUNNABLE descriptor (dynamic gate / validator): the
-    executable discipline PLUS the exact result schema tag, bounded
-    timeout and bounded result size — no result, no PASS, ever."""
+    executable discipline PLUS the result schema tag and bounded
+    timeout/result size — no result, no PASS, ever."""
     _exact_keys(value, RUNNABLE_DESCRIPTOR_FIELDS, where)
     _identity_field(value["identity"], f"{where}_IDENTITY")
     _safe_relpath(value["path"], f"{where}_PATH")
@@ -381,10 +353,9 @@ def _runnable_descriptor(value, where, result_schema):
     _positive_int(value["max_result_bytes"], f"{where}_MAX_RESULT_BYTES",
                   2 ** 31 - 1)
     return dict(value)
-
 def _invocation_field(value, where):
     """The EXACT frozen auditor-client argv: non-empty ordered bounded
-    strings, no control characters; ordering is the JSON list order."""
+    strings, no control characters; JSON list order."""
     if not isinstance(value, list) or not value:
         raise BindingError(f"{where}_NOT_A_NONEMPTY_LIST")
     if len(value) > AUDITOR_INVOCATION_MAX_ITEMS:
@@ -406,11 +377,10 @@ def _invocation_field(value, where):
     if total > AUDITOR_INVOCATION_TOTAL_MAX_BYTES:
         raise BindingError(f"{where}_TOTAL_SIZE_INVALID")
     return list(value)
-
 def _execution_limits_field(value):
     """Frozen bounded execution limits: auditor/validator timeouts and
     the report byte bound, each a strictly-positive int (bool refused)
-    under conservative maxima — the ONLY timeout/size authority."""
+    under conservative maxima — the ONLY such authority."""
     _exact_keys(value, EXECUTION_LIMITS_FIELDS, "EXECUTION_LIMITS")
     limits = {}
     for key in ("auditor_timeout_seconds", "validator_timeout_seconds"):
@@ -421,14 +391,12 @@ def _execution_limits_field(value):
         value["max_report_bytes"], "EXECUTION_LIMITS_MAX_REPORT_BYTES",
         MAX_REPORT_BYTES_LIMIT)
     return limits
-
 def _package_fields(value, where):
     """Validate one pinned package-identity pair."""
     _exact_keys(value, PACKAGE_FIELDS, where)
     _sha_field(value["manifest_sha256"], f"{where}_MANIFEST")
     _sha_field(value["package_sha256"], f"{where}_PACKAGE")
     return dict(value)
-
 @dataclass(frozen=True)
 class Binding:
     schema: str
@@ -453,13 +421,10 @@ class Binding:
     execution_limits: dict
     digest: str
     attempt_slot: str = None      # V2 replacement slot (None on V1)
-
 def parse_binding(data) -> Binding:
     """Parse and fully validate a frozen PATH-B binding document — the
-    HISTORICAL V1 parse route (fail closed; no coercion, no fallback).
-    A V2-schema document is REFUSED here exactly as any other wrong
-    schema; there is NO fallback in either direction between the two
-    versioned routes."""
+    HISTORICAL V1 parse route (fail closed; no coercion, no fallback);
+    a V2-schema document is refused as any other wrong schema."""
     doc = strict_loads(data)
     _exact_keys(doc, TOP_LEVEL, "BINDING")
 
@@ -485,28 +450,19 @@ def parse_binding(data) -> Binding:
                    attempt_id=attempt,
                    digest=hashlib.sha256(
                        canonical_bytes(doc)).hexdigest(), **common)
-
-
 def parse_binding_v2(data) -> Binding:
     """Parse and fully validate a frozen PATH-B REPLACEMENT binding
     document — the SEPARATE explicitly versioned V2 parse route (fail
-    closed; no coercion, no fallback, no field-presence auto-detection:
-    the route is chosen by the EXPLICIT schema tag only, and neither
-    route ever falls back to the other).  Ordered fail-closed identity
+    closed; no coercion, no fallback, no field-presence auto-detection;
+    neither route ever falls back to the other).  Ordered identity
     gates: BINDING_SCHEMA_UNEXPECTED, POLICY_ID_UNEXPECTED,
-    EVENT_ID_UNEXPECTED, the EXPLICIT ATTEMPT_SLOT_MISSING presence
-    gate, closed-world key rejection,
+    EVENT_ID_UNEXPECTED, ATTEMPT_SLOT_MISSING, closed-world keys,
     REPLACEMENT_SLOT_LABEL_NOT_AN_AUDITOR_ROLE,
-    AUDITOR_ROLE_NOT_PERMITTED_IN_V2 (the MECHANICAL EXCLUSION of every
-    historical V1 role — hence of the spent A-01 identity — from the
-    replacement path), ATTEMPT_SLOT_UNKNOWN, the EXPLICIT spent-identity
-    refusal REPLACEMENT_ATTEMPT_ID_MAY_NOT_REUSE_SPENT_IDENTITY BEFORE
-    generic equality can obscure it, ATTEMPT_ID_NOT_THE_RESERVED_
-    IDENTITY_FOR_SLOT for every arbitrary id, the
-    ATTEMPT_SLOT_ATTEMPT_MISMATCH pairing invariant, then the shared
-    V1 dimension tail unchanged (target, digests, frozen AUDITOR_A
-    selection, descriptors, packages, output identity, gate evidence,
-    dynamic gates, invocation, limits)."""
+    AUDITOR_ROLE_NOT_PERMITTED_IN_V2 (excluding every historical V1
+    role, hence the spent A-01 identity), ATTEMPT_SLOT_UNKNOWN,
+    REPLACEMENT_ATTEMPT_ID_MAY_NOT_REUSE_SPENT_IDENTITY,
+    ATTEMPT_ID_NOT_THE_RESERVED_IDENTITY_FOR_SLOT,
+    ATTEMPT_SLOT_ATTEMPT_MISMATCH, then the shared V1 tail."""
     doc = strict_loads(data)
     if not isinstance(doc, dict):
         raise BindingError("BINDING_NOT_AN_OBJECT")
@@ -553,12 +509,9 @@ def parse_binding_v2(data) -> Binding:
                    attempt_id=attempt, attempt_slot=slot,
                    digest=hashlib.sha256(
                        canonical_bytes(doc)).hexdigest(), **common)
-
-
 def _common_binding_dimensions(doc, role, attempt) -> dict:
     """The shared binding-dimension tail (from `target` onward),
-    validated in the EXACT accepted V1 order for BOTH versioned parse
-    routes; called only AFTER the version-specific identity gates."""
+    validated in the EXACT accepted V1 order for BOTH parse routes."""
     _exact_keys(doc["target"], TARGET_KEYS, "TARGET")
     for key in TARGET_KEYS:
         if doc["target"][key] != FROZEN_TARGET[key]:
@@ -726,28 +679,25 @@ def _common_binding_dimensions(doc, role, attempt) -> dict:
             "auditor_invocation": invocation,
             "output_validator": validator,
             "execution_limits": execution_limits}
-
 def binding_projection(binding: Binding) -> dict:
     """Canonical transport projection of a parsed binding: the EXACT
     value a frozen event-package manifest's transport_binding must
     equal (compared as canonical JSON bytes, so type confusions such as
     true==1 cannot pass); covers every projection dimension of the
-    binding's OWN schema version (V2 adds exactly the attempt_slot
-    dimension), event_package EXCLUDED (non-circular).  Internal use
-    only."""
+    binding's OWN schema version (V2 adds exactly attempt_slot),
+    event_package EXCLUDED (non-circular).  Internal use only."""
     fields = PROJECTION_FIELDS_V2 if binding.schema == BINDING_SCHEMA_V2 \
         else PROJECTION_FIELDS
     return {name: getattr(binding, name) for name in fields}
 
 
 # --- the immutable NON-EXECUTION package-binding grant V2 (accepted
-# schema AUCDEV-023-PACKAGE-BINDING-GRANT-V2; UNISSUED in this
-# implementation candidate — these are the SOURCE mechanics only: NO
-# grant is minted, NO grant bytes exist, NO runtime surface consumes
-# one): a strictly-schema'd flat closed-world 20-field document in the
-# EXACT fixed canonical field order below, whose grant_identity is
-# SHA-256 of the EXACT canonical bytes — the SINGLE 64-hex grant
-# identity namespace. ---
+# schema AUCDEV-023-PACKAGE-BINDING-GRANT-V2; UNISSUED — SOURCE
+# mechanics only: NO grant is minted, NO grant bytes exist, NO runtime
+# surface consumes one): a strictly-schema'd flat closed-world
+# 20-field document in the EXACT fixed canonical field order below,
+# whose grant_identity is SHA-256 of the EXACT canonical bytes — the
+# SINGLE 64-hex grant identity namespace. ---
 GRANT_SCHEMA = "AUCDEV-023-PACKAGE-BINDING-GRANT-V2"
 GRANT_FIELDS = ("schema", "purpose", "operator_authority_id",
                 "authorization_record_path", "authorization_commit_sha",
@@ -771,14 +721,10 @@ GRANT_SECRET_MATERIAL = "NONE"
 GRANT_EXPIRY_POLICY = "NO_EXPIRY"
 GRANT_ISSUANCE_SEMANTICS = "IMMUTABLE_NON_EXECUTION_PACKAGE_BINDING_GRANT"
 GRANT_MUTABLE_LIFECYCLE_FIELD_NAMES = frozenset(("lifecycle_state",))
-
-
 def grant_canonical_bytes(document: dict) -> bytes:
     """EXACT canonical serialization of the immutable grant: strict JSON,
-    single top-level object, exactly the 20 fields, EXACT fixed field
-    order, compact separators, UTF-8, no BOM, no comments, no duplicate
-    keys (refused upstream by strict_loads), no trailing newline, no
-    insignificant alternate serialization."""
+    exactly the 20 fields in the EXACT fixed order, compact separators,
+    UTF-8, no BOM/comments/duplicate keys/trailing newline."""
     if not isinstance(document, dict):
         raise BindingError("GRANT_NOT_AN_OBJECT")
     got, want = set(document), set(GRANT_FIELDS)
@@ -791,27 +737,15 @@ def grant_canonical_bytes(document: dict) -> bytes:
             f"missing={sorted(want - got)}")
     return json.dumps({name: document[name] for name in GRANT_FIELDS},
                       separators=(",", ":")).encode()
-
-
 def grant_identity(canonical: bytes) -> str:
     """grant_identity = SHA-256(EXACT canonical grant bytes) — the single
     64-hex grant identity namespace (deterministic, non-secret,
-    recomputable by any verifier; NEVER minted or generated at
-    runtime)."""
+    recomputable by any verifier; NEVER minted at runtime)."""
     return hashlib.sha256(canonical).hexdigest()
-
-
-def parse_package_grant(data, expected_grant_identity=None) -> str:
+def _validated_grant_document(data) -> tuple:
     """Parse, canonically re-derive and fully validate ONE immutable
     AUCDEV-023-PACKAGE-BINDING-GRANT-V2 document (fail closed) and
-    return its grant_identity.  A grant is a NON-EXECUTION document:
-    non-canonical bytes, a wrong schema/purpose/event/role/slot/
-    attempt/target/active-v3 value, an execution-authority claim, a
-    secret-material substitution, a mutable lifecycle field or any
-    unknown/missing field is refused with a DISTINCT fixed token.  With
-    expected_grant_identity the derived identity is cross-checked
-    against the claimed reference (the V2 grant-reference consistency
-    contract — one namespace, no second identity)."""
+    return (document, canonical_bytes); all refusal families apply."""
     raw = data.encode() if isinstance(data, str) else data
     doc = strict_loads(raw)
     canonical = grant_canonical_bytes(doc)
@@ -873,6 +807,12 @@ def parse_package_grant(data, expected_grant_identity=None) -> str:
             raise BindingError(f"GRANT_{field.upper()}_INVALID")
     _sha_field(doc["authorization_record_sha256"],
                "GRANT_AUTHORIZATION_RECORD_SHA256")
+    return doc, canonical
+def parse_package_grant(data, expected_grant_identity=None) -> str:
+    """Fully validate ONE immutable grant document (above) and return
+    its grant_identity; with expected_grant_identity the DERIVED
+    identity is cross-checked (one namespace, no second identity)."""
+    _doc, canonical = _validated_grant_document(data)
     identity = grant_identity(canonical)
     if expected_grant_identity is not None \
             and identity != expected_grant_identity:
@@ -880,18 +820,14 @@ def parse_package_grant(data, expected_grant_identity=None) -> str:
             f"GRANT_IDENTITY_MISMATCH: claimed "
             f"{expected_grant_identity!r} != derived {identity!r}")
     return identity
-
-
 def check_package_grant_reference(claimed_grant_identity,
                                   grant_bytes=None) -> str:
     """The minimum accepted V2 grant-reference consistency cross-check:
     the ONE 64-hex grant identity namespace must agree wherever the V2
-    contract represents it (authority-manifest package_grant_identity,
-    receipt grant_identity, grant_identity of the exact accepted grant
-    bytes).  When the exact grant document bytes are supplied they are
-    parsed under the immutable contract and their derived identity must
-    EQUAL the claimed reference; no second grant identity namespace
-    exists and the runtime NEVER generates or mints one."""
+    contract represents it (manifest package_grant_identity, receipt
+    grant_identity, grant_identity of the exact grant bytes); with
+    grant bytes supplied they are fully parsed and the DERIVED identity
+    must EQUAL the claim — no second namespace, runtime NEVER mints."""
     if not isinstance(claimed_grant_identity, str) \
             or not SHA256_RE.match(claimed_grant_identity):
         raise BindingError("GRANT_IDENTITY_MALFORMED")
@@ -902,15 +838,16 @@ def check_package_grant_reference(claimed_grant_identity,
 
 
 # --- the NON-RUNTIME package-binding receipt V1 SOURCE PRIMITIVE
-# (accepted schema AUCDEV-023-PACKAGE-BINDING-RECEIPT-V1; UNCREATED in
-# this implementation candidate — source mechanics only, NO operative
-# receipt exists): one canonical record per grant_identity created
-# O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW mode 0600 inside a caller-supplied
-# NON-RUNTIME namespace that is NEVER AccountingStore, NEVER the frozen
-# event runtime root, NEVER attempt execution accounting and NEVER a
-# Git-tracked operative path; no append/update/rebind API; no
-# delete/reuse protocol API; a duplicate receipt FAILS CLOSED; the
-# receipt confers ZERO execution authority. ---
+# (accepted schema AUCDEV-023-PACKAGE-BINDING-RECEIPT-V1; UNCREATED —
+# source mechanics only, NO operative receipt exists): ONE canonical
+# namespace pinned by the VERIFIED future G7 context below (NEVER a
+# caller-selected root), the receipt context derived from the EXACT
+# canonical grant bytes and the EXACT frozen package artifact, ONE
+# record per grant_identity created O_EXCL mode 0600 (fsync file then
+# directory), duplicate FAILS CLOSED, NO update/append/rebind/reuse
+# API; the namespace is NEVER AccountingStore, NEVER the frozen event
+# runtime root, NEVER a Git-tracked operative path; ZERO execution
+# authority. ---
 RECEIPT_SCHEMA = "AUCDEV-023-PACKAGE-BINDING-RECEIPT-V1"
 RECEIPT_FIELDS = ("schema", "grant_identity", "package_sha256",
                   "governance_event_id", "auditor_role", "attempt_slot",
@@ -921,33 +858,25 @@ RECEIPT_BINDING_SEMANTICS = \
     "ONE_SHOT_IMMUTABLE_NON_RUNTIME_PACKAGE_BINDING"
 RECEIPT_MODE = 0o600
 RECEIPT_NAME_SUFFIX = ".package-binding-receipt.json"
-
-
 def receipt_name(grant_identity: str) -> str:
-    """The deterministic NON-RUNTIME receipt record name (ONE canonical
-    record per grant_identity)."""
+    """The deterministic receipt record name (ONE per grant_identity)."""
     if not isinstance(grant_identity, str) \
             or not SHA256_RE.match(grant_identity):
         raise BindingError("GRANT_IDENTITY_MALFORMED")
     return grant_identity + RECEIPT_NAME_SUFFIX
-
-
 def receipt_canonical_bytes(document: dict) -> bytes:
-    """EXACT canonical serialization of the receipt record (exact field
-    set, fixed field order, compact separators, no trailing newline)."""
+    """EXACT canonical receipt serialization (exact fields, fixed
+    order, compact separators, no trailing newline)."""
     if not isinstance(document, dict):
         raise BindingError("RECEIPT_NOT_AN_OBJECT")
     _exact_keys(document, RECEIPT_FIELDS, "RECEIPT")
     return json.dumps({name: document[name] for name in RECEIPT_FIELDS},
                       separators=(",", ":")).encode()
-
-
 def parse_package_binding_receipt(data) -> dict:
     """Parse and fully validate ONE package-binding receipt record (fail
     closed): exact closed key world, exact schema tag, well-formed
-    identities, and the exact replacement-contract values — event,
-    auditor role (AUDITOR_A, never a slot label), slot, attempt id and
-    binding semantics; ANY inconsistency is RECEIPT_MISMATCH_REFUSED."""
+    identities and the exact replacement-contract values — ANY
+    inconsistency is RECEIPT_MISMATCH_REFUSED."""
     doc = strict_loads(data)
     if not isinstance(doc, dict):
         raise BindingError("RECEIPT_NOT_AN_OBJECT")
@@ -977,12 +906,64 @@ def parse_package_binding_receipt(data) -> dict:
     return {name: doc[name] for name in RECEIPT_FIELDS}
 
 
-def _open_receipt_namespace(root) -> int:
-    """Open the caller-supplied NON-RUNTIME receipt namespace root: a
-    real directory (no symlink), owned by the executing uid, not
-    group/world-writable — held as an fd for the O_EXCL create."""
+# --- the strict closed-world VERIFIED future G7 mint-publication
+# context — the RECEIPT NAMESPACE AUTHORITY (future NON-RUNTIME
+# package tooling / Control Room independently derives and verifies
+# the canonical G7 publication under the accepted PUBID/DIFFSEM
+# selector; this primitive validates strict shape and identity syntax
+# ONLY, NOT Git governance).  The minimal non-secret namespace
+# identity the future G7 semantic payload carries for G10 is EXACTLY
+# G7_NAMESPACE_PAYLOAD_KEYS — absolute normalized path (never
+# repository-relative, never caller-composed at receipt time) plus the
+# exact established namespace directory OBJECT identity. ---
+G7_MINT_PUBLICATION_RECORD_PATH = ("docs/chatgpt-project/AUCDEV-023-PCH6-B-"
+                                   "PATH-B-REPLACEMENT-AUDITOR-A-GRANT-MINT-"
+                                   "PUBLICATION.md")
+G7_NAMESPACE_PAYLOAD_KEYS = ("receipt_namespace_path",
+                             "receipt_namespace_st_dev",
+                             "receipt_namespace_st_ino")
+VERIFIED_G7_CONTEXT_KEYS = ("grant_mint_publication_commit_sha",
+                            "grant_mint_publication_root_tree",
+                            "grant_mint_publication_record_path",
+                            "grant_mint_publication_record_blob_sha1",
+                            "grant_mint_publication_record_sha256",
+                            "grant_identity") + G7_NAMESPACE_PAYLOAD_KEYS
+def parse_verified_g7_context(data) -> dict:
+    """Parse and fully validate ONE strict VERIFIED G7 context (fail
+    closed): exact closed key world, exact reserved record path,
+    well-formed identities, canonical namespace path and plain-int
+    object ids — no arbitrary local object can pose as canonical."""
+    doc = data if isinstance(data, dict) else strict_loads(data)
+    _exact_keys(doc, VERIFIED_G7_CONTEXT_KEYS, "G7_CONTEXT")
+    for field, pattern in (
+            ("grant_mint_publication_commit_sha", SHA1_RE),
+            ("grant_mint_publication_root_tree", SHA1_RE),
+            ("grant_mint_publication_record_blob_sha1", SHA1_RE),
+            ("grant_mint_publication_record_sha256", SHA256_RE),
+            ("grant_identity", SHA256_RE)):
+        if not isinstance(doc[field], str) or not pattern.match(doc[field]):
+            raise BindingError(f"G7_CONTEXT_{field.upper()}_INVALID")
+    if doc["grant_mint_publication_record_path"] != \
+            G7_MINT_PUBLICATION_RECORD_PATH:
+        raise BindingError(
+            "G7_CONTEXT_RECORD_PATH_UNEXPECTED: the context must name the "
+            "exact reserved canonical G7 mint-publication record path")
+    _frozen_abs_path(doc["receipt_namespace_path"], "RECEIPT_NAMESPACE_PATH")
+    context = {name: doc[name] for name in VERIFIED_G7_CONTEXT_KEYS}
+    context["receipt_namespace_st_dev"] = _frozen_object_id(
+        doc["receipt_namespace_st_dev"], "RECEIPT_NAMESPACE_ST_DEV", 0)
+    context["receipt_namespace_st_ino"] = _frozen_object_id(
+        doc["receipt_namespace_st_ino"], "RECEIPT_NAMESPACE_ST_INO", 1)
+    return context
+def _open_verified_receipt_namespace(context: dict) -> int:
+    """Open and verify THE canonical NON-RUNTIME receipt namespace
+    carried by the VERIFIED G7 context (never a caller-selected root):
+    opened O_NOFOLLOW at the context's exact absolute path; a real
+    owner-uid directory, not group/world writable, that IS the exact
+    pinned OBJECT (live st_dev/st_ino == the pair — anything else is
+    RECEIPT_NAMESPACE_IDENTITY_MISMATCH); held as an fd."""
     try:
-        fd = os.open(os.fspath(root),
+        fd = os.open(context["receipt_namespace_path"],
                      os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     except OSError as exc:
         raise BindingError(f"RECEIPT_NAMESPACE_UNOPENABLE: {exc!r}") from exc
@@ -994,26 +975,91 @@ def _open_receipt_namespace(root) -> int:
             raise BindingError("RECEIPT_NAMESPACE_NOT_OWNER_UID")
         if info.st_mode & 0o022:
             raise BindingError("RECEIPT_NAMESPACE_GROUP_OR_WORLD_WRITABLE")
+        if info.st_dev != context["receipt_namespace_st_dev"] \
+                or info.st_ino != context["receipt_namespace_st_ino"]:
+            raise BindingError(
+                "RECEIPT_NAMESPACE_IDENTITY_MISMATCH: the live namespace "
+                "object is not the exact pinned G7-context object")
     except Exception:
         os.close(fd)
         raise
     return fd
-
-
-def write_package_binding_receipt(root, record: dict) -> dict:
-    """NON-RUNTIME package-binding receipt SOURCE PRIMITIVE (the future
-    one-shot bind mechanics ONLY; NOT a BootstrapAuthority operation;
-    confers ZERO execution authority; creates NO AccountingStore state):
-    validate the record, serialize the EXACT canonical bytes and create
-    the ONE receipt per grant_identity O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW
-    mode 0600 relative to the held namespace fd (fsync file then
-    directory); a duplicate receipt FAILS CLOSED
-    (DUPLICATE_PACKAGE_BINDING_REFUSED) and no update/rebind/delete/
-    reuse surface exists."""
+def derive_frozen_package_sha256(package_artifact) -> str:
+    """Derive package_sha256 from the EXACT frozen package artifact
+    bytes (never a naked caller digest): opened without following
+    symlinks, regular file required, hashed from the held object."""
+    try:
+        fd = os.open(os.fspath(package_artifact),
+                     os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError as exc:
+        raise BindingError(f"PACKAGE_ARTIFACT_UNOPENABLE: {exc!r}") from exc
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise BindingError("PACKAGE_ARTIFACT_NOT_A_REGULAR_FILE")
+        digest = hashlib.sha256()
+        while True:
+            chunk = os.read(fd, 65536)
+            if not chunk:
+                break
+            digest.update(chunk)
+    finally:
+        os.close(fd)
+    return digest.hexdigest()
+def _derived_receipt_context(verified_g7_context, grant_bytes) -> tuple:
+    """Parse the VERIFIED G7 context and the EXACT canonical grant
+    bytes, cross-checking the single grant identity namespace (the
+    context's grant_identity MUST equal the DERIVED identity — a naked
+    caller digest is never trusted); returns (context, document, id)."""
+    context = parse_verified_g7_context(verified_g7_context)
+    document, canonical = _validated_grant_document(grant_bytes)
+    identity = grant_identity(canonical)
+    if identity != context["grant_identity"]:
+        raise BindingError(
+            "RECEIPT_GRANT_CONTEXT_MISMATCH: the verified G7 context does "
+            "not name the exact supplied grant identity")
+    return context, document, identity
+def _crosscheck_receipt(validated, grant_document, identity,
+                        package_sha256) -> None:
+    """The grant-derived receipt-context relation: the receipt must
+    agree with the EXACT parsed grant bytes on every dimension and with
+    the independently derived package digest (fail closed)."""
+    for field, derived in (
+            ("grant_identity", identity),
+            ("operator_authority_id",
+             grant_document["operator_authority_id"]),
+            ("governance_event_id", grant_document["governance_event_id"]),
+            ("auditor_role", grant_document["auditor_role"]),
+            ("attempt_slot", grant_document["attempt_slot"]),
+            ("attempt_id", grant_document["future_machine_attempt_id"])):
+        if validated[field] != derived:
+            raise BindingError(
+                f"RECEIPT_MISMATCH_REFUSED: {field} != the grant-derived "
+                "value of the exact canonical grant bytes")
+    if validated["package_sha256"] != package_sha256:
+        raise BindingError(
+            "PACKAGE_SUBSTITUTION_REFUSED: the receipt does not bind the "
+            "digest derived from the exact frozen package artifact")
+def write_package_binding_receipt(verified_g7_context, grant_bytes,
+                                  package_artifact, record: dict) -> dict:
+    """NON-RUNTIME package-binding receipt SOURCE PRIMITIVE (NOT a
+    BootstrapAuthority operation; ZERO execution authority; NO
+    AccountingStore state): requires the VERIFIED canonical G7
+    context, the EXACT canonical grant bytes and the EXACT frozen
+    package artifact — derives grant_identity, the grant-dimension
+    receipt context and package_sha256 ITSELF, derives the namespace
+    SOLELY from the verified context (NO raw-root authority input),
+    verifies the exact namespace OBJECT, then creates the ONE receipt
+    per grant_identity O_EXCL mode 0600 relative to the held fd (fsync
+    file then directory); a duplicate FAILS CLOSED; no
+    update/rebind/reuse surface exists."""
+    context, document, identity = _derived_receipt_context(
+        verified_g7_context, grant_bytes)
+    package_sha256 = derive_frozen_package_sha256(package_artifact)
     canonical = receipt_canonical_bytes(record)
-    validated = parse_package_binding_receipt(canonical)
-    name = receipt_name(validated["grant_identity"])
-    dir_fd = _open_receipt_namespace(root)
+    _crosscheck_receipt(parse_package_binding_receipt(canonical), document,
+                        identity, package_sha256)
+    name = receipt_name(identity)
+    dir_fd = _open_verified_receipt_namespace(context)
     try:
         try:
             fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL
@@ -1021,8 +1067,9 @@ def write_package_binding_receipt(root, record: dict) -> dict:
         except FileExistsError as exc:
             raise BindingError(
                 "DUPLICATE_PACKAGE_BINDING_REFUSED: a receipt already "
-                "exists for this grant identity (one canonical record "
-                "per grant_identity; no rebind, no reuse)") from exc
+                "exists for this grant identity in the canonical "
+                "namespace (one record per grant_identity; no rebind, "
+                "no reuse)") from exc
         except OSError as exc:
             raise BindingError(
                 f"RECEIPT_CREATE_REFUSED: {exc!r}") from exc
@@ -1035,21 +1082,21 @@ def write_package_binding_receipt(root, record: dict) -> dict:
     finally:
         os.close(dir_fd)
     return {"path": name, "sha256": hashlib.sha256(canonical).hexdigest(),
-            "size": len(canonical),
-            "grant_identity": validated["grant_identity"],
-            "package_sha256": validated["package_sha256"]}
-
-
-def verify_package_binding_receipt(root, grant_identity: str,
-                                   package_sha256: str) -> dict:
+            "size": len(canonical), "grant_identity": identity,
+            "package_sha256": package_sha256}
+def verify_package_binding_receipt(verified_g7_context, grant_bytes,
+                                   package_artifact) -> dict:
     """Verify the ONE receipt bound to grant_identity against the
-    recomputed grant identity and package digest (fail closed): the
-    receipt file is opened (no symlink) and must BE the exact canonical
-    record; a substituted package digest is PACKAGE_SUBSTITUTION_REFUSED
-    and any grant/event/role/slot/attempt inconsistency is
-    RECEIPT_MISMATCH_REFUSED.  Confers ZERO execution authority."""
-    name = receipt_name(grant_identity)
-    dir_fd = _open_receipt_namespace(root)
+    independently re-derived context (fail closed): namespace from the
+    VERIFIED G7 context, grant identity/dimensions from the EXACT
+    grant bytes, package_sha256 from the EXACT frozen artifact; the
+    receipt file (no symlink) must BE the exact canonical record.
+    Confers ZERO execution authority."""
+    context, document, identity = _derived_receipt_context(
+        verified_g7_context, grant_bytes)
+    package_sha256 = derive_frozen_package_sha256(package_artifact)
+    name = receipt_name(identity)
+    dir_fd = _open_verified_receipt_namespace(context)
     try:
         try:
             fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dir_fd)
@@ -1070,10 +1117,5 @@ def verify_package_binding_receipt(root, grant_identity: str,
     validated = parse_package_binding_receipt(data)
     if receipt_canonical_bytes(validated) != data:
         raise BindingError("RECEIPT_CANONICALIZATION_INVALID")
-    if validated["grant_identity"] != grant_identity:
-        raise BindingError("RECEIPT_MISMATCH_REFUSED: grant identity")
-    if validated["package_sha256"] != package_sha256:
-        raise BindingError(
-            "PACKAGE_SUBSTITUTION_REFUSED: the receipt binds a different "
-            "package digest than the recomputed live package identity")
+    _crosscheck_receipt(validated, document, identity, package_sha256)
     return validated

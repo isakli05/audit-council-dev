@@ -631,6 +631,84 @@ def synthetic_grant_bytes(**overrides) -> bytes:
     return bab.grant_canonical_bytes(synthetic_grant_doc(**overrides))
 
 
+# --- G2 REMEDIATION synthetic fixtures (RECEIPTCTX-001): the strict
+# VERIFIED future G7 context, the synthetic canonical NON-RUNTIME
+# receipt namespace directory, the synthetic frozen package artifact
+# and the grant-derived receipt record.  All SYNTHETIC /
+# NON-AUTHORITATIVE / ZERO-PROVIDER / NON-PERSISTENT: the publication
+# identities are synthetic non-secret values (the REAL G7
+# mint-publication record stays FUTURE and is NEVER created here); the
+# namespace lives inside the throwaway test world only. ---
+
+
+def build_receipt_namespace(tmp_path, name="receipts"):
+    """One SYNTHETIC canonical NON-RUNTIME receipt namespace directory
+    (real directory, owner-only mode) and its live OBJECT identity
+    (path, st_dev, st_ino)."""
+    root = Path(tmp_path) / name
+    root.mkdir(parents=True, exist_ok=True)
+    os.chmod(root, 0o700)
+    info = os.stat(root)
+    return {"receipt_namespace_path": str(root),
+            "receipt_namespace_st_dev": info.st_dev,
+            "receipt_namespace_st_ino": info.st_ino}
+
+
+def synthetic_g7_context(namespace, grant_bytes=None, **overrides) -> dict:
+    """A complete SYNTHETIC VERIFIED future G7 mint-publication context
+    for the given namespace object and (by default) the synthetic
+    grant's DERIVED identity; the five publication identity values are
+    synthetic non-secret shapes only."""
+    doc = {
+        "grant_mint_publication_commit_sha": "4" * 40,
+        "grant_mint_publication_root_tree": "5" * 40,
+        "grant_mint_publication_record_path":
+            bab.G7_MINT_PUBLICATION_RECORD_PATH,
+        "grant_mint_publication_record_blob_sha1": "6" * 40,
+        "grant_mint_publication_record_sha256": "7" * 64,
+        "grant_identity": bab.grant_identity(
+            grant_bytes if grant_bytes is not None
+            else synthetic_grant_bytes()),
+    }
+    doc.update(namespace)
+    doc.update(overrides)
+    return doc
+
+
+def synthetic_package_artifact(tmp_path, payload=None, name="package.bin"):
+    """One SYNTHETIC frozen package artifact (non-secret bytes; the
+    receipt's package_sha256 is derived from THESE EXACT bytes)."""
+    data = payload if payload is not None \
+        else b"SYNTHETIC-NON-SECRET-PACKAGE-ARTIFACT-20261007-01"
+    path = Path(tmp_path) / name
+    path.write_bytes(data)
+    return path
+
+
+def synthetic_receipt_record(grant_bytes=None, package_sha256=None,
+                             **overrides) -> dict:
+    """One complete SYNTHETIC receipt record DERIVED from the synthetic
+    grant document and the exact package digest (all grant-dimension
+    values come from the exact synthetic grant bytes)."""
+    raw = grant_bytes if grant_bytes is not None else synthetic_grant_bytes()
+    document, canonical = bab._validated_grant_document(raw)
+    record = {
+        "schema": bab.RECEIPT_SCHEMA,
+        "grant_identity": bab.grant_identity(canonical),
+        "package_sha256": package_sha256 or sha256_bytes(
+            b"SYNTHETIC-NON-SECRET-PACKAGE-ARTIFACT-20261007-01"),
+        "governance_event_id": document["governance_event_id"],
+        "auditor_role": document["auditor_role"],
+        "attempt_slot": document["attempt_slot"],
+        "attempt_id": document["future_machine_attempt_id"],
+        "operator_authority_id": document["operator_authority_id"],
+        "created_under_package_binding_authority": True,
+        "binding_semantics": bab.RECEIPT_BINDING_SEMANTICS,
+    }
+    record.update(overrides)
+    return record
+
+
 def build_world_v2(tmp_path, package_grant_identity=None,
                    launcher_mode="ok", report=None):
     """Assemble one complete SYNTHETIC V2 replacement world: a temporary

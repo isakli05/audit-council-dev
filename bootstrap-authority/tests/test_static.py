@@ -42,13 +42,14 @@ HISTORICAL_BINDING_BLOB = "47eeb5171e9b50b09668aa672b6458c2ea33dd05"
 HISTORICAL_LAUNCH_BLOB = "063b6ce1f4c726bd6ba809f605a115511667fb09"
 CANDIDATE_LAUNCH_BLOB = "1d6b8d6d5751dbf9a73a84e6b2f1ee594f6ca49e"
 # LOC ceiling: the V1 implementation was bounded at 3000 (< the
-# 3057-LOC audit-subject EBS tree).  The G2 V2 replacement contract
-# (separate versioned parse route, V2 authority-manifest admission,
-# immutable 20-field grant mechanics, NON-RUNTIME receipt primitive)
-# grows the protected production source to exactly 3577 lines under an
-# EXPLICITLY REVISED tight pin — an authorized, recorded, G3-reviewable
-# deviation (the package is no longer smaller than the audit subject;
-# see README and the canonical V2 implementation record).
+# 3057-LOC audit-subject EBS tree); the G2 V2 replacement contract
+# grew the protected production source to 3577.  The operator's G2
+# remediation authorization EXPLICITLY ACCEPTED the 3577 baseline as a
+# CEILING for this V2 lineage (G3 finding G1SCOPE-LOC-001 disposition:
+# the 3000 ceiling is retired; 3577 is a ceiling, NOT a required
+# equality — the former exact-equality test was removed with that
+# governance change rather than kept as filler-forcing).  The G2
+# remediation fits inside via narrow docstring/comment consolidation.
 LOC_BOUND = 3577
 EXPECTED_PACKAGE_PATHS = {
     "MANIFEST.json", "README.md",
@@ -576,10 +577,128 @@ def test_ard_no_credential_or_channel_surface_in_production():
 
 
 def test_ard_06_loc_ceiling():
-    """The production LOC ceiling is the EXACT pinned final count of the
-    G2 V2 implementation (3577) — any further growth fails closed."""
+    """RCTX-29: production LOC stays AT OR UNDER the operator-accepted
+    3577 CEILING (the exact-equality form encoded the superseded G1
+    wording and was removed per the G2 remediation LOC governance
+    reconciliation — no filler code is forced by an equality pin)."""
     total = 0
     for name in PRODUCTION:
         total += len((AUTHORITY_ROOT / "bootstrap_authority" / name)
                      .read_text().splitlines())
-    assert total == LOC_BOUND, total
+    assert total <= LOC_BOUND, total
+
+
+# =====================================================================
+# G2 REMEDIATION structural tests (RCTX-21..RCTX-30; RECEIPTCTX-001 /
+# G1CONTRACT-001 / G1SCOPE-LOC-001 reconciliation)
+# =====================================================================
+
+
+def test_rctx_21_bootstrap_authority_never_consumes_grant_bytes():
+    """RCTX-21: BootstrapAuthority does not parse, hash or consume
+    grant bytes — no grant-parser/grant-canonicalization reference of
+    any kind exists in runtime.py (the G1 runtime cross-check wording
+    is superseded by the operator's reconciliation: grant-byte
+    verification belongs EXCLUSIVELY to NON-RUNTIME binding/package
+    tooling and the independent readback)."""
+    runtime_text = (AUTHORITY_ROOT / "bootstrap_authority" /
+                    "runtime.py").read_text()
+    for banned in ("parse_package_grant", "_validated_grant_document",
+                   "grant_canonical_bytes", "check_package_grant_reference",
+                   "bab.grant_identity", "grant_identity(canonical)"):
+        assert banned not in runtime_text, banned
+    # the manifest surface checks only the STRUCTURAL 64-hex form
+    assert "SHA256_RE.match(grant_reference)" in runtime_text
+
+
+def test_rctx_22_bootstrap_authority_never_touches_receipts():
+    """RCTX-22: BootstrapAuthority neither writes nor verifies receipts
+    — no receipt primitive of any kind is reachable from runtime.py."""
+    runtime_text = (AUTHORITY_ROOT / "bootstrap_authority" /
+                    "runtime.py").read_text()
+    for banned in ("write_package_binding_receipt",
+                   "verify_package_binding_receipt", "receipt_name",
+                   "RECEIPT_SCHEMA", "parse_package_binding_receipt"):
+        assert banned not in runtime_text, banned
+    for name in ("write_package_binding_receipt",
+                 "verify_package_binding_receipt", "create_receipt"):
+        assert not hasattr(barmod.BootstrapAuthority, name), name
+
+
+def test_rctx_23_public_surface_exact():
+    """RCTX-23: the public BootstrapAuthority surface remains EXACTLY
+    {state, store, run_attempt} (re-asserted for the remediation)."""
+    public = {name for name, member in
+              vars(barmod.BootstrapAuthority).items()
+              if not name.startswith("_")
+              and not isinstance(member, (classmethod, staticmethod))}
+    assert public == {"state", "store", "run_attempt"}
+
+
+def test_rctx_24_grant_schema_bytes_unchanged():
+    """RCTX-24: the accepted 20-field grant schema and its canonical
+    byte semantics are unchanged by the remediation."""
+    assert bab.GRANT_FIELDS == (
+        "schema", "purpose", "operator_authority_id",
+        "authorization_record_path", "authorization_commit_sha",
+        "authorization_record_blob_sha1", "authorization_record_sha256",
+        "governance_event_id", "auditor_role", "attempt_slot",
+        "future_machine_attempt_id", "frozen_target_commit",
+        "frozen_target_tree", "accepted_active_v3_procedure_sha256",
+        "accepted_active_v3_binding_sha256", "one_package_only",
+        "execution_authority", "secret_material", "expiry_policy",
+        "issuance_semantics")
+    assert len(bab.GRANT_FIELDS) == 20
+    assert "lifecycle_state" not in bab.GRANT_FIELDS
+    assert bab.GRANT_EXECUTION_AUTHORITY == "NONE"
+    assert bab.GRANT_SECRET_MATERIAL == "NONE"
+
+
+def test_rctx_25_v1_semantics_unchanged():
+    """RCTX-25: the V1 parse route and manifest semantics are unchanged
+    (spot re-derivation; the full contract lives in the BA-13..25 and
+    ARD-AC test batteries above)."""
+    assert bab.BINDING_SCHEMA == \
+        "AUCDEV-023-CAND730D2B29-BOOTSTRAP-AUTHORITY-BINDING-V1"
+    assert bab.AUTHORITY_MANIFEST_KEYS == frozenset(
+        ("schema", "package", "policy_id", "target", "design_event_id",
+         "design_attempt_ids", "status", "qualification_claim",
+         "runtime_dependencies", "source_provenance", "files",
+         "package_sha256"))
+
+
+def test_rctx_26_replacement_semantics_unchanged():
+    """RCTX-26: the one-slot replacement role/slot/attempt semantics
+    are unchanged (spot re-derivation)."""
+    assert bab.REPLACEMENT_ATTEMPT_SLOTS == {
+        "AUDITOR_A_REPLACEMENT_1":
+            bab.EVENT_ID + "-AUDITOR-A-R1"}
+    assert bab.REPLACEMENT_SLOT_ROLES == {
+        "AUDITOR_A_REPLACEMENT_1": "AUDITOR_A"}
+    assert bab.V2_PERMITTED_AUDITOR_ROLES == ("AUDITOR_A",)
+
+
+def test_rctx_27_28_held_modules_byte_exact():
+    """RCTX-27/28: accounting.py and statemachine.py keep their exact
+    authorized-base git blob identities (byte-held through the
+    remediation)."""
+    held = {"accounting.py": "26368783dd88782dd3c63a76fbf11582ee16caa1",
+            "statemachine.py":
+                "cf563d2178907e7666ce661b81ab1bf16fb71201"}
+    for name, blob in held.items():
+        data = (AUTHORITY_ROOT / "bootstrap_authority" / name).read_bytes()
+        assert git_blob_sha1(data) == blob, name
+
+
+def test_rctx_30_reserved_paths_remain_absent():
+    """RCTX-30: the design-reserved G7 mint-publication and
+    package-binding-authority canonical paths remain ABSENT (on disk
+    and across all history) — the remediation may NOT create them."""
+    for rel in RESERVED_CANONICAL_PATHS:
+        assert not (REPO_ROOT / rel).exists(), rel
+        assert git("log", "--oneline", "--", rel).stdout == "", rel
+    # the G7 record path constant matches the reserved canonical path
+    assert bab.G7_MINT_PUBLICATION_RECORD_PATH == (
+        "docs/chatgpt-project/AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-"
+        "AUDITOR-A-GRANT-MINT-PUBLICATION.md")
+    assert not (REPO_ROOT / bab.G7_MINT_PUBLICATION_RECORD_PATH).exists()

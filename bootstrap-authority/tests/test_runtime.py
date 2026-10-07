@@ -1053,56 +1053,334 @@ def test_v2_grant_cannot_invoke_run_attempt(tmp_path):
     assert not hasattr(bar.BootstrapAuthority, "create_receipt")
 
 
-def test_v2_receipt_one_shot_bind_mechanics(tmp_path):
-    """ARD-AC-21/22/23/24: the NON-RUNTIME receipt source primitive —
-    one canonical record per grant_identity, O_EXCL duplicate refusal,
-    package-substitution refusal, mode 0600, and ZERO AccountingStore
-    state / zero .jsonl anywhere in the receipt namespace."""
+def test_v2_receipt_verified_context_bind_mechanics(tmp_path):
+    """ARD-AC-21/22/23/24 + RCTX-03/08/16 (G2 remediation
+    RECEIPTCTX-001): the NON-RUNTIME receipt primitive under the
+    VERIFIED future G7 context — one canonical record per
+    grant_identity in the context-pinned namespace, grant-context
+    mismatch refusal, O_EXCL duplicate refusal, exact-artifact package
+    digest binding, mode 0600, ZERO AccountingStore state / zero
+    .jsonl anywhere in the receipt namespace.  The pre-remediation
+    raw-root API (write_package_binding_receipt(root, record)) encoded
+    the caller-selected-root defect the operator's remediation
+    authorization explicitly removes (G3 finding RECEIPTCTX-001); this
+    test was rewritten for the verified-G7-context API for that
+    governance reason."""
     from bootstrap_authority import binding as bab
-    receipt_root = tmp_path / "receipts"
-    receipt_root.mkdir()
+    from conftest import (build_receipt_namespace, synthetic_g7_context,
+                          synthetic_package_artifact,
+                          synthetic_receipt_record)
+    namespace = build_receipt_namespace(tmp_path)
+    context = synthetic_g7_context(namespace)
     grant = synthetic_grant_bytes()
     identity = bab.parse_package_grant(grant)
-    package_digest = sha256_bytes(b"SYNTHETIC-NON-SECRET-PACKAGE")
-    record = {
-        "schema": bab.RECEIPT_SCHEMA,
-        "grant_identity": identity,
-        "package_sha256": package_digest,
-        "governance_event_id": bab.EVENT_ID,
-        "auditor_role": "AUDITOR_A",
-        "attempt_slot": "AUDITOR_A_REPLACEMENT_1",
-        "attempt_id": replacement_attempt_id(),
-        "operator_authority_id":
-            "SYNTHETIC-TEST-OPERATOR-AUTHORITY-20261007-01",
-        "created_under_package_binding_authority": True,
-        "binding_semantics": bab.RECEIPT_BINDING_SEMANTICS,
-    }
-    created = bab.write_package_binding_receipt(receipt_root, record)
+    artifact = synthetic_package_artifact(tmp_path)
+    package_digest = sha256_bytes(artifact.read_bytes())
+    record = synthetic_receipt_record(grant, package_digest)
+    created = bab.write_package_binding_receipt(
+        context, grant, artifact, record)
     assert created["grant_identity"] == identity                # AC-21
-    assert created["package_sha256"] == package_digest
-    receipt_file = receipt_root / created["path"]
+    assert created["package_sha256"] == package_digest          # RCTX-16
+    receipt_file = Path(namespace["receipt_namespace_path"]) / \
+        created["path"]
     assert stat.S_IMODE(os.stat(receipt_file).st_mode) == 0o600
-    verified = bab.verify_package_binding_receipt(
-        receipt_root, identity, package_digest)
+    verified = bab.verify_package_binding_receipt(context, grant, artifact)
     assert verified["attempt_id"] == replacement_attempt_id()
-    # duplicate bind fails closed — ARD-AC-22
+    assert verified["operator_authority_id"] == \
+        record["operator_authority_id"]
+    # RCTX-08: same canonical grant cannot bind twice in the canonical
+    # namespace — O_EXCL one-shot is GLOBAL to the grant identity
     with pytest.raises(bab.BindingError,
                        match="DUPLICATE_PACKAGE_BINDING_REFUSED"):
-        bab.write_package_binding_receipt(receipt_root, record)
-    # substituted package digest fails closed — ARD-AC-23
+        bab.write_package_binding_receipt(context, grant, artifact, record)
+    # RCTX-10: a receipt claiming a different grant identity than the
+    # exact grant bytes is refused
+    with pytest.raises(bab.BindingError,
+                       match="RECEIPT_MISMATCH_REFUSED: grant_identity"):
+        bab.write_package_binding_receipt(
+            context, grant, artifact,
+            synthetic_receipt_record(
+                grant, package_digest, grant_identity="f" * 64))
+    # AC-23 / RCTX-17: substituted package bytes are refused (the
+    # digest is re-derived from the exact artifact, never the record)
+    substituted = synthetic_package_artifact(tmp_path, name="other.bin",
+                                             payload=b"SUBSTITUTED")
     with pytest.raises(bab.BindingError,
                        match="PACKAGE_SUBSTITUTION_REFUSED"):
         bab.verify_package_binding_receipt(
-            receipt_root, identity, sha256_bytes(b"SUBSTITUTED-PACKAGE"))
+            context, grant, substituted)
+    # RCTX-02/verify-side: a G7 context naming a DIFFERENT grant
+    # identity than the exact grant bytes is refused
+    wrong_identity = synthetic_g7_context(
+        namespace, grant_bytes=synthetic_grant_bytes(
+            operator_authority_id="SYNTHETIC-OTHER-AUTHORITY-01"))
+    with pytest.raises(bab.BindingError,
+                       match="RECEIPT_GRANT_CONTEXT_MISMATCH"):
+        bab.verify_package_binding_receipt(wrong_identity, grant, artifact)
     # ZERO AccountingStore state: no .jsonl anywhere, no attempt
-    # record claimable from the receipt plane — ARD-AC-24/39
+    # record claimable from the receipt plane — ARD-AC-24/39, RCTX-19
     for dirpath, dirnames, filenames in os.walk(tmp_path):
         for name in filenames:
             assert not name.endswith(".jsonl"), name
     from bootstrap_authority.accounting import inspect_accounting_record
     with pytest.raises(AccountingError):
         inspect_accounting_record(
-            receipt_root, replacement_attempt_id(), "0" * 64)
+            Path(namespace["receipt_namespace_path"]),
+            replacement_attempt_id(), "0" * 64)
+
+
+def test_rctx_01_receipt_api_has_no_raw_root_authority_input():
+    """RCTX-01: the authoritative receipt API exposes NO unconstrained
+    raw receipt-root pathname parameter (the caller-selected-root
+    defect is removed; the namespace derives ONLY from the verified
+    G7 context)."""
+    import inspect
+    from bootstrap_authority import binding as bab
+    for name in ("write_package_binding_receipt",
+                 "verify_package_binding_receipt"):
+        params = list(inspect.signature(
+            getattr(bab, name)).parameters)
+        assert params == ["verified_g7_context", "grant_bytes",
+                          "package_artifact"] + (
+            ["record"] if name.startswith("write") else []), params
+    # no fallback raw-root helper remains anywhere in the source
+    source = open(bab.__file__).read()
+    assert "_open_receipt_namespace(root)" not in source
+
+
+def test_rctx_03_04_05_namespace_identity_mismatches_refused(tmp_path):
+    """RCTX-03/04/05: the live namespace object must BE the exact
+    pinned G7-context object — a substituted path, st_dev or st_ino is
+    RECEIPT_NAMESPACE_IDENTITY_MISMATCH / UNOPENABLE fail closed."""
+    from bootstrap_authority import binding as bab
+    from conftest import (build_receipt_namespace, synthetic_g7_context,
+                          synthetic_package_artifact,
+                          synthetic_receipt_record)
+    namespace = build_receipt_namespace(tmp_path, "canonical")
+    context = synthetic_g7_context(namespace)
+    grant = synthetic_grant_bytes()
+    artifact = synthetic_package_artifact(tmp_path)
+    record = synthetic_receipt_record(
+        grant, sha256_bytes(artifact.read_bytes()))
+    # RCTX-03: namespace path mismatch (a DIFFERENT directory pinned
+    # in the context while the canonical one exists)
+    other = build_receipt_namespace(tmp_path, "other")
+    for mutate in (
+            {"receipt_namespace_path": other["receipt_namespace_path"]},
+            {"receipt_namespace_path": "/nonexistent/namespace"},
+            # RCTX-04: st_dev mismatch
+            {"receipt_namespace_st_dev": namespace[
+                "receipt_namespace_st_dev"] + 1},
+            # RCTX-05: st_ino mismatch
+            {"receipt_namespace_st_ino": namespace[
+                "receipt_namespace_st_ino"] + 1},
+    ):
+        with pytest.raises(bab.BindingError) as excinfo:
+            bab.write_package_binding_receipt(
+                dict(context, **mutate), grant, artifact, record)
+        assert "RECEIPT_NAMESPACE" in str(excinfo.value), mutate
+
+
+def test_rctx_06_07_namespace_object_discipline_refused(tmp_path):
+    """RCTX-06/07: a symlink namespace and a group/world-writable
+    namespace are refused fail closed."""
+    from bootstrap_authority import binding as bab
+    from conftest import (synthetic_g7_context, synthetic_package_artifact,
+                          synthetic_receipt_record)
+    real = tmp_path / "real-receipts"
+    real.mkdir()
+    os.chmod(real, 0o700)
+    symlinked = tmp_path / "symlinked-receipts"
+    os.symlink(real, symlinked)
+    info = os.stat(real)
+    grant = synthetic_grant_bytes()
+    artifact = synthetic_package_artifact(tmp_path)
+    record = synthetic_receipt_record(
+        grant, sha256_bytes(artifact.read_bytes()))
+    # RCTX-06: symlink namespace (O_NOFOLLOW)
+    with pytest.raises(bab.BindingError,
+                       match="RECEIPT_NAMESPACE_UNOPENABLE"):
+        bab.write_package_binding_receipt(
+            synthetic_g7_context({
+                "receipt_namespace_path": str(symlinked),
+                "receipt_namespace_st_dev": info.st_dev,
+                "receipt_namespace_st_ino": info.st_ino}),
+            grant, artifact, record)
+    # RCTX-07: group-writable namespace
+    os.chmod(real, 0o770)
+    with pytest.raises(bab.BindingError,
+                       match="RECEIPT_NAMESPACE_GROUP_OR_WORLD_WRITABLE"):
+        bab.write_package_binding_receipt(
+            synthetic_g7_context({
+                "receipt_namespace_path": str(real),
+                "receipt_namespace_st_dev": info.st_dev,
+                "receipt_namespace_st_ino": info.st_ino}),
+            grant, artifact, record)
+    # world-writable namespace
+    os.chmod(real, 0o707)
+    with pytest.raises(bab.BindingError,
+                       match="RECEIPT_NAMESPACE_GROUP_OR_WORLD_WRITABLE"):
+        bab.write_package_binding_receipt(
+            synthetic_g7_context({
+                "receipt_namespace_path": str(real),
+                "receipt_namespace_st_dev": info.st_dev,
+                "receipt_namespace_st_ino": info.st_ino}),
+            grant, artifact, record)
+
+
+def test_rctx_09_alternate_directory_not_substitutable(tmp_path):
+    """RCTX-09: an alternate second directory cannot be substituted
+    for the canonical namespace through the authoritative API: the
+    canonical context is not re-pointable (its namespace identity is
+    pinned), a same-path recreated directory fails the object pin, and
+    the receipt for the canonical context verifies ONLY in the pinned
+    namespace (the alternate directory stays empty)."""
+    import shutil as _shutil
+    from bootstrap_authority import binding as bab
+    from conftest import (build_receipt_namespace, synthetic_g7_context,
+                          synthetic_package_artifact,
+                          synthetic_receipt_record)
+    namespace = build_receipt_namespace(tmp_path, "canonical")
+    context = synthetic_g7_context(namespace)
+    grant = synthetic_grant_bytes()
+    artifact = synthetic_package_artifact(tmp_path)
+    package_digest = sha256_bytes(artifact.read_bytes())
+    bab.write_package_binding_receipt(
+        context, grant, artifact,
+        synthetic_receipt_record(grant, package_digest))
+    alternate = build_receipt_namespace(tmp_path, "alternate")
+    # a same-path replacement directory (rename + recreate) is a
+    # DIFFERENT object: the pinned st_ino refuses
+    moved = tmp_path / "canonical-moved"
+    _shutil.move(namespace["receipt_namespace_path"], moved)
+    recreated = Path(namespace["receipt_namespace_path"])
+    recreated.mkdir()
+    os.chmod(recreated, 0o700)
+    with pytest.raises(bab.BindingError,
+                       match="RECEIPT_NAMESPACE_IDENTITY_MISMATCH"):
+        bab.verify_package_binding_receipt(context, grant, artifact)
+    os.rmdir(recreated)
+    _shutil.move(moved, namespace["receipt_namespace_path"])
+    # the receipt verifies ONLY in the pinned canonical namespace; the
+    # alternate directory never received any receipt (an
+    # alternate-namespace context finds no receipt there — the
+    # canonical grant's receipt does not exist in any other namespace)
+    assert bab.verify_package_binding_receipt(
+        context, grant, artifact)["grant_identity"] == \
+        bab.parse_package_grant(grant)
+    assert list(Path(alternate["receipt_namespace_path"]).iterdir()) == []
+    with pytest.raises(bab.BindingError,
+                       match="RECEIPT_ABSENT_OR_UNOPENABLE"):
+        bab.verify_package_binding_receipt(
+            synthetic_g7_context(alternate, grant_bytes=grant),
+            grant, artifact)
+
+
+def test_rctx_11_15_receipt_grant_dimension_mismatches_refused(tmp_path):
+    """RCTX-11..RCTX-15: every receipt grant-dimension disagreement
+    with the EXACT parsed grant bytes is RECEIPT_MISMATCH_REFUSED."""
+    from bootstrap_authority import binding as bab
+    from conftest import (build_receipt_namespace, synthetic_g7_context,
+                          synthetic_package_artifact,
+                          synthetic_receipt_record)
+    namespace = build_receipt_namespace(tmp_path)
+    context = synthetic_g7_context(namespace)
+    grant = synthetic_grant_bytes()
+    artifact = synthetic_package_artifact(tmp_path)
+    package_digest = sha256_bytes(artifact.read_bytes())
+    for overrides, needle in (
+            # RCTX-11: operator_authority_id vs grant refused at the
+            # grant-derived cross-check (parse validates only identity
+            # shape, so the cross-check is the live gate here)
+            ({"operator_authority_id": "SYNTHETIC-OTHER-AUTHORITY-01"},
+             "RECEIPT_MISMATCH_REFUSED: operator_authority_id"),
+            # RCTX-12..RCTX-15: event/role/slot/attempt are pinned to
+            # the exact replacement-contract values at BOTH the receipt
+            # parse and the grant parse, so a disagreeing record is
+            # refused at the receipt-contract pin (the grant-derived
+            # cross-check is the defense-in-depth layer behind it)
+            ({"governance_event_id": "OTHER-EVENT"},
+             "RECEIPT_MISMATCH_REFUSED"),
+            ({"auditor_role": "AUDITOR_B"},
+             "RECEIPT_MISMATCH_REFUSED"),
+            ({"attempt_slot": "AUDITOR_A_REPLACEMENT_2"},
+             "RECEIPT_MISMATCH_REFUSED"),
+            ({"attempt_id": bab.RESERVED_ATTEMPT_IDS["AUDITOR_A"]},
+             "RECEIPT_MISMATCH_REFUSED"),
+    ):
+        with pytest.raises(bab.BindingError, match=needle):
+            bab.write_package_binding_receipt(
+                context, grant, artifact,
+                synthetic_receipt_record(grant, package_digest,
+                                         **overrides))
+
+
+def test_rctx_16_17_18_package_digest_derived_from_exact_artifact(tmp_path):
+    """RCTX-16/17/18: package_sha256 is derived from the EXACT frozen
+    artifact bytes — recomputed digest matches, substituted bytes are
+    refused, and a naked caller-supplied digest can never bypass the
+    exact-byte derivation (there is no digest parameter at all, and a
+    record whose digest disagrees with the artifact is refused)."""
+    import inspect
+    from bootstrap_authority import binding as bab
+    from conftest import (build_receipt_namespace, synthetic_g7_context,
+                          synthetic_package_artifact,
+                          synthetic_receipt_record)
+    namespace = build_receipt_namespace(tmp_path)
+    context = synthetic_g7_context(namespace)
+    grant = synthetic_grant_bytes()
+    artifact = synthetic_package_artifact(tmp_path)
+    # RCTX-18: no digest-shaped parameter exists on either surface
+    for name in ("write_package_binding_receipt",
+                 "verify_package_binding_receipt",
+                 "derive_frozen_package_sha256"):
+        assert "package_sha256" not in inspect.signature(
+            getattr(bab, name)).parameters
+    # RCTX-16: the created receipt binds the recomputed artifact digest
+    created = bab.write_package_binding_receipt(
+        context, grant, artifact,
+        synthetic_receipt_record(
+            grant, sha256_bytes(artifact.read_bytes())))
+    assert created["package_sha256"] == sha256_bytes(artifact.read_bytes())
+    # a naked caller digest in the record cannot bypass derivation
+    with pytest.raises(bab.BindingError,
+                       match="PACKAGE_SUBSTITUTION_REFUSED"):
+        bab.write_package_binding_receipt(
+            context, grant, artifact,
+            synthetic_receipt_record(grant, "e" * 64))
+    # RCTX-17: substituted package bytes refused at verify
+    substituted = synthetic_package_artifact(tmp_path, name="sub.bin",
+                                             payload=b"SUBSTITUTED-BYTES")
+    with pytest.raises(bab.BindingError,
+                       match="PACKAGE_SUBSTITUTION_REFUSED"):
+        bab.verify_package_binding_receipt(context, grant, substituted)
+    # a non-regular package artifact is refused (directory)
+    with pytest.raises(bab.BindingError,
+                       match="PACKAGE_ARTIFACT_NOT_A_REGULAR_FILE"):
+        bab.derive_frozen_package_sha256(
+            Path(namespace["receipt_namespace_path"]))
+
+
+def test_rctx_20_receipt_confers_no_execution_authority(tmp_path):
+    """RCTX-20: a written+verified receipt confers ZERO execution
+    authority — it is not a binding, cannot construct the authority,
+    and no runtime surface consumes it."""
+    from bootstrap_authority import binding as bab
+    from conftest import (build_receipt_namespace, synthetic_g7_context,
+                          synthetic_package_artifact,
+                          synthetic_receipt_record)
+    namespace = build_receipt_namespace(tmp_path)
+    context = synthetic_g7_context(namespace)
+    grant = synthetic_grant_bytes()
+    artifact = synthetic_package_artifact(tmp_path)
+    verified = bab.write_package_binding_receipt(
+        context, grant, artifact,
+        synthetic_receipt_record(
+            grant, sha256_bytes(artifact.read_bytes())))
+    assert isinstance(verified, dict)
+    with pytest.raises(bar.AuthorityError,
+                       match="REQUIRES_A_PARSED_BINDING"):
+        bar.BootstrapAuthority(dict(verified), "anywhere")
 
 
 def test_v1_binding_admission_unchanged_for_v1(world_a):

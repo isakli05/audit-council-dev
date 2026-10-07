@@ -865,3 +865,120 @@ def test_receipt_parse_exact_and_refusals():
                            match="RECEIPT_MISMATCH_REFUSED"):
             bab.parse_package_binding_receipt(bab.receipt_canonical_bytes(
                 synthetic_receipt_doc(**overrides)))
+
+
+# =====================================================================
+# VERIFIED future G7 context — strict closed-world parse contract
+# (G2 remediation RECEIPTCTX-001; RCTX-02 parse level)
+# =====================================================================
+
+from conftest import (build_receipt_namespace, synthetic_g7_context)  # noqa: E402
+
+
+def _context_variant(tmp_path, mutate):
+    import copy
+    namespace = build_receipt_namespace(tmp_path)
+    doc = synthetic_g7_context(namespace)
+    mutate(doc)
+    return doc
+
+
+def test_g7_context_exact_accepted(tmp_path):
+    namespace = build_receipt_namespace(tmp_path)
+    context = bab.parse_verified_g7_context(
+        synthetic_g7_context(namespace))
+    assert context["grant_mint_publication_record_path"] == \
+        bab.G7_MINT_PUBLICATION_RECORD_PATH        # the reserved path pin
+    assert context["receipt_namespace_path"] == \
+        namespace["receipt_namespace_path"]
+    assert context["receipt_namespace_st_dev"] == \
+        namespace["receipt_namespace_st_dev"]
+    assert context["receipt_namespace_st_ino"] == \
+        namespace["receipt_namespace_st_ino"]
+    assert context["grant_identity"] == \
+        bab.grant_identity(synthetic_grant_bytes())
+    # the minimal future G7 semantic-payload namespace extension
+    assert bab.G7_NAMESPACE_PAYLOAD_KEYS == (
+        "receipt_namespace_path", "receipt_namespace_st_dev",
+        "receipt_namespace_st_ino")
+    # JSON bytes parse identically (the transport form package tooling
+    # supplies)
+    assert bab.parse_verified_g7_context(
+        canonical(synthetic_g7_context(namespace)))["grant_identity"] == \
+        context["grant_identity"]
+
+
+def test_g7_context_closed_world(tmp_path):
+    def mutate(doc):
+        doc["extra"] = 1
+    with pytest.raises(bab.BindingError, match="G7_CONTEXT_KEYS_INVALID"):
+        bab.parse_verified_g7_context(_context_variant(tmp_path, mutate))
+    def mutate2(doc):
+        del doc["grant_identity"]
+    with pytest.raises(bab.BindingError, match="G7_CONTEXT_KEYS_INVALID"):
+        bab.parse_verified_g7_context(_context_variant(tmp_path, mutate2))
+
+
+@pytest.mark.parametrize("field,bad", [
+    ("grant_mint_publication_commit_sha", "not-hex"),
+    ("grant_mint_publication_commit_sha", 7),
+    ("grant_mint_publication_root_tree", "z" * 40),
+    ("grant_mint_publication_record_blob_sha1", "1" * 64),
+    ("grant_mint_publication_record_sha256", "8" * 40),
+    ("grant_identity", "not-hex"),
+    ("grant_identity", True),
+])
+def test_g7_context_malformed_publication_identities_refused(
+        tmp_path, field, bad):
+    # RCTX-02: malformed publication identities are refused
+    def mutate(doc):
+        doc[field] = bad
+    with pytest.raises(bab.BindingError,
+                       match=f"G7_CONTEXT_{field.upper()}_INVALID"):
+        bab.parse_verified_g7_context(_context_variant(tmp_path, mutate))
+
+
+@pytest.mark.parametrize("bad_path", [
+    "docs/chatgpt-project/OTHER-RECORD.md",   # not the reserved path
+    "../escape/GRANT-MINT-PUBLICATION.md",
+    "relative/path.md",
+])
+def test_g7_context_record_path_pinned_to_reserved_canonical(
+        tmp_path, bad_path):
+    def mutate(doc):
+        doc["grant_mint_publication_record_path"] = bad_path
+    with pytest.raises(bab.BindingError,
+                       match="G7_CONTEXT_RECORD_PATH_UNEXPECTED"):
+        bab.parse_verified_g7_context(_context_variant(tmp_path, mutate))
+
+
+@pytest.mark.parametrize("bad_ns", [
+    "relative/receipts",          # not absolute (repository-relative too)
+    "/receipts/../escape",        # parent traversal
+    "/receipts//double",          # empty segment
+    "/receipts/trailing/",        # trailing separator
+    "/",                          # the filesystem root
+    "/receipts/bad\x01control",   # control character
+    7,                            # not a string
+])
+def test_g7_context_noncanonical_namespace_path_refused(tmp_path, bad_ns):
+    def mutate(doc):
+        doc["receipt_namespace_path"] = bad_ns
+    with pytest.raises(bab.BindingError,
+                       match="RECEIPT_NAMESPACE_PATH_NOT_A_FROZEN"):
+        bab.parse_verified_g7_context(_context_variant(tmp_path, mutate))
+
+
+@pytest.mark.parametrize("field,bad", [
+    ("receipt_namespace_st_dev", True),
+    ("receipt_namespace_st_dev", -1),
+    ("receipt_namespace_st_dev", "2049"),
+    ("receipt_namespace_st_ino", True),
+    ("receipt_namespace_st_ino", 0),
+    ("receipt_namespace_st_ino", 1.5),
+])
+def test_g7_context_object_identity_type_refused(tmp_path, field, bad):
+    def mutate(doc):
+        doc[field] = bad
+    with pytest.raises(bab.BindingError, match=f"{field.upper()}_INVALID"):
+        bab.parse_verified_g7_context(_context_variant(tmp_path, mutate))
