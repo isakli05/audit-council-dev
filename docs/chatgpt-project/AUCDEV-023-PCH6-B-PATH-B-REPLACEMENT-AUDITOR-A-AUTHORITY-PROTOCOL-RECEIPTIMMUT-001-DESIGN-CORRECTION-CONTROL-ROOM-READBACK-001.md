@@ -1,0 +1,110 @@
+# AUCDEV-023 PCH6-B Path-B replacement Auditor-A authority-protocol RECEIPTIMMUT-001 design correction — independent Control Room DESIGN READBACK (record-only publication)
+
+**Status banner (dated 2026-10-09):** `AUCDEV_023_PCH6B_RECEIPTIMMUT_001_DESIGN_READBACK = DESIGN_READBACK_ACCEPTED / DESIGN_LAYER_CLOSED / IMPLEMENTATION_NOT_AUTHORIZED / FINDING_DESIGN_001_NOT_CONFIRMED_AS_SECURITY_OR_CONTRACT_DEFECT / G10_4_RELATIVE_ABSOLUTE_PATH_FORM_ISSUE_CLOSED_AT_DESIGN_LAYER / FINDING_DESIGN_002_CLOSED_AT_DESIGN_LAYER / RECEIPTIMMUT_001_CLOSED_AT_DESIGN_LAYER_ONLY / RECEIPTIMMUT_001_NOT_IMPLEMENTATION_CLOSED / RECEIPTIMMUT_001_NOT_OPERATIVELY_REMEDIATED / RECEIPTCTX_001_REMAINS_PARTIALLY_REMEDIATED_NOT_CLOSED / PKGIDENT_001_REMAINS_OPEN_NOT_CLOSED / PKGIDENT_002_REMAINS_OPEN_NOT_CLOSED / PUBREC_001_REMAINS_CLOSED / ORIGINAL_RECEIPT_CONTENT_IDENTITY_ACCEPTED / RECEIPT_FILE_INODE_CONTINUITY_NOT_A_HELD_INVARIANT / G7_NAMESPACE_DIRECTORY_OBJECT_PIN_ACCEPTED / WRITER_RETURNED_PATH_NAMESPACE_RELATIVE_NAME / PUBLISHED_ABSOLUTE_RECEIPT_PATH_DERIVED_IDENTITY_FIELD_ONLY / G10_4_G10_6_G11_READS_HELD_FSTAT_VERIFIED_NAMESPACE_FD_O_NOFOLLOW / INDEPENDENT_ABSOLUTE_PATH_RECEIPT_OPENS_FORBIDDEN / G10_6_POST_PUSH_ORIGINAL_VS_CURRENT_MANDATORY / G11_INDEPENDENT_REDERIVATION_MANDATORY / R1_R22_EXACT_ONE_FIRST_PARENT_RAW_ADD_MANDATORY / NO_SOURCE_API_SCHEMA_EXPANSION_NEEDED / AGENT_PRECOMMIT_BATTERY_NOT_INDEPENDENTLY_RERUN / NO_REAL_G10_G11_EXECUTION / NO_RELEASE_QUALIFICATION / PACKAGE_BINDING_CONSIDERATION_PERMITTED_FALSE / G4_FORBIDDEN / NO_IMPLEMENTATION_AUTHORITY / NO_GRANT_MINT_AUTHORITY / NO_OPERATIVE_RECEIPT / NO_OPERATIVE_PACKAGE / NO_ATTEMPT_AUTHORITY / NO_EXECUTION_AUTHORITY / AUDITOR_B_AUTHORITY_NONE / QUALIFICATION_NONE / INSTALLATION_NONE`
+
+**THIS READBACK GRANTS NOTHING.** This is the bounded RECORD-ONLY publication of the operator-supplied INDEPENDENT CONTROL ROOM DESIGN READBACK disposition of the RECEIPTIMMUT-001 design sequence (design remediation + design reconciliation + verified-namespace-fd readback correction) as reviewed at `0137f94c6800f93e80f954d2915bbf61c41f48ca`. It is a CONTROL ROOM DESIGN READBACK — NOT a release audit, NOT an implementer self-verdict, NOT an implementation, NOT a qualification, NOT an installation and NOT an execution-authority transition. RECEIPTIMMUT-001 is CLOSED AT THE DESIGN LAYER ONLY: it is NOT IMPLEMENTATION_CLOSED and NOT OPERATIVELY_REMEDIATED, and the implementation-layer blockers are preserved unchanged. This publication creates NO implementation authority, NO design-change authority, NO attempt authority, NO grant-mint authority, NO receipt authority, NO package authority, NO execution authority, NO Auditor-B authority, NO qualification verdict and NO installation.
+
+## 1. Authority and role
+
+Record-only publication authority **AUCDEV-023-PCH6B-RECEIPTIMMUT-001-DESIGN-CORRECTION-CONTROL-ROOM-READBACK-PUB-20261009-01** under the operator's tasking AUCDEV-023 / PCH6-B / PATH-B / RECEIPTIMMUT-001 — DESIGN-CORRECTION CONTROL ROOM READBACK — RECORD-ONLY PUBLICATION. This session is the bounded RECORD-ONLY GOVERNANCE PUBLISHER of the operator-supplied independent Control Room design-readback disposition; it is NOT the Control Room, NOT an independent readback authority for the design sequence (the disposition recorded here is the OPERATOR-SUPPLIED Control Room verdict recorded verbatim-in-substance, NOT this session's own verdict), NOT an implementer, NOT a design remediator, NOT a source remediator, NOT an attempt-id allocator, NOT a package-grant minter, NOT an execution-authority grantor, NOT permitted to change protected authority source, NOT a qualification or installation authority, NOT an auditor, NOT an /audit-council executor, NOT an Auditor-A or Auditor-B attempt executor, NOT an attempt authority, NOT a provider/model/frontier executor, NOT starting or defining the event-host VM, NOT running virsh/QGA or any channel helper, NOT running send_once_v2.py or bridge-v2.py, NOT creating or consuming OPERATOR_SEND_NOW, NOT connecting to or probing the credential channel, NOT inspecting any real credential, NOT constructing or importing BootstrapAuthority, NOT calling run_attempt, NOT executing Claude, Codex or any provider/model, NOT executing ANY subject test code, NOT drafting or executing any RECEIPTIMMUT-001 implementation-layer remediation, NOT creating any design-reserved canonical path and NOT manufacturing additional test results or independent-auditor artifacts. This publication records the disposition; it does not broaden it.
+
+## 2. Exact live bootstrap (machine-verified this session)
+
+Live GitHub master == origin/master == local HEAD == `0137f94c6800f93e80f954d2915bbf61c41f48ca` EXACT at bootstrap (ls-remote authoritative; fetch rc 0), re-resolved EXACT immediately before the rotation write, immediately before the final battery run and again immediately before commit. Root tree `fc556b495188665d3eb3c9cb112fc93a2504fded` EXACT. Sole parent `1a6a2f952f4f4cc45fcdbb46b881630ea18969e7` EXACT (single-parent fast-forward geometry; the base = the verified-namespace-fd readback design-correction publication whose recorded NEXT — the independent Control Room readback of the correction together with the underlying design candidates — is exactly the step whose operator-supplied disposition this publication records). Trust anchor `3058868416241d394cfaaa40cc585085db486f37` ancestor rc 0. Frozen audit target `730d2b29f7c0e7d33af3451b6d9205ec27c143ed` (tree `2585796efd5cb6902226cfff785bb901297a15e3`) present, ancestor, UNTOUCHED, AUDIT SUBJECT / NOT AUTHORITY. Protected trees bootstrap-supervisor `3056e577259ab0b0b0472f82ebc306506f3e084c` / qualification-harness `5b8d5e5465923740470ff63ed9b8683f257a3787` / skill `efd8c2e48edbb25795b3aacb1ce3c23fde10082a` and every bootstrap-authority blob (binding.py `eb2301812b53f91e49805bf4bac2f47dd87d46c9` / runtime.py `db094f9c38fd0a110acdcc0b892fe57b676e79fb` / accounting.py `26368783dd88782dd3c63a76fbf11582ee16caa1` / statemachine.py `cf563d2178907e7666ce661b81ab1bf16fb71201` / custody.py `37e6b5bb4365c7b29ba3632fe95362d5a7e16c09` / reportcustody.py `dd09e1e54c9246aa6de5f38391984c35e8baac87` / __init__.py `5db170f1143950de69320548962c29d68d6e697a`) held EXACT at base. The modules were NEVER imported or executed (binding.py read as DATA ONLY, static line-cited reads). All pre-existing repository drift (including the two pre-existing smoke-fixture gitlink rows and the untracked handoff artifacts) preserved UNSTAGED. Publisher session euid 1000 (ordinary non-root isa).
+
+## 3. Subject design sequence (verified at the exact baseline)
+
+The independent Control Room reviewed the exact design sequence at `0137f94c6800f93e80f954d2915bbf61c41f48ca`. This publisher session verified, data-only, at that exact SHA:
+
+- **A. RECEIPTIMMUT-001 design remediation** — `docs/chatgpt-project/AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-A-AUTHORITY-PROTOCOL-DESIGN-REMEDIATION-RECEIPTIMMUT-001.md`, Git blob `1a55f55bd29c692efac6b693fc4a97a728745764` (publication `0c06149ef3c637143dc144a41fa3693c1fdef9d3`), 203 lines: the canonical non-execution G10 receipt-identity publication as internal G10.1-G10.6, the 24-field closed-world schema with fixed field order and one canonical serialization, the acyclic post-hoc publication identity, the R1-R22 exact-one first-parent no-renames raw-ADD selector with zero/multiple-candidate FAIL CLOSED, the G10.6 post-push original-vs-current comparison, the G11 independent re-derivation, RI-T01..RI-T24 and RI-AC-01..RI-AC-44 defined not executed.
+- **B. RECEIPTIMMUT-001 design reconciliation** — `docs/chatgpt-project/AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-A-AUTHORITY-PROTOCOL-RECEIPTIMMUT-001-DESIGN-RECONCILIATION-001.md`, Git blob `5246833ad908c0ae43eecf30a15aea009ed4432b` (publication `1a6a2f952f4f4cc45fcdbb46b881630ea18969e7`), 95 lines: the DESIGN-001 analysis (content identity vs receipt file-object identity), the case matrix A-J, Clarification 1 and Clarification 2 (the G10.4 name-to-name comparison and the derived-absolute-path rule).
+- **C. Verified-namespace-fd readback design correction** — `docs/chatgpt-project/AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-A-AUTHORITY-PROTOCOL-RECEIPTIMMUT-001-VERIFIED-NAMESPACE-FD-READBACK-CORRECTION-001.md`, Git blob `4541c16e71dfc114dc904884d5d0c9bdd40444d7` (publication `0137f94c6800f93e80f954d2915bbf61c41f48ca`), 127 lines: the DESIGN-002 analysis, the five distinguishable notions, the case matrix A-H and the normative verified-namespace-fd readback rule R-NS-1..R-NS-10.
+
+Publication geometry independently re-derived this session by diff-tree (--no-renames, recursive): each of the three publications is exactly ONE single-parent commit changing exactly the THREE authorized tracked documentation paths (NEW design record; M CURRENT-STATE; M BACKLOG) with no fourth tracked path. Generated-LAST archives present, identity-only references (outer SHA-256 / size re-derived data-only this session, no member executed, no extraction): design-remediation handoff `4c93d28acb18f5f1adb40857dbc2be6bb4ae7d090d3596b18e9d448b12e577d6` / 1204529 B; design-reconciliation handoff `aafe4b61687b463e16551da66ab249dd62a3e9355b90191d6487e3959703a16f` / 1246311 B; design-correction handoff `2459e68643b791a5cb67cea6c6024712209bedc48d850bf33c4eb6ddbcb09b93` / 1250653 B.
+
+Static source corroboration (data-only, binding.py read as DATA at the exact baseline blob `eb2301812b53f91e49805bf4bac2f47dd87d46c9`): exactly FOUR os.open sites — the canonical receipt namespace opened by its context absolute path with O_DIRECTORY|O_NOFOLLOW at lines 966-967 and fstat-verified against the pinned st_dev/st_ino plus the owner/group/world gates at lines 971-982; the package artifact open at 992-993; the receipt CREATE dir_fd-relative at 1065-1066; the receipt READ dir_fd-relative at 1102. ZERO absolute-path receipt opens anywhere. This confirms the accepted correction's source-contract statement and the NOT_A_PRODUCT_SOURCE_DEFECT classification.
+
+## 4. Overall disposition — DESIGN_READBACK_ACCEPTED / DESIGN_LAYER_CLOSED / IMPLEMENTATION_NOT_AUTHORIZED
+
+The independent Control Room read back the design sequence at `0137f94c6800f93e80f954d2915bbf61c41f48ca` and disposed, overall: **AUCDEV_023_PCH6B_RECEIPTIMMUT_001_DESIGN_READBACK = DESIGN_READBACK_ACCEPTED / DESIGN_LAYER_CLOSED / IMPLEMENTATION_NOT_AUTHORIZED**. This is recorded as a CONTROL ROOM DESIGN READBACK — not a release audit and not an implementer self-verdict. The design layer of the RECEIPTIMMUT-001 chain is closed by this readback; NO implementation, execution or release authority follows. No design change, source change, schema change or selector change was needed or made by this readback.
+
+## 5. Finding DESIGN-001 — NOT_CONFIRMED_AS_SECURITY_OR_CONTRACT_DEFECT
+
+AUCDEV023-CR-RECEIPTIMMUT-DESIGN-001 (RECEIPT_INODE_SUBSTITUTION_NOT_FAIL_CLOSED) is disposed NOT_CONFIRMED_AS_SECURITY_OR_CONTRACT_DEFECT, on the accepted reconciliation analysis: the pinned ORIGINAL receipt identity is a CONTENT identity (original canonical bytes, SHA-256 and size plus the grant/package/G7/namespace cross-bindings); receipt FILE inode continuity is NOT a held invariant; a byte-identical new-inode substitution is semantically inert and cannot make PACKAGE_B the first-bound package; and the receipt_namespace_st_dev/st_ino publication fields are the G7 NAMESPACE DIRECTORY object pin, correctly so labeled.
+
+## 6. G10.4 relative/absolute path-form issue — CLOSED_AT_DESIGN_LAYER
+
+The G10.4 returned-path equality defect (unsatisfiable as originally worded) is CLOSED_AT_DESIGN_LAYER by the accepted reconciliation Clarification 2: the writer's returned path is the deterministic NAMESPACE-RELATIVE receipt name and G10.4 compares it to the re-derived receipt NAME exactly; the published absolute receipt_path is a DERIVED canonical identity field only (verified-context receipt_namespace_path + / + the deterministic name), never taken from the writer's relative return and never re-derived from the current file location.
+
+## 7. Finding DESIGN-002 — CLOSED_AT_DESIGN_LAYER
+
+AUCDEV023-CR-RECEIPTIMMUT-DESIGN-002 (VERIFIED_NAMESPACE_FD_BYPASS_ALLOWED_BY_ABSOLUTE_RECEIPT_READ) is CLOSED_AT_DESIGN_LAYER by the accepted verified-namespace-fd readback correction: the reconciliation Section 10(c) pathname/fd equivalence claim was unsound (a pathname is not an immutable object handle; a prior st_dev/st_ino check does not bind a later independent pathname resolution; the verify-then-open TOCTOU window is irreducible); the correction R-NS-1..R-NS-10 mandates for all G10.4/G10.6/G11 receipt content reads the freshly opened, fstat-verified, HELD namespace fd plus the deterministic receipt name with O_NOFOLLOW; independent absolute-path receipt opens are FORBIDDEN as equivalent or fallback readers; the absolute receipt_path remains an identity/publication field, compared never dereferenced. The finding was NOT a product-source defect (binding.py opens the receipt exclusively dir_fd-relative to the held, fstat-verified namespace fd — machine-corroborated this session, Section 3).
+
+## 8. RECEIPTIMMUT-001 — CLOSED_AT_DESIGN_LAYER_ONLY
+
+RECEIPTIMMUT-001 is CLOSED_AT_DESIGN_LAYER_ONLY. This does NOT mean RECEIPTIMMUT-001 is IMPLEMENTATION_CLOSED or OPERATIVELY_REMEDIATED: no G10/G11 runtime exists, no implementation of the accepted design has been authorized or performed, and the implementation-layer blockers are preserved. Any implementation-layer remediation requires a NEW explicit operator decision (Section 18 NEXT); it is NOT authorized by this readback.
+
+## 9. Rationale of the accepted disposition (as supplied by the Control Room)
+
+- Original receipt content identity is established by original canonical bytes, SHA-256 and size.
+- Receipt FILE inode continuity is not a held invariant.
+- The G7 namespace DIRECTORY object is pinned by verified path/st_dev/st_ino context.
+- The writer's returned path is a deterministic namespace-relative receipt name.
+- Published absolute receipt_path is a derived canonical identity field only.
+- G10.4, G10.6 and G11 receipt reads must use a freshly opened, fstat-verified, held namespace fd plus the deterministic receipt name and O_NOFOLLOW.
+- Independent absolute-path receipt opens are forbidden as equivalent/fallback readers.
+- G10.6 post-push original-vs-current comparison remains mandatory.
+- G11 independently re-derives the canonical publication and cross-bindings.
+- R1-R22 exact-one first-parent raw-ADD publication selection remains mandatory.
+- No source/API/schema expansion was needed.
+
+## 10. Evidence strength (as supplied; no additional artifacts manufactured)
+
+- Git publication geometry independently checked (and re-derived data-only by this publisher session at the exact baseline).
+- Generated-LAST archive integrity independently checked by the Control Room.
+- Archived Git copies independently matched by blob SHA1 by the Control Room.
+- Design semantics statically inspected.
+- Agent synthetic filesystem observations reviewed.
+- The agent's 59/59 precommit battery was NOT independently rerun by the Control Room.
+- No real G10/G11 execution or release qualification occurred.
+
+Per the operator's tasking, NO additional test results and NO independent-auditor artifacts were manufactured by this publisher session; the archive references in Section 3 are identity-only (outer hashes/sizes re-derived data-only; no member executed, no extraction).
+
+## 11. Design-layer versus implementation-layer status (preserved exactly)
+
+- RECEIPTIMMUT-001: CLOSED_AT_DESIGN_LAYER_ONLY / NOT_IMPLEMENTATION_CLOSED / NOT_OPERATIVELY_REMEDIATED.
+- RECEIPTCTX-001: PARTIALLY_REMEDIATED / NOT_CLOSED (unchanged).
+- PKGIDENT-001: OPEN / NOT_CLOSED (unchanged).
+- PKGIDENT-002: OPEN / NOT_CLOSED (unchanged).
+- PUBREC-001: CLOSED (unchanged).
+- AUCDEV-023: P1 / READY / NOT DONE (unchanged).
+
+No broader status transitions are claimed by this publication.
+
+## 12. Operational state (remains exactly as before)
+
+package_binding_consideration_permitted = FALSE. G4 = FORBIDDEN. NO IMPLEMENTATION AUTHORITY. NO GRANT-MINT AUTHORITY. NO OPERATIVE RECEIPT. NO OPERATIVE PACKAGE. NO ATTEMPT AUTHORITY. NO EXECUTION AUTHORITY. AUDITOR_B_AUTHORITY = NONE. QUALIFICATION = NONE. INSTALLATION = NONE. Installed source baseline `8ae33444f349ce73c1359b963722e2d16acba630`; installed-qualified provenance NOT ESTABLISHED. No Control Room design readback automatically grants implementation, execution or release authority.
+
+## 13. Held invariants (all UNCHANGED)
+
+No modifications to: protected Python source; tests; MANIFEST; README; the 20-field grant contract; the 10-field receipt contract; the 24-field publication contract; the G7 publication selector; the G10 publication selector; G0-G12 top-level ordering; the BootstrapAuthority surface; AccountingStore; statemachine; execution boundaries; historical evidence; the frozen audit target; and the reserved operational publication paths. No provider/model/frontier launches. No real auditor attempts. No credentials or credential-channel access. No VM, virsh or QGA. No grant, receipt, package or attempt creation.
+
+## 14. Publication scope
+
+Exactly ONE new canonical Control Room design-readback record (this file) and exactly two modified governance files: docs/chatgpt-project/AUCDEV-CURRENT-STATE.md and docs/chatgpt-project/AUCDEV-BACKLOG.md. Exactly three tracked paths total; no fourth tracked path. The three historical design records (blobs `1a55f55bd29c692efac6b693fc4a97a728745764`, `5246833ad908c0ae43eecf30a15aea009ed4432b`, `4541c16e71dfc114dc904884d5d0c9bdd40444d7`) are preserved byte-exact and UNTOUCHED. All three future reserved canonical paths (GRANT-MINT-PUBLICATION, PACKAGE-BINDING-AUTHORITY, PACKAGE-BINDING-RECEIPT-IDENTITY-PUBLICATION) verified ABSENT tracked/staged/on-disk with ZERO full-history path rows and NOT created.
+
+## 15. Zero-execution publication census (all-zero this session)
+
+Subject test execution 0; archive-member execution 0 (identity-only outer hashes; no extraction); protected-source modification 0; tests modification 0; MANIFEST modification 0; README modification 0; attempt-id creation/reservation/allocation 0; grant/token mint 0; GRANT_ISSUED evidence 0; G7 mint publication 0; package-binding-authority publication 0; receipt-identity publication 0; receipt creation 0; AccountingStore state 0; package construction/freeze 0; execution authority 0; credential access incl. metadata 0; credential-channel connect/probe 0; VM/virsh/QGA 0; event-host 0; PREARM 0; wrapper/driver 0; run_attempt 0; BootstrapAuthority construction/import/execution 0; provider/model 0 (Claude 0; Codex 0); /audit-council 0; Auditor-B 0; successor permission transition 0; historical artifact repack 0; historical record/commit rewrite 0. The only executions this session: ordinary Git/GitHub publication mechanics and local data-only python text/hash/JSON/tar tooling on non-secret bytes.
+
+## 16. Honest session iteration (no erasure; every first output preserved under the external evidence workspace `/home/isa/aucdev023-pch6b-receiptimmut001-designcorr-crrb-pub-20261009-01/evidence`)
+
+NO failed observation was rewritten as PASS without a corrected re-derivation on IDENTICAL bytes. The bootstrap, record-blob, protected-tree, reserved-path, geometry and static-source instruments PASSED on their first completed runs (their outputs are recorded as evidence JSON in the workspace). The rotation builder ran VERIFY-then-WRITE: zones computed-before-write, asserted pre-write and re-asserted post-write from the on-disk bytes; any defective verify run would be preserved unedited under the same workspace (the completed-run history is recorded append-only in instrument-run-history.jsonl; the actual runs and any disclosed defects are enumerated in the FINAL-RETURN). The precommit gate battery ran from scratch on the FINAL staged bytes immediately before commit with live master re-resolved EXACT; completed-run history preserved append-only.
+
+## 17. Validation and publication safety
+
+Before staging this session verified: the exact authorized baseline (`0137f94c6800f93e80f954d2915bbf61c41f48ca`, root tree `fc556b495188665d3eb3c9cb112fc93a2504fded`, sole parent `1a6a2f952f4f4cc45fcdbb46b881630ea18969e7`); all three canonical design-record blobs at the exact baseline; the protected source identity (binding.py `eb2301812b53f91e49805bf4bac2f47dd87d46c9`) and every protected tree; the reserved operational paths ABSENT; the historical records unchanged; the disposition block token-for-token exact against the operator-supplied Control Room readback; and NO broader status transitions claimed. Staged EXACTLY the three authorized documentation paths. git diff --check and staged git diff --cached --check PASS. Credential/secret mechanical scan, invisible-character scan, non-ASCII whitelist (em dash only) and the hex-literal identity allow-set gate over the NEW record and all added lines PASS (full gate results in the FINAL-RETURN). One single-parent commit; one fast-forward push; post-push live GitHub HEAD independently re-resolved with the resulting tree, parent, exact three-path changed set and all three published blob identities verified (reported in the FINAL-RETURN). No force push, no merge, no silent retry, no reset.
+
+## 18. NEXT — exactly one, grants nothing
+
+**OPERATOR DECISION ON WHETHER TO AUTHORIZE A SEPARATELY BOUNDED RECEIPTIMMUT-001 IMPLEMENTATION-LAYER REMEDIATION BASED ON THE ACCEPTED DESIGN, WITH ITS EXACT TARGET SHA, SCOPE, HELD INVARIANTS, VALIDATION BUDGET AND EXPLICIT NO-G4 BOUNDARY.** This is a future operator decision, NOT authorization provided by this publication. Recording NEXT grants NOTHING; no implementation authority, design-change authority, attempt authority, grant-mint authority or execution authority follows automatically. G4 REMAINS FORBIDDEN UNLESS A LATER FRESH IMPLEMENTATION G3 EXPLICITLY SETS package_binding_consideration_permitted = TRUE. Do not draft or execute the implementation under this publication.
