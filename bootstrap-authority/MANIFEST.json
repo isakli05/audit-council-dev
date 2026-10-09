@@ -31,6 +31,11 @@
       "sha256": "f1c1d0f7cba21225e977c49fc86c5d32824766a0eddebe6b1761b0111c11f5ca"
     },
     {
+      "bytes": 35657,
+      "path": "bootstrap_authority/receiptidentity.py",
+      "sha256": "320bfbf03f5cfd3619dcd2f0a0e40f2d53a742fa035a20d7314d2dd0db51678e"
+    },
+    {
       "bytes": 6142,
       "path": "bootstrap_authority/reportcustody.py",
       "sha256": "0ce217e8bddeb325bbc5576b48ad20255f1fa32c5ecae1038c44495894adc46a"
@@ -56,18 +61,23 @@
       "sha256": "a27b29d50a84d583c88891fe35a6a35341552cb1b3ce7591d41723e59f4fa6f7"
     },
     {
+      "bytes": 47573,
+      "path": "tests/test_receiptidentity.py",
+      "sha256": "c459638191d3da8ef1d51be1075a89147692c1a04e462e953d2cff0ac6231602"
+    },
+    {
       "bytes": 64052,
       "path": "tests/test_runtime.py",
       "sha256": "581fd4b431cbc8bea623f2aa7b5c554575cf96ee1dbee33a92e6fdb88f120e61"
     },
     {
-      "bytes": 30463,
+      "bytes": 34973,
       "path": "tests/test_static.py",
-      "sha256": "1da036c1c3e303f6d55862fa819676b3a4980d84dfce61262fcb968ee4f36bcd"
+      "sha256": "f27bb13e593b16a801cb92e5a7053f2ad08eb4aae48695c449cfb546fd8eeaed"
     }
   ],
   "package": "bootstrap-authority",
-  "package_sha256": "4560936ebb0d0272a03a6679d7f6da654272b16c1a2ef5763c8522a7e39f2f21",
+  "package_sha256": "4b1782c0a3f9e2d546f6b61c4248d71a43b1cd5bca0efe4f3ababcd533fa7bca",
   "policy_id": "AUCDEV-023-PCH6B-CAND730D2B29-TARGET-INDEPENDENT-BOOTSTRAP-AUTHORITY-V1",
   "qualification_claim": "NONE",
   "runtime_dependencies": [

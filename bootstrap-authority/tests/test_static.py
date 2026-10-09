@@ -23,7 +23,8 @@ from bootstrap_authority import runtime as barmod
 PRODUCTION = sorted(
     p.name for p in (AUTHORITY_ROOT / "bootstrap_authority").glob("*.py"))
 EXPECTED_PRODUCTION = ["__init__.py", "accounting.py", "binding.py",
-                       "custody.py", "reportcustody.py", "runtime.py",
+                       "custody.py", "receiptidentity.py",
+                       "reportcustody.py", "runtime.py",
                        "statemachine.py"]
 PINNED_REUSE_BLOBS = {
     "statemachine.py": "cf563d2178907e7666ce661b81ab1bf16fb71201",
@@ -50,17 +51,36 @@ CANDIDATE_LAUNCH_BLOB = "1d6b8d6d5751dbf9a73a84e6b2f1ee594f6ca49e"
 # equality — the former exact-equality test was removed with that
 # governance change rather than kept as filler-forcing).  The G2
 # remediation fits inside via narrow docstring/comment consolidation.
+# 2026-10-09 OPERATOR-AUTHORIZED SCOPE REBIND (RECEIPTIMMUT-001
+# implementation-layer remediation): a NEW, narrowly bounded extension
+# budget authorizes exactly ONE additional non-runtime production
+# module, bootstrap_authority/receiptidentity.py, at <=900 LOC, with
+# the ORIGINAL SEVEN modules still held to their prior <=3577 ceiling
+# and byte-held, and the eight-module production total held to
+# <=4477.  This is an EXPLICIT SCOPE REBIND of the previous 3577
+# aggregate ceiling, NOT compliance with it: the G1SCOPE-LOC-001
+# history and its 3577 lineage disposition above are PRESERVED
+# unchanged for the seven legacy modules; the rebind is recorded as a
+# new operator decision on top of that history (no retroactive
+# rewrite of the prior decision, its tests or its evidence; no other
+# new production module is permitted; all production code participates
+# in the splitlines-based counting).
 LOC_BOUND = 3577
+EXTENSION_PRODUCTION = ("receiptidentity.py",)
+EXTENSION_LOC_BOUND = 900
+TOTAL_LOC_BOUND = 4477
 EXPECTED_PACKAGE_PATHS = {
     "MANIFEST.json", "README.md",
     "bootstrap_authority/__init__.py",
     "bootstrap_authority/statemachine.py",
     "bootstrap_authority/accounting.py",
     "bootstrap_authority/custody.py",
+    "bootstrap_authority/receiptidentity.py",
     "bootstrap_authority/reportcustody.py",
     "bootstrap_authority/binding.py",
     "bootstrap_authority/runtime.py",
     "tests/conftest.py", "tests/test_binding.py",
+    "tests/test_receiptidentity.py",
     "tests/test_runtime.py", "tests/test_static.py",
 }
 RECORD_REL = ("docs/chatgpt-project/AUCDEV-023-PCH6-B-CANDIDATE-SPECIFIC"
@@ -142,8 +162,13 @@ def test_ba04_new_authority_blobs():
 def test_ba05_manifest_provenance():
     doc = json.loads((AUTHORITY_ROOT / "MANIFEST.json").read_text())
     provenance = doc["source_provenance"]
-    assert set(provenance) == {"bootstrap_authority/%s" % n
-                               for n in EXPECTED_PRODUCTION}
+    # source_provenance covers the SEVEN legacy production modules
+    # exactly (the byte-held runtime EXPECTED_PROVENANCE contract; the
+    # RECEIPTIMMUT-001 extension module's boundary is asserted by
+    # test_ba05_extension_module_provenance_boundary below)
+    legacy = {"bootstrap_authority/%s" % n for n in EXPECTED_PRODUCTION
+              if n not in EXTENSION_PRODUCTION}
+    assert set(provenance) == legacy
     for name, blob in PINNED_REUSE_BLOBS.items():
         entry = provenance["bootstrap_authority/%s" % name]
         assert entry == {"kind": "EXACT_PRETARGET_BLOB_REUSE",
@@ -163,18 +188,58 @@ def test_ba05_manifest_provenance():
             "origin": "THIS_BOUNDED_IMPLEMENTATION"}
 
 
-# --- BA-06: production LOC <= 3000 -------------------------------------
+def test_ba05_extension_module_provenance_boundary():
+    """2026-10-09 scope rebind boundary: manifest source_provenance is
+    the EXACT seven-record byte-held historical V2-lineage set that the
+    UNCHANGED runtime admission contract (runtime.py EXPECTED_PROVENANCE
+    exact equality) pins; the RECEIPTIMMUT-001 extension module is NEW
+    authority-specific source from THIS bounded implementation
+    extension and is deliberately NOT added to source_provenance —
+    adding an eighth record would require changing protected
+    runtime.py (a PACKAGE_MANIFEST_CONTRACT_REBIND reserved to the
+    operator).  Its origin is recorded here and in the canonical
+    implementation record instead."""
+    doc = json.loads((AUTHORITY_ROOT / "MANIFEST.json").read_text())
+    provenance = doc["source_provenance"]
+    legacy = {"bootstrap_authority/%s" % n for n in EXPECTED_PRODUCTION
+              if n not in EXTENSION_PRODUCTION}
+    assert set(provenance) == legacy
+    assert "bootstrap_authority/receiptidentity.py" not in provenance
+    # the extension module IS a recorded package payload file with a
+    # truthful row (bytes/sha256), verified by BA-09/BA-11 against the
+    # live bytes
+    rows = {row["path"] for row in doc["files"]}
+    assert "bootstrap_authority/receiptidentity.py" in rows
+    assert "tests/test_receiptidentity.py" in rows
+
+
+# --- BA-06: production LOC budgets (2026-10-09 operator-authorized
+# scope rebind: legacy seven <=3577, the ONE extension module <=900,
+# eight-module total <=4477, exactly the expected EIGHT production
+# files, no uncounted production code) -------------------------------
+
+
+def _production_loc():
+    return {name: len((AUTHORITY_ROOT / "bootstrap_authority" / name)
+                      .read_text().splitlines())
+            for name in PRODUCTION}
 
 
 def test_ba06_loc_bound():
-    total = 0
-    per_file = {}
-    for name in PRODUCTION:
-        count = len((AUTHORITY_ROOT / "bootstrap_authority" / name)
-                    .read_text().splitlines())
-        per_file[name] = count
-        total += count
-    assert total <= LOC_BOUND, per_file
+    per_file = _production_loc()
+    legacy = [name for name in PRODUCTION
+              if name not in EXTENSION_PRODUCTION]
+    legacy_total = sum(per_file[name] for name in legacy)
+    extension_total = sum(per_file[name]
+                          for name in EXTENSION_PRODUCTION)
+    total = sum(per_file.values())
+    assert PRODUCTION == list(EXPECTED_PRODUCTION), sorted(per_file)
+    assert len(EXPECTED_PRODUCTION) == 8
+    assert len(EXTENSION_PRODUCTION) == 1
+    assert legacy_total <= LOC_BOUND, (legacy_total, per_file)
+    assert extension_total <= EXTENSION_LOC_BOUND, (extension_total,
+                                                    per_file)
+    assert total <= TOTAL_LOC_BOUND, (total, per_file)
 
 
 # --- BA-07..BA-11: package self-identity of the live manifest ----------
@@ -462,6 +527,11 @@ RESERVED_CANONICAL_PATHS = (
     "A-PACKAGE-BINDING-AUTHORITY.md",
     "docs/chatgpt-project/AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-"
     "A-GRANT-MINT-PUBLICATION.md",
+    # the RECEIPTIMMUT-001 design-reserved receipt-identity publication
+    # path (RI-AC-09): ABSENT until the separately authorized future G10
+    # execution creates it; this implementation must NOT create it
+    "docs/chatgpt-project/AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-"
+    "A-PACKAGE-BINDING-RECEIPT-IDENTITY-PUBLICATION.md",
 )
 FORBIDDEN_CAPABILITY_NAMES = (
     "grant", "consume", "resume", "retry", "adopt_report", "finish",
@@ -577,15 +647,24 @@ def test_ard_no_credential_or_channel_surface_in_production():
 
 
 def test_ard_06_loc_ceiling():
-    """RCTX-29: production LOC stays AT OR UNDER the operator-accepted
-    3577 CEILING (the exact-equality form encoded the superseded G1
-    wording and was removed per the G2 remediation LOC governance
-    reconciliation — no filler code is forced by an equality pin)."""
-    total = 0
-    for name in PRODUCTION:
-        total += len((AUTHORITY_ROOT / "bootstrap_authority" / name)
-                     .read_text().splitlines())
-    assert total <= LOC_BOUND, total
+    """RCTX-29 (2026-10-09 scope rebind semantics): the ORIGINAL SEVEN
+    production modules stay AT OR UNDER the operator-accepted 3577
+    CEILING (G1SCOPE-LOC-001 lineage disposition PRESERVED; the
+    exact-equality form encoded the superseded G1 wording and was
+    removed per the G2 remediation LOC governance reconciliation), the
+    ONE operator-authorized RECEIPTIMMUT-001 extension module stays
+    within its own NEW 900-LOC extension budget, and the eight-module
+    production total stays within the NEW 4477 total budget — an
+    EXPLICIT SCOPE REBIND, never a claim of compliance with the prior
+    3577 aggregate ceiling."""
+    per_file = _production_loc()
+    legacy = [name for name in PRODUCTION
+              if name not in EXTENSION_PRODUCTION]
+    assert len(legacy) == 7
+    assert sum(per_file[name] for name in legacy) <= LOC_BOUND
+    assert all(per_file[name] <= EXTENSION_LOC_BOUND
+               for name in EXTENSION_PRODUCTION)
+    assert sum(per_file.values()) <= TOTAL_LOC_BOUND
 
 
 # =====================================================================
