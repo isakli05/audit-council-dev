@@ -31,9 +31,9 @@
       "sha256": "f1c1d0f7cba21225e977c49fc86c5d32824766a0eddebe6b1761b0111c11f5ca"
     },
     {
-      "bytes": 35657,
+      "bytes": 45143,
       "path": "bootstrap_authority/receiptidentity.py",
-      "sha256": "320bfbf03f5cfd3619dcd2f0a0e40f2d53a742fa035a20d7314d2dd0db51678e"
+      "sha256": "c0b52648e3b659090ddb044d6e9e3d51f749b04904108c81460ebf18d7735c09"
     },
     {
       "bytes": 6142,
@@ -41,9 +41,9 @@
       "sha256": "0ce217e8bddeb325bbc5576b48ad20255f1fa32c5ecae1038c44495894adc46a"
     },
     {
-      "bytes": 86674,
+      "bytes": 86837,
       "path": "bootstrap_authority/runtime.py",
-      "sha256": "5052e804e0e4b260e1bd4e368e0659ad1dae97dacf3c1537e7ee3ead45f83bf6"
+      "sha256": "e40b25a95487a1493f43c8564699c58f8044970b8fc96210779fa2f2d71830c8"
     },
     {
       "bytes": 3868,
@@ -61,9 +61,9 @@
       "sha256": "a27b29d50a84d583c88891fe35a6a35341552cb1b3ce7591d41723e59f4fa6f7"
     },
     {
-      "bytes": 47573,
+      "bytes": 69062,
       "path": "tests/test_receiptidentity.py",
-      "sha256": "c459638191d3da8ef1d51be1075a89147692c1a04e462e953d2cff0ac6231602"
+      "sha256": "09c1ef3c54d7659eef460d150d5e7526db9de683cc47e7474b0e0f4bad9ff87d"
     },
     {
       "bytes": 64052,
@@ -71,13 +71,13 @@
       "sha256": "581fd4b431cbc8bea623f2aa7b5c554575cf96ee1dbee33a92e6fdb88f120e61"
     },
     {
-      "bytes": 34973,
+      "bytes": 35285,
       "path": "tests/test_static.py",
-      "sha256": "f27bb13e593b16a801cb92e5a7053f2ad08eb4aae48695c449cfb546fd8eeaed"
+      "sha256": "fc0a150b1e29ea7ac14ab0e986bb4024a963bd88072242961dc9ec8255c3dc39"
     }
   ],
   "package": "bootstrap-authority",
-  "package_sha256": "4b1782c0a3f9e2d546f6b61c4248d71a43b1cd5bca0efe4f3ababcd533fa7bca",
+  "package_sha256": "c57341a3eab426f5e4dcddc5c2da265cd7f6d09663bb45b08f9c2df715110bb4",
   "policy_id": "AUCDEV-023-PCH6B-CAND730D2B29-TARGET-INDEPENDENT-BOOTSTRAP-AUTHORITY-V1",
   "qualification_claim": "NONE",
   "runtime_dependencies": [
@@ -105,6 +105,10 @@
       "source_commit": "068f5e29904f446bf832138fd64c8833b9037cb7",
       "source_git_blob": "37e6b5bb4365c7b29ba3632fe95362d5a7e16c09",
       "source_path": "bootstrap-supervisor/ebs/custody.py"
+    },
+    "bootstrap_authority/receiptidentity.py": {
+      "kind": "NEW_AUTHORITY_SPECIFIC",
+      "origin": "AUCDEV-023-PCH6B-RECEIPTIMMUT-001-IMPL-20261009-01"
     },
     "bootstrap_authority/reportcustody.py": {
       "derivation": "AUCDEV-023-PCH6B-BA-PREP-RB2-001-002-BOUNDED-HELD-FD-OBJECT-CUSTODY",

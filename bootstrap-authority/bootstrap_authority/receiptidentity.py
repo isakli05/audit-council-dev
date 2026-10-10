@@ -6,47 +6,44 @@ remediation + design reconciliation + verified-namespace-fd correction
 + independent Control Room design readback, blobs 1a55f55b... /
 5246833a... / 4541c16e... / 13d1ffae...).
 
-IMPLEMENTATION_CANDIDATE_ONLY / NO_EXECUTION_AUTHORITY: this module
-establishes ORIGINAL_CREATION_TIME_NON_RUNTIME_RECEIPT_IDENTITY — the
-original canonical receipt bytes are constructed in memory from
-verified inputs only (G10.1), their SHA-256/size are fixed BEFORE
-filesystem trust (G10.2), the accepted one-shot writer is reused
-UNCHANGED (G10.3), an immediate verified-namespace-fd readback
-compares CURRENT to ORIGINAL (G10.4), a canonical NON-EXECUTION
-24-field receipt-identity publication record pins that original
-identity (G10.5) and is verified after publication (G10.6 readback
-half), with G11 independently re-deriving everything from verified
-inputs and the first-parent Git history.  The module creates NO
-execution authority, NO grant, NO package, NO attempt, NO
-AccountingStore state and NO supersession mechanism; it is NOT
-imported by __init__.py or runtime.py (the BootstrapAuthority public
-surface stays exactly {state, store, run_attempt}) and confers ZERO
-authority on import.  Git operations are READ-ONLY (log / diff-tree /
-ls-tree / cat-file / rev-list): this module NEVER commits, pushes or
-mutates any repository; the separately authorized future G10.6
-publication execution (commit ONCE / push ONCE against the live
-governance repository) is NOT part of this code — tests exercise the
-selector/readback machinery against disposable synthetic LOCAL Git
-worlds only.
+IMPLEMENTATION_CANDIDATE_ONLY / NO_EXECUTION_AUTHORITY: establishes
+ORIGINAL_CREATION_TIME_NON_RUNTIME_RECEIPT_IDENTITY — the canonical
+receipt bytes constructed in memory from verified inputs only
+(G10.1), SHA-256/size fixed BEFORE filesystem trust (G10.2), the
+accepted one-shot writer reused UNCHANGED (G10.3), immediate
+verified-namespace-fd readback CURRENT == ORIGINAL (G10.4), the
+canonical NON-EXECUTION 24-field publication record (G10.5) verified
+after publication (G10.6 readback half), G11 independently
+re-deriving everything from verified inputs and first-parent Git
+history.  Creates NO execution authority, NO grant, NO package, NO
+attempt, NO AccountingStore state and NO supersession mechanism; NOT
+imported by __init__.py or runtime.py (BootstrapAuthority stays
+exactly {state, store, run_attempt}); confers ZERO authority on
+import.  Git operations are READ-ONLY (log / diff-tree / ls-tree /
+cat-file / rev-list): NEVER commits, pushes or mutates any
+repository; the separately authorized future G10.6 publication
+execution (commit ONCE / push ONCE against the live governance
+repository) is NOT part of this code — tests exercise the machinery
+against disposable synthetic LOCAL Git worlds only.
 
-Verified-namespace rule (R-NS-1..R-NS-10) is enforced mechanically:
-the published absolute receipt_path is a DERIVED identity field only
+Verified-namespace rule (R-NS-1..R-NS-10) enforced mechanically: the
+published absolute receipt_path is a DERIVED identity field only
 (R-NS-1); every G10.4/G10.6/G11 receipt content read opens the
 canonical namespace ONCE by its frozen absolute path
 O_RDONLY|O_DIRECTORY|O_NOFOLLOW, fstat-verifies THE OPENED object
 against the pinned st_dev/st_ino plus the owner/group/world gates and
 opens the deterministic receipt name relative to THAT held fd with
 O_NOFOLLOW (R-NS-4/R-NS-5, reusing the accepted binding primitive);
-an independent absolute-path receipt open does not exist here and is
-NOT an equivalent or fallback (R-NS-6).  Receipt FILE inode continuity
-is NOT a held invariant (accepted DESIGN-001 disposition); the
-namespace DIRECTORY object identity IS.
+an independent absolute-path receipt open does not exist here (NOT an
+equivalent or fallback, R-NS-6).  Receipt FILE inode continuity is
+NOT a held invariant (accepted DESIGN-001 disposition); the namespace
+DIRECTORY object identity IS.
 
-Residual boundary (honest scope): the G7 five-value identity is
-carried by the VERIFIED G7 context supplied by the caller (strict
-shape + cross-binding verified here); an independent G7-selector
-re-derivation over Git is future Control Room tooling — no G7
-selector primitive exists in the accepted source to call.
+G7 authority (CR-IMPL-002/004 remediation): the canonical G7 mint
+publication identity is NEVER trusted from the caller — it is
+independently re-derived over Git by the C1-C15 selector below from
+the ls-remote authoritative (remote, branch) tip, and the VERIFIED G7
+context is an UNTRUSTED CLAIM until it equals that selected identity.
 """
 from __future__ import annotations
 
@@ -89,6 +86,17 @@ C4_PARSE_FAILURE = "C4_PARSE_FAILURE"
 C4_RENAME_COPY_INFERENCE_PRESENT = "C4_RENAME_COPY_INFERENCE_PRESENT"
 C4_TREE_STATE_CONTRADICTION = "C4_TREE_STATE_CONTRADICTION"
 
+# --- canonical G7 mint-publication selector + authoritative-ref refusal
+# constants (accepted PUBID-001 cardinality semantics; CR-IMPL-004) ------
+CANONICAL_G7_MINT_PUBLICATION_NOT_FOUND = \
+    "CANONICAL_G7_MINT_PUBLICATION_NOT_FOUND"
+CANONICAL_G7_MINT_PUBLICATION_AMBIGUOUS = \
+    "CANONICAL_G7_MINT_PUBLICATION_AMBIGUOUS"
+AUTHORITATIVE_REF_NOT_RESOLVED = "AUTHORITATIVE_REF_NOT_RESOLVED"
+AUTHORITATIVE_REF_AMBIGUOUS = "AUTHORITATIVE_REF_AMBIGUOUS"
+AUTHORITATIVE_TIP_NOT_A_LOCAL_COMMIT = "AUTHORITATIVE_TIP_NOT_A_LOCAL_COMMIT"
+G7_CONTEXT_IDENTITY_MISMATCH = "G7_CONTEXT_IDENTITY_MISMATCH"
+
 # --- the strict closed-world 24-field receipt-identity publication
 # schema AUCDEV-023-PACKAGE-BINDING-RECEIPT-IDENTITY-PUBLICATION-V1
 # (design Section 8; the EXACT fixed field order is normative) ---------
@@ -124,10 +132,39 @@ RECEIPT_IDENTITY_PUBLICATION_RECORD_PATH = (
     "docs/chatgpt-project/AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-"
     "A-PACKAGE-BINDING-RECEIPT-IDENTITY-PUBLICATION.md")
 
+# --- the canonical G7 mint-publication record closed world (the accepted
+# EVIDENCE-001 Section 6 minimum closed semantic set; FUTURE and
+# design-reserved — creating it is the separately authorized G7 mint
+# execution, never this module) ------------------------------------------
+G7_MINT_PUBLICATION_SCHEMA = "AUCDEV-023-GRANT-MINT-PUBLICATION-V1"
+G7_MINT_PUBLICATION_SEMANTICS = \
+    "NON_EXECUTION_MINT_EVIDENCE_IDENTITY_RECORD"
+G6_IDENTITY_FIELDS = (
+    "package_binding_authority_readback_commit_sha",
+    "package_binding_authority_readback_root_tree",
+    "package_binding_authority_readback_record_path",
+    "package_binding_authority_readback_record_blob_sha1",
+    "package_binding_authority_readback_record_sha256",
+    "package_binding_authority_readback_target_commit_sha",
+    "package_binding_authority_readback_disposition",
+    "grant_mint_consideration_permitted")
+G7_MINT_PUBLICATION_FIELDS = (
+    "schema", "governance_event_id", "auditor_role", "attempt_slot",
+    "future_machine_attempt_id", "grant_identity",
+    "grant_document_sha256", "grant_issued_evidence_path",
+    "grant_issued_evidence_sha256", "grant_issued_evidence_size") \
+    + G6_IDENTITY_FIELDS[:7] + (
+    "grant_mint_consideration_permitted", "execution_authority",
+    "secret_material", "publication_semantics")
+
 
 def _rip_error(field: str, detail) -> ReceiptIdentityError:
     return ReceiptIdentityError(
         f"RIP_{field.upper()}_INVALID: {detail!r}")
+
+
+def _g7mp_error(field: str, detail) -> ReceiptIdentityError:
+    return ReceiptIdentityError(f"G7MP_{field.upper()}_INVALID: {detail!r}")
 
 
 def receipt_identity_publication_canonical_bytes(document: dict) -> bytes:
@@ -214,6 +251,65 @@ def parse_receipt_identity_publication(data) -> dict:
             "canonical serialization (fixed field order, compact "
             "separators, no whitespace/BOM/trailing newline)")
     return {name: doc[name] for name in RIP_FIELDS}
+
+
+def parse_g7_mint_publication(data) -> dict:
+    """Parse and fully validate ONE canonical G7 mint-publication record
+    (fail closed; C5/C7-shape/C9-C14 of the accepted PUBID-001
+    selector): strict JSON, EXACT closed-world 21-field set, exact
+    schema/semantics/event/role/slot constants, the deterministic
+    evidence-path suffix grant-issued-<grant_identity>.json, shape gates."""
+    raw = data.encode() if isinstance(data, str) else data
+    doc = bab.strict_loads(raw)
+    if not isinstance(doc, dict):
+        raise ReceiptIdentityError("G7MP_NOT_AN_OBJECT")
+    try:
+        bab._exact_keys(doc, G7_MINT_PUBLICATION_FIELDS, "G7MP")
+    except bab.BindingError:
+        raise ReceiptIdentityError(
+            "G7MP_KEYS_INVALID: the record is not the exact closed-world "
+            "21-field set") from None
+    for field, expected in (
+            ("schema", G7_MINT_PUBLICATION_SCHEMA),
+            ("publication_semantics", G7_MINT_PUBLICATION_SEMANTICS),
+            ("governance_event_id", bab.EVENT_ID),
+            ("auditor_role",
+             bab.REPLACEMENT_SLOT_ROLES["AUDITOR_A_REPLACEMENT_1"]),
+            ("attempt_slot", "AUDITOR_A_REPLACEMENT_1"),
+            ("execution_authority", "NONE"),
+            ("secret_material", "NONE")):
+        if doc[field] != expected:
+            raise _g7mp_error(field, doc[field])
+    if doc["grant_mint_consideration_permitted"] is not True:
+        raise _g7mp_error("grant_mint_consideration_permitted",
+                          doc["grant_mint_consideration_permitted"])
+    for field in ("grant_identity", "grant_document_sha256",
+                  "grant_issued_evidence_sha256",
+                  "package_binding_authority_readback_record_sha256"):
+        if not isinstance(doc[field], str) \
+                or not bab.SHA256_RE.match(doc[field]):
+            raise _g7mp_error(field, doc[field])
+    for field in ("package_binding_authority_readback_commit_sha",
+                  "package_binding_authority_readback_root_tree",
+                  "package_binding_authority_readback_record_blob_sha1",
+                  "package_binding_authority_readback_target_commit_sha"):
+        if not isinstance(doc[field], str) \
+                or not bab.SHA1_RE.match(doc[field]):
+            raise _g7mp_error(field, doc[field])
+    for field in ("future_machine_attempt_id",
+                  "package_binding_authority_readback_record_path",
+                  "package_binding_authority_readback_disposition",
+                  "grant_issued_evidence_path"):
+        if not isinstance(doc[field], str) or not doc[field]:
+            raise _g7mp_error(field, doc[field])
+    size = doc["grant_issued_evidence_size"]
+    if isinstance(size, bool) or not isinstance(size, int) or size < 1:
+        raise _g7mp_error("grant_issued_evidence_size", size)
+    if not doc["grant_issued_evidence_path"].endswith(
+            "grant-issued-" + doc["grant_identity"] + ".json"):
+        raise _g7mp_error("grant_issued_evidence_path",
+                          doc["grant_issued_evidence_path"])
+    return {name: doc[name] for name in G7_MINT_PUBLICATION_FIELDS}
 
 
 def derive_original_receipt_identity(verified_g7_context, grant_bytes,
@@ -493,29 +589,47 @@ def _first_parent_introductions(repo, ref, path) -> list:
     return introductions
 
 
-def select_canonical_g10_publication(repo, ref, expected: dict) -> dict:
-    """The canonical G10 publication selector R (design Section 12):
-    derived ONLY from the authoritative default-branch FIRST-PARENT
-    history of `ref`; a candidate qualifies when it satisfies ALL of
-    R1-R22 — exactly one parent (R1); the fixed path ABSENT in the
-    parent TREE and PRESENT in the candidate TREE (R2/R3, verified
-    from the actual trees, with a displayed-A contradiction refused
-    C4_TREE_STATE_CONTRADICTION); the canonical no-renames RAW ADD
-    (R4, `_require_raw_add`); the full record predicate set R5-R21
-    (the parsed publication record at the candidate EQUALS `expected`
-    on every closed-world field — schema/purpose/event/role/slot/
-    attempt/operator/grant/package/path/SHA/size/namespace/G7/
-    one_receipt_only/execution_authority/secret_material/
-    binding_semantics); R22 holds by the enumeration domain.
-    Cardinality MUST be EXACTLY ONE: zero -> NOT_FOUND, more than one
-    -> AMBIGUOUS, both FAIL CLOSED; NO first/latest fallback, NO
-    latest-HEAD authority, NO package-provided R."""
-    path = RECEIPT_IDENTITY_PUBLICATION_RECORD_PATH
-    candidates = []
+def resolve_authoritative_tip(repo, remote, branch) -> dict:
+    """CR-IMPL-004: the ONLY trusted history-domain resolution — the
+    exact tip of `remote`'s `branch` by read-only git ls-remote on the
+    exact ref, cross-checked as a commit resolvable locally; every
+    selector domain below is the FIRST-PARENT ancestry of THIS tip
+    ALONE (never an arbitrary local ref/HEAD/package ref)."""
+    want_ref = f"refs/heads/{branch}"
+    rows = [line.split("\t") for line in _git(
+        repo, "ls-remote", os.fspath(remote), want_ref).splitlines()
+        if line.strip()]
+    for row in rows:
+        if len(row) != 2 or row[1].strip() != want_ref \
+                or not bab.SHA1_RE.match(row[0].strip()):
+            raise ReceiptIdentityError(
+                f"{AUTHORITATIVE_REF_NOT_RESOLVED}: {row!r}")
+    if not rows:
+        raise ReceiptIdentityError(
+            f"{AUTHORITATIVE_REF_NOT_RESOLVED}: {want_ref} absent at "
+            f"{remote!r}")
+    if len(rows) > 1:
+        raise ReceiptIdentityError(
+            f"{AUTHORITATIVE_REF_AMBIGUOUS}: {rows!r}")
+    tip = rows[0][0].strip()
+    if _git(repo, "cat-file", "-t", tip).strip() != "commit":
+        raise ReceiptIdentityError(
+            f"{AUTHORITATIVE_TIP_NOT_A_LOCAL_COMMIT}: {tip}")
+    return {"tip": tip, "remote": os.fspath(remote), "branch": branch,
+            "ref": want_ref}
+
+
+def _qualifying_introductions(repo, ref, path, parse) -> iter:
+    """The SHARED candidate core (identical C1-C4/R1-R4 semantics for
+    BOTH selectors, as DIFFSEM R-DIFFSEM-10 mandates): first-parent
+    introductions of `path` over `ref` with exactly one parent, path
+    ABSENT in parent TREE / PRESENT in candidate TREE from the ACTUAL
+    trees (displayed-A contradiction FAILS CLOSED) and the canonical
+    no-renames RAW ADD, then `parse`; yields candidate maps."""
     for commit_id, parents in _first_parent_introductions(repo, ref,
                                                           path):
         if len(parents) != 1:
-            continue                       # R1: merge/root ineligible
+            continue            # C1/R1: merge/root commits ineligible
         parent = parents[0]
         if _tree_has_path(repo, parent, path):
             raise ReceiptIdentityError(
@@ -531,28 +645,82 @@ def select_canonical_g10_publication(repo, ref, expected: dict) -> dict:
         record_bytes = _git_bytes(repo, "cat-file", "blob",
                                   f"{commit_id}:{path}")
         try:
-            parsed = parse_receipt_identity_publication(record_bytes)
+            parsed = parse(record_bytes)
         except ReceiptIdentityError:
-            continue                       # R5: non-qualifying content
-        if parsed != expected:
-            continue                       # R6-R21 predicate mismatch
-        candidates.append({
-            "commit": commit_id, "parent": parent,
-            "root_tree": _git(repo, "rev-parse",
-                              f"{commit_id}^{{tree}}").strip(),
-            "record_path": path, "record_blob_sha1": blob_sha1,
-            "record_sha256": hashlib.sha256(record_bytes).hexdigest(),
-            "record_bytes": record_bytes, "record": parsed})
+            continue                       # non-qualifying content
+        yield {"commit": commit_id, "parent": parent,
+               "root_tree": _git(repo, "rev-parse",
+                                 f"{commit_id}^{{tree}}").strip(),
+               "record_path": path, "record_blob_sha1": blob_sha1,
+               "record_sha256": hashlib.sha256(record_bytes).hexdigest(),
+               "record_bytes": record_bytes, "record": parsed}
+
+
+def _require_exact_one(candidates, empty_constant, ambiguous_constant,
+                       domain) -> dict:
     if not candidates:
         raise ReceiptIdentityError(
-            f"{CANONICAL_G10_RECEIPT_IDENTITY_PUBLICATION_NOT_FOUND}: "
-            f"zero qualifying introductions on the first-parent "
-            f"history of {ref!r}")
+            f"{empty_constant}: zero qualifying introductions on the "
+            f"first-parent history of {domain!r}")
     if len(candidates) > 1:
         raise ReceiptIdentityError(
-            f"{CANONICAL_G10_RECEIPT_IDENTITY_PUBLICATION_AMBIGUOUS}: "
-            f"{[c['commit'] for c in candidates]}")
+            f"{ambiguous_constant}: {[c['commit'] for c in candidates]}")
     return candidates[0]
+
+
+def select_canonical_g10_publication(repo, ref, expected: dict) -> dict:
+    """The canonical G10 publication selector R (design Section 12):
+    the FIRST-PARENT history of `ref` (the resolved authoritative tip);
+    R1-R4 via the shared `_qualifying_introductions` core (exactly one
+    parent; path ABSENT in parent TREE / PRESENT in candidate TREE from
+    the actual trees; canonical no-renames RAW ADD); R5-R21 the parsed
+    record EQUALS `expected` on every closed-world field; R22 by the
+    enumeration domain.  Cardinality EXACTLY ONE: zero -> NOT_FOUND,
+    more than one -> AMBIGUOUS, both FAIL CLOSED; NO first/latest
+    fallback, NO latest-HEAD authority, NO package-provided R."""
+    return _require_exact_one(
+        [candidate for candidate in _qualifying_introductions(
+            repo, ref, RECEIPT_IDENTITY_PUBLICATION_RECORD_PATH,
+            parse_receipt_identity_publication)
+         if candidate["record"] == expected],
+        CANONICAL_G10_RECEIPT_IDENTITY_PUBLICATION_NOT_FOUND,
+        CANONICAL_G10_RECEIPT_IDENTITY_PUBLICATION_AMBIGUOUS, ref)
+
+
+def select_canonical_g7_publication(repo, tip, expected: dict) -> dict:
+    """The canonical G7 mint-publication selector C (accepted PUBID-001
+    C1-C15 + DIFFSEM canonical C4, CR-IMPL-002): the FIRST-PARENT
+    ancestry of the AUTHORITATIVE tip resolved by
+    `resolve_authoritative_tip` (C15; never an arbitrary local ref);
+    C1-C4 via the shared core (identical semantics to the G10
+    selector); C5/C7-shape/C9-C14 via `parse_g7_mint_publication`; C6
+    grant_identity == expected["grant_identity"]; C8 the eight G6
+    Layer-2 fields == expected["g6_identity_set"] BY VALUE.
+    Cardinality EXACTLY ONE: zero -> NOT_FOUND, >1 -> AMBIGUOUS, both
+    FAIL CLOSED; NO fallback, NO latest-HEAD or package-provided C."""
+    return _require_exact_one(
+        [candidate for candidate in _qualifying_introductions(
+            repo, tip, bab.G7_MINT_PUBLICATION_RECORD_PATH,
+            parse_g7_mint_publication)
+         if candidate["record"]["grant_identity"]
+         == expected["grant_identity"] and
+         {name: candidate["record"][name]
+          for name in G6_IDENTITY_FIELDS}
+         == expected["g6_identity_set"]],
+        CANONICAL_G7_MINT_PUBLICATION_NOT_FOUND,
+        CANONICAL_G7_MINT_PUBLICATION_AMBIGUOUS, tip)
+
+
+def derive_g7_post_publication_identity(selection: dict) -> dict:
+    """The post-hoc FIVE-VALUE G7 mint-publication identity (derived
+    ONLY after unique selection; never inside the record bytes — the
+    self-commit identity rule)."""
+    pairs = (("commit_sha", "commit"), ("root_tree", "root_tree"),
+             ("record_path", "record_path"),
+             ("record_blob_sha1", "record_blob_sha1"),
+             ("record_sha256", "record_sha256"))
+    return {"grant_mint_publication_" + name: selection[key]
+            for name, key in pairs}
 
 
 def derive_post_publication_identity(selection: dict) -> dict:
@@ -572,20 +740,24 @@ def derive_post_publication_identity(selection: dict) -> dict:
             selection["record_sha256"]}
 
 
-def execute_g10_publication_readback(repo, ref, original: dict) -> dict:
+def execute_g10_publication_readback(repo, remote, branch,
+                                     original: dict) -> dict:
     """G10.6 post-push READBACK half (the commit/push itself is the
     separately authorized future execution; this function performs NO
-    git mutation): derive the canonical publication commit R
-    independently by the R1-R22 selector; re-read the publication
-    bytes from the EXACT publication commit R and require them
-    byte-equal to the G10.5 canonical construction; re-read the
-    CURRENT receipt per R-NS-4/R-NS-5 and require CURRENT == ORIGINAL
-    (bytes, SHA-256, size).  G10 is NOT COMPLETE unless this readback
-    succeeds; any failure leaves G10 FAIL CLOSED."""
+    git mutation): resolve the AUTHORITATIVE (remote, branch) tip
+    (CR-IMPL-004); derive the canonical publication commit R
+    independently by the R1-R22 selector over THAT domain; re-read the
+    publication bytes from the EXACT R and require them byte-equal to
+    the G10.5 canonical construction; re-read the CURRENT receipt per
+    R-NS-4/R-NS-5 and require CURRENT == ORIGINAL (bytes, SHA-256,
+    size).  G10 is NOT COMPLETE unless this readback succeeds; any
+    failure leaves G10 FAIL CLOSED."""
     expected = construct_g10_publication_record(original)
     expected_bytes = receipt_identity_publication_canonical_bytes(
         expected)
-    selection = select_canonical_g10_publication(repo, ref, expected)
+    binding = resolve_authoritative_tip(repo, remote, branch)
+    selection = select_canonical_g10_publication(repo, binding["tip"],
+                                                 expected)
     if selection["record_bytes"] != expected_bytes:
         raise ReceiptIdentityError(
             f"{G10_POST_PUSH_READBACK_FAILED}: the bytes at the "
@@ -595,7 +767,7 @@ def execute_g10_publication_readback(repo, ref, original: dict) -> dict:
                                            G10_POST_PUSH_READBACK_FAILED)
     _require_current_equals_original(current, original,
                                      G10_POST_PUSH_READBACK_FAILED)
-    return {"selection": selection,
+    return {"selection": selection, "authoritative_binding": binding,
             "post_publication_identity":
                 derive_post_publication_identity(selection),
             "current_receipt_sha256":
@@ -660,27 +832,38 @@ def _require_published_matches_derived(published: dict,
 
 
 def g11_independent_rederivation(verified_g7_context, grant_bytes,
-                                 package_artifact, repo, ref) -> dict:
-    """G11 independent re-derivation (design Section 14): trusts NO
-    package-provided R, NO latest HEAD, NO cached G10 selector result,
-    NO cached receipt digest and NO current-only receipt file.  It
-    independently (1)-(3) re-parses the exact grant bytes, re-derives
-    grant_identity and the package digest from the exact frozen
-    artifact; (5) re-verifies the canonical receipt namespace by the
-    R-NS-4 rule; (6)-(7) enumerates authoritative first-parent history
-    and re-derives R by R1-R22; (8)-(9) re-reads the publication bytes
-    from R and extracts the ORIGINAL receipt identity; (10)-(11)
-    re-reads the CURRENT receipt per R-NS-4/R-NS-5 and recomputes its
-    SHA-256/size; (12) requires CURRENT == ORIGINAL on bytes/SHA-256/
-    size AND the full canonical re-derivation AND every Section 8
-    cross-binding.  ANY mismatch: G11_REFUSED (fail closed, no partial
-    acceptance)."""
+                                 package_artifact, repo, remote, branch,
+                                 expected_g6_identity_set) -> dict:
+    """G11 independent re-derivation (design Section 14 + CR-IMPL-002/
+    004): trusts NO package-provided R, NO latest HEAD, NO cached
+    selector result, NO cached receipt digest, NO current-only receipt
+    file and NO caller-supplied G7 identity.  Independently re-parses
+    the grant, re-derives grant_identity/package digest, resolves the
+    AUTHORITATIVE (remote, branch) tip, re-derives the canonical G7
+    mint publication by C1-C15 requiring EVERY caller-supplied context
+    identity value to equal the independently selected identity,
+    re-derives R by R1-R22 over the same tip, re-reads the publication
+    bytes and the CURRENT receipt per R-NS-4/R-NS-5 and requires
+    CURRENT == ORIGINAL plus every Section 8 cross-binding; ANY
+    mismatch: G11_REFUSED (fail closed)."""
     try:
         original = derive_original_receipt_identity(
             verified_g7_context, grant_bytes, package_artifact)
         expected = construct_g10_publication_record(original)
-        selection = select_canonical_g10_publication(repo, ref,
-                                                     expected)
+        binding = resolve_authoritative_tip(repo, remote, branch)
+        tip = binding["tip"]
+        g7_selection = select_canonical_g7_publication(repo, tip, {
+            "grant_identity": original["grant_identity"],
+            "g6_identity_set": expected_g6_identity_set})
+        g7_identity = derive_g7_post_publication_identity(g7_selection)
+        for field in bab.VERIFIED_G7_CONTEXT_KEYS:
+            if field.startswith("grant_mint_publication_") \
+                    and original["context"][field] != g7_identity[field]:
+                raise ReceiptIdentityError(
+                    f"G11_REFUSED: {G7_CONTEXT_IDENTITY_MISMATCH}: "
+                    f"independently selected {field} != the "
+                    f"caller-supplied context value")
+        selection = select_canonical_g10_publication(repo, tip, expected)
         _require_published_matches_derived(selection["record"],
                                            original)
         current = _read_via_verified_namespace(original, G11_REFUSED)
@@ -688,11 +871,13 @@ def g11_independent_rederivation(verified_g7_context, grant_bytes,
         bab.parse_package_binding_receipt(current)
     except bab.BindingError as exc:
         raise ReceiptIdentityError(f"{G11_REFUSED}: {exc}") from exc
-    return {"selection": selection,
+    return {"selection": selection, "g7_selection": g7_selection,
+            "g7_post_publication_identity": g7_identity,
+            "authoritative_binding": binding,
             "post_publication_identity":
                 derive_post_publication_identity(selection),
-            "current_receipt_sha256":
-                hashlib.sha256(current).hexdigest(),
+            "current_receipt_sha256": hashlib.sha256(
+                current).hexdigest(),
             "current_receipt_size": len(current)}
 
 

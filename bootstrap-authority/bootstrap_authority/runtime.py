@@ -156,6 +156,7 @@ for _path, (_src, _blob) in PRETARGET_DERIVED.items():
         "source_commit": PRETARGET_REUSE_SOURCE_COMMIT,
         "source_path": _src, "source_git_blob": _blob,
         "derivation": DERIVATION_REASON}
+EXPECTED_PROVENANCE["bootstrap_authority/receiptidentity.py"] = {"kind": "NEW_AUTHORITY_SPECIFIC", "origin": "AUCDEV-023-PCH6B-RECEIPTIMMUT-001-IMPL-20261009-01"}
 class AuthorityError(RuntimeError):
     """Refused or failed authority-path operation (fail closed)."""
 class AuthorityRefused(AuthorityError):

@@ -56,23 +56,62 @@ def _receipt_file(original) -> Path:
             / original["receipt_name"])
 
 
-def _world(tmp_path, publish=True, receipt=True):
+G6_SET = {
+    "package_binding_authority_readback_commit_sha": "1" * 40,
+    "package_binding_authority_readback_root_tree": "2" * 40,
+    "package_binding_authority_readback_record_path":
+        "docs/synthetic/G6-READBACK-RECORD.md",
+    "package_binding_authority_readback_record_blob_sha1": "3" * 40,
+    "package_binding_authority_readback_record_sha256": "4" * 64,
+    "package_binding_authority_readback_target_commit_sha": "5" * 40,
+    "package_binding_authority_readback_disposition":
+        "SYNTHETIC_FAVORABLE_G6_DISPOSITION",
+    "grant_mint_consideration_permitted": True,
+}
+
+
+def _g7_record(grant_identity) -> dict:
+    """One complete SYNTHETIC G7 mint-publication record (every value
+    synthetic and non-secret; NEVER created in any live repository —
+    the reserved canonical G7 path stays absent there)."""
+    return {
+        "schema": ri.G7_MINT_PUBLICATION_SCHEMA,
+        "governance_event_id": bab.EVENT_ID,
+        "auditor_role": "AUDITOR_A",
+        "attempt_slot": "AUDITOR_A_REPLACEMENT_1",
+        "future_machine_attempt_id":
+            bab.REPLACEMENT_ATTEMPT_SLOTS["AUDITOR_A_REPLACEMENT_1"],
+        "grant_identity": grant_identity,
+        "grant_document_sha256": "6" * 64,
+        "grant_issued_evidence_path":
+            "/synthetic/evidence-root/grant-issued-"
+            + grant_identity + ".json",
+        "grant_issued_evidence_sha256": "7" * 64,
+        "grant_issued_evidence_size": 234,
+        **G6_SET,
+        "execution_authority": "NONE",
+        "secret_material": "NONE",
+        "publication_semantics": ri.G7_MINT_PUBLICATION_SEMANTICS,
+    }
+
+
+def _world(tmp_path, publish=True, receipt=True, push=True):
     """One complete SYNTHETIC RECEIPTIMMUT-001 world: receipt namespace,
-    synthetic grant, synthetic VERIFIED G7 context, synthetic package
-    artifact, the G10.1-G10.4 receipt (unless receipt=False) and a
-    disposable LOCAL scratch Git repository whose first-parent history
-    carries exactly one canonical publication introduction (unless
-    publish=False)."""
+    synthetic grant, synthetic package artifact, a disposable LOCAL
+    scratch Git repository with a LOCAL bare remote `origin` whose
+    branch `main` is the AUTHORITATIVE domain, a SYNTHETIC G7 mint
+    publication of the reserved G7 path whose GIT-DERIVED five-value
+    identity feeds the verified G7 context, the G10.1-G10.4 receipt
+    (unless receipt=False) and exactly one canonical G10 publication
+    introduction (unless publish=False).  Unless push=False everything
+    is PUSHED to the bare remote (the ls-remote-authoritative tip);
+    with push=False the publications exist LOCALLY ONLY and are NOT
+    authority."""
     ns = build_receipt_namespace(tmp_path)
     grant = synthetic_grant_bytes()
-    context = synthetic_g7_context(ns, grant)
     artifact = synthetic_package_artifact(tmp_path)
-    original = ri.derive_original_receipt_identity(context, grant,
-                                                   artifact)
-    if receipt:
-        ri.execute_g10_creation_and_readback(context, grant, artifact)
-    record = ri.construct_g10_publication_record(original)
-    data = ri.receipt_identity_publication_canonical_bytes(record)
+    identity = bab.grant_identity(grant)
+    g7_record = _g7_record(identity)
     repo = Path(tmp_path) / "repo"
     repo.mkdir(parents=True)
     _git(repo, "init", "-q", "-b", "main")
@@ -80,12 +119,44 @@ def _world(tmp_path, publish=True, receipt=True):
     _git(repo, "config", "user.name", "synthetic")
     (repo / "seed.txt").write_bytes(b"SYNTHETIC-SEED")
     _commit_all(repo, "seed")
+    remote = Path(tmp_path) / "origin.git"
+    remote.mkdir(parents=True)
+    _git(remote, "init", "-q", "--bare", "-b", "main")
+    _git(repo, "remote", "add", "origin", str(remote))
+    g7_path = repo.joinpath(
+        *bab.G7_MINT_PUBLICATION_RECORD_PATH.split("/"))
+    g7_path.parent.mkdir(parents=True, exist_ok=True)
+    g7_bytes = json.dumps(g7_record, separators=(",", ":")).encode()
+    g7_path.write_bytes(g7_bytes)
+    _commit_all(repo, "synthetic G7 mint publication")
+    g7_commit = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    context = synthetic_g7_context(
+        ns, grant,
+        grant_mint_publication_commit_sha=g7_commit,
+        grant_mint_publication_root_tree=_git(
+            repo, "rev-parse", "HEAD^{tree}").stdout.strip(),
+        grant_mint_publication_record_blob_sha1=_git(
+            repo, "rev-parse",
+            "HEAD:" + bab.G7_MINT_PUBLICATION_RECORD_PATH
+        ).stdout.strip(),
+        grant_mint_publication_record_sha256=hashlib.sha256(
+            g7_bytes).hexdigest())
+    original = ri.derive_original_receipt_identity(context, grant,
+                                                   artifact)
+    if receipt:
+        ri.execute_g10_creation_and_readback(context, grant, artifact)
+    record = ri.construct_g10_publication_record(original)
+    data = ri.receipt_identity_publication_canonical_bytes(record)
     if publish:
         ri.stage_receipt_identity_publication(repo, data)
-        _commit_all(repo, "synthetic publication")
+        _commit_all(repo, "synthetic G10 publication")
+    if push:
+        _git(repo, "push", "-q", "origin", "main")
     return {"ns": ns, "grant": grant, "context": context,
             "artifact": artifact, "original": original,
-            "record": record, "data": data, "repo": repo}
+            "record": record, "data": data, "repo": repo,
+            "remote": remote, "branch": "main", "g7_record": g7_record,
+            "g7_commit": g7_commit, "g7_bytes": g7_bytes}
 
 
 # --- G10.1/G10.2: original identity BEFORE filesystem trust ----------
@@ -404,10 +475,12 @@ def test_g11_refuses_namespace_replacement(tmp_path):
                              "RECEIPT_NAMESPACE_IDENTITY_MISMATCH"):
         ri.g11_independent_rederivation(world["context"], world["grant"],
                                         world["artifact"], world["repo"],
-                                        "HEAD")
+                                        world["remote"], world["branch"],
+                                        G6_SET)
     with pytest.raises(ri.ReceiptIdentityError,
                        match="G10_POST_PUSH_READBACK_FAILED"):
-        ri.execute_g10_publication_readback(world["repo"], "HEAD",
+        ri.execute_g10_publication_readback(world["repo"], world["remote"],
+                                          world["branch"],
                                             original)
 
 
@@ -609,15 +682,26 @@ def test_selector_against_local_bare_remote(tmp_path):
 
 
 def test_selector_no_package_provided_authority():
-    """RI-AC-26: G11/selector accept NO package-provided R and no cached
-    selector input — the signatures carry only repo/ref/expected."""
+    """RI-AC-26 + CR-IMPL-004: G11/selector accept NO package-provided
+    R, no cached selector input and NO caller-selected arbitrary local
+    ref — the signatures carry repo / the (remote, branch) authoritative
+    binding / expected DERIVED values only (never a commit identity)."""
     assert list(inspect.signature(
         ri.select_canonical_g10_publication).parameters) == \
         ["repo", "ref", "expected"]
     assert list(inspect.signature(
+        ri.select_canonical_g7_publication).parameters) == \
+        ["repo", "tip", "expected"]
+    assert list(inspect.signature(
+        ri.resolve_authoritative_tip).parameters) == \
+        ["repo", "remote", "branch"]
+    assert list(inspect.signature(
         ri.g11_independent_rederivation).parameters) == \
         ["verified_g7_context", "grant_bytes", "package_artifact",
-         "repo", "ref"]
+         "repo", "remote", "branch", "expected_g6_identity_set"]
+    assert list(inspect.signature(
+        ri.execute_g10_publication_readback).parameters) == \
+        ["repo", "remote", "branch", "original"]
 
 
 # --- G10.6: post-push readback ------------------------------------------
@@ -638,10 +722,13 @@ def test_g10_6_readback_requires_exact_publication_bytes(tmp_path):
         world["repo"], ri.receipt_identity_publication_canonical_bytes(
             other))
     _commit_all(world["repo"], "publication of a different identity")
+    _git(world["repo"], "push", "-q", "origin", "main")
     with pytest.raises(ri.ReceiptIdentityError,
                        match="CANONICAL_G10_RECEIPT_IDENTITY_"
                              "PUBLICATION_NOT_FOUND"):
-        ri.execute_g10_publication_readback(world["repo"], "HEAD",
+        ri.execute_g10_publication_readback(world["repo"],
+                                            world["remote"],
+                                            world["branch"],
                                             world["original"])
 
 
@@ -654,10 +741,14 @@ def test_g10_6_post_push_current_receipt_equality(tmp_path):
     target.write_bytes(world["original"]["receipt_bytes"] + b"X")
     with pytest.raises(ri.ReceiptIdentityError,
                        match="G10_POST_PUSH_READBACK_FAILED"):
-        ri.execute_g10_publication_readback(world["repo"], "HEAD",
+        ri.execute_g10_publication_readback(world["repo"],
+                                            world["remote"],
+                                            world["branch"],
                                             world["original"])
     target.write_bytes(world["original"]["receipt_bytes"])
-    out = ri.execute_g10_publication_readback(world["repo"], "HEAD",
+    out = ri.execute_g10_publication_readback(world["repo"],
+                                           world["remote"],
+                                           world["branch"],
                                               world["original"])
     assert out["current_receipt_sha256"] == \
         world["original"]["receipt_sha256"]
@@ -675,11 +766,18 @@ def test_g11_independent_rederivation_success(tmp_path):
     out = ri.g11_independent_rederivation(world["context"],
                                           world["grant"],
                                           world["artifact"],
-                                          world["repo"], "HEAD")
+                                          world["repo"], world["remote"],
+                                          world["branch"], G6_SET)
     post = out["post_publication_identity"]
     assert post["receipt_identity_publication_commit_sha"] == \
         _git(world["repo"], "rev-parse", "HEAD").stdout.strip()
     assert post["receipt_identity_publication_record_path"] == FIXED_PATH
+    g7 = out["g7_post_publication_identity"]
+    assert g7["grant_mint_publication_commit_sha"] == world["g7_commit"]
+    assert g7["grant_mint_publication_record_path"] == \
+        bab.G7_MINT_PUBLICATION_RECORD_PATH
+    assert out["authoritative_binding"]["tip"] == \
+        _git(world["repo"], "rev-parse", "HEAD").stdout.strip()
     assert out["current_receipt_sha256"] == \
         world["original"]["receipt_sha256"]
     assert out["current_receipt_size"] == \
@@ -695,7 +793,8 @@ def test_g11_refuses_byte_flip_same_size(tmp_path):
     with pytest.raises(ri.ReceiptIdentityError, match="G11_REFUSED"):
         ri.g11_independent_rederivation(world["context"], world["grant"],
                                         world["artifact"], world["repo"],
-                                        "HEAD")
+                                        world["remote"], world["branch"],
+                                        G6_SET)
 
 
 def test_g11_refuses_truncation_and_append(tmp_path):
@@ -707,12 +806,14 @@ def test_g11_refuses_truncation_and_append(tmp_path):
     with pytest.raises(ri.ReceiptIdentityError, match="G11_REFUSED"):
         ri.g11_independent_rederivation(world["context"], world["grant"],
                                         world["artifact"], world["repo"],
-                                        "HEAD")
+                                        world["remote"], world["branch"],
+                                        G6_SET)
     target.write_bytes(world["original"]["receipt_bytes"] + b"PAD")
     with pytest.raises(ri.ReceiptIdentityError, match="G11_REFUSED"):
         ri.g11_independent_rederivation(world["context"], world["grant"],
                                         world["artifact"], world["repo"],
-                                        "HEAD")
+                                        world["remote"], world["branch"],
+                                        G6_SET)
 
 
 def test_g11_refuses_deletion(tmp_path):
@@ -724,7 +825,8 @@ def test_g11_refuses_deletion(tmp_path):
                        match="G11_REFUSED:.*RECEIPT_ABSENT_OR_UNOPENABLE"):
         ri.g11_independent_rederivation(world["context"], world["grant"],
                                         world["artifact"], world["repo"],
-                                        "HEAD")
+                                        world["remote"], world["branch"],
+                                        G6_SET)
 
 
 def test_g11_refuses_package_b_substitution(tmp_path):
@@ -744,10 +846,13 @@ def test_g11_refuses_package_b_substitution(tmp_path):
     with pytest.raises(ri.ReceiptIdentityError, match="G11_REFUSED"):
         ri.g11_independent_rederivation(world["context"], world["grant"],
                                         world["artifact"], world["repo"],
-                                        "HEAD")
+                                        world["remote"], world["branch"],
+                                        G6_SET)
     with pytest.raises(ri.ReceiptIdentityError):
         ri.g11_independent_rederivation(world["context"], world["grant"],
-                                        package_b, world["repo"], "HEAD")
+                                        package_b, world["repo"],
+                                        world["remote"], world["branch"],
+                                        G6_SET)
 
 
 def test_g11_accepts_byte_identical_new_inode(tmp_path):
@@ -765,7 +870,8 @@ def test_g11_accepts_byte_identical_new_inode(tmp_path):
     assert os.lstat(target).st_ino != first_ino
     ri.g11_independent_rederivation(world["context"], world["grant"],
                                     world["artifact"], world["repo"],
-                                    "HEAD")
+                                    world["remote"], world["branch"],
+                                    G6_SET)
 
 
 def test_g11_refuses_grant_substitution(tmp_path):
@@ -778,22 +884,27 @@ def test_g11_refuses_grant_substitution(tmp_path):
                        match="G10_RECEIPT_BYTES_DERIVATION_REFUSED"):
         ri.g11_independent_rederivation(world["context"], other_grant,
                                         world["artifact"], world["repo"],
-                                        "HEAD")
+                                        world["remote"], world["branch"],
+                                        G6_SET)
 
 
 def test_g11_refuses_g7_and_crossbinding_substitution(tmp_path):
-    """RI-AC-35/RI-T14 + the Section 8 cross-binding refusal groups: an
-    altered G7 five-value identity fails selection, and the
-    published-vs-derived cross-check refuses each group by constant."""
+    """RI-AC-35/RI-T14 + the Section 8 cross-binding refusal groups +
+    CR-IMPL-002: a SHAPE-VALID context whose G7 five-value identity
+    does NOT equal the independently Git-derived identity is refused
+    by the G7_CONTEXT_IDENTITY_MISMATCH comparison (a matching
+    caller-supplied context is NOT itself proof of derived identity);
+    the published-vs-derived cross-check refuses each group by
+    constant."""
     world = _world(tmp_path)
     altered = dict(world["context"],
                    grant_mint_publication_commit_sha="8" * 40)
     with pytest.raises(ri.ReceiptIdentityError,
-                       match="CANONICAL_G10_RECEIPT_IDENTITY_"
-                             "PUBLICATION_NOT_FOUND"):
+                       match="G11_REFUSED:.*G7_CONTEXT_IDENTITY_MISMATCH"):
         ri.g11_independent_rederivation(altered, world["grant"],
                                         world["artifact"], world["repo"],
-                                        "HEAD")
+                                        world["remote"], world["branch"],
+                                        G6_SET)
     doctored = dict(world["record"])
     for constant, field, value in (
             ("RIP_RECEIPT_ORIGINAL_MISMATCH", "receipt_sha256", "9" * 64),
@@ -839,21 +950,36 @@ def test_grant_and_receipt_schemas_unchanged():
 
 def test_public_surface_and_execution_authority_nonexpansion(tmp_path):
     """RI-AC-38/41: BootstrapAuthority stays exactly {state, store,
-    run_attempt} with NO receipt functionality; runtime.py never
-    references the receipt-identity module; the publication pins
-    execution_authority = NONE (and refuses anything else)."""
+    run_attempt} with NO receipt functionality; runtime.py/__init__.py
+    never IMPORT or CALL the receipt-identity module (AST-enforced —
+    the 2026-10-10 operator-authorized provenance rebind necessarily
+    names the module PATH as a provenance DATA record inside
+    EXPECTED_PROVENANCE, which is admission data, not module coupling);
+    the publication pins execution_authority = NONE."""
     from bootstrap_authority import runtime as barmod
+    import ast as _rast
     public = {name for name, member in
               vars(barmod.BootstrapAuthority).items()
               if not name.startswith("_")
               and not isinstance(member, (classmethod, staticmethod))}
     assert public == {"state", "store", "run_attempt"}
-    runtime_text = (Path(__file__).resolve().parent.parent
-                    / "bootstrap_authority" / "runtime.py").read_text()
-    assert "receiptidentity" not in runtime_text
-    init_text = (Path(__file__).resolve().parent.parent
-                 / "bootstrap_authority" / "__init__.py").read_text()
-    assert "receiptidentity" not in init_text
+    for module_name in ("runtime.py", "__init__.py"):
+        source = (Path(__file__).resolve().parent.parent
+                  / "bootstrap_authority" / module_name).read_text()
+        for node in _rast.walk(_rast.parse(source)):
+            if isinstance(node, _rast.ImportFrom) \
+                    and (node.module or "").endswith("receiptidentity"):
+                raise AssertionError(
+                    f"{module_name} imports the receipt-identity module")
+            if isinstance(node, _rast.Import) and any(
+                    alias.name.endswith("receiptidentity")
+                    for alias in node.names):
+                raise AssertionError(
+                    f"{module_name} imports the receipt-identity module")
+            if isinstance(node, _rast.Attribute) \
+                    and node.attr == "receiptidentity":
+                raise AssertionError(
+                    f"{module_name} references the receipt-identity module")
     world = _world(tmp_path, publish=False)
     assert world["record"]["execution_authority"] == "NONE"
 
@@ -913,13 +1039,302 @@ def test_mutation_class_matrix(tmp_path):
             ri.g11_independent_rederivation(world["context"],
                                             world["grant"],
                                             world["artifact"],
-                                            world["repo"], "HEAD")
+                                            world["repo"], world["remote"],
+                                            world["branch"], G6_SET)
     target.unlink()
     with pytest.raises(ri.ReceiptIdentityError, match="G11_REFUSED"):
         ri.g11_independent_rederivation(world["context"], world["grant"],
                                         world["artifact"], world["repo"],
-                                        "HEAD")
+                                        world["remote"], world["branch"],
+                                        G6_SET)
     target.write_bytes(world["original"]["receipt_bytes"])
+
+
+# --- CR-IMPL-002: the independent canonical G7 mint-publication
+# selector (accepted PUBID-001 C1-C15 + DIFFSEM canonical C4) ---------
+
+
+def _publish_g7_only(tmp_path, record, name="g7repo"):
+    """A disposable LOCAL repo carrying exactly ONE synthetic G7 mint
+    publication introduction of the reserved G7 path (nothing else)."""
+    repo = Path(tmp_path) / name
+    repo.mkdir(parents=True)
+    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "config", "user.email", "synthetic@test.invalid")
+    _git(repo, "config", "user.name", "synthetic")
+    (repo / "seed.txt").write_bytes(b"SYNTHETIC-SEED")
+    _commit_all(repo, "seed")
+    path = repo.joinpath(*bab.G7_MINT_PUBLICATION_RECORD_PATH.split("/"))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(json.dumps(record, separators=(",", ":")).encode())
+    _commit_all(repo, "synthetic G7 mint publication")
+    return repo, path
+
+
+def test_g7_record_parser_closed_world_and_shapes():
+    """C5/C7/C9-C14 parse surface: the EXACT closed-world 21-field set
+    (added/missing keys refused), fixed constants, the deterministic
+    evidence-path suffix, and per-field shape gates — all fail closed."""
+    identity = "f" * 64
+    record = _g7_record(identity)
+    data = json.dumps(record, separators=(",", ":")).encode()
+    parsed = ri.parse_g7_mint_publication(data)
+    assert parsed == {name: record[name]
+                      for name in ri.G7_MINT_PUBLICATION_FIELDS}
+    assert len(ri.G7_MINT_PUBLICATION_FIELDS) == 21
+    for mutated, constant in (
+            (dict(record, surprise=1), "G7MP_KEYS_INVALID"),
+            ({k: v for k, v in record.items() if k != "schema"},
+             "G7MP_KEYS_INVALID"),
+            (dict(record, grant_issued_evidence_path=
+                  "/synthetic/evidence-root/other.json"),
+             "G7MP_GRANT_ISSUED_EVIDENCE_PATH_INVALID"),
+            (dict(record, grant_issued_evidence_size=0),
+             "G7MP_GRANT_ISSUED_EVIDENCE_SIZE_INVALID"),
+            (dict(record, grant_issued_evidence_sha256="zz" * 32),
+             "G7MP_GRANT_ISSUED_EVIDENCE_SHA256_INVALID"),
+            (dict(record, future_machine_attempt_id=""),
+             "G7MP_FUTURE_MACHINE_ATTEMPT_ID_INVALID"),
+            (dict(record, grant_mint_consideration_permitted=False),
+             "G7MP_GRANT_MINT_CONSIDERATION_PERMITTED_INVALID"),
+            (dict(record, execution_authority="FULL"),
+             "G7MP_EXECUTION_AUTHORITY_INVALID"),
+            (dict(record, secret_material="PRESENT"),
+             "G7MP_SECRET_MATERIAL_INVALID"),
+            (dict(record, governance_event_id="OTHER-EVENT"),
+             "G7MP_GOVERNANCE_EVENT_ID_INVALID"),
+            (dict(record, auditor_role="AUDITOR_B"),
+             "G7MP_AUDITOR_ROLE_INVALID"),
+            (dict(record, attempt_slot="AUDITOR_A_REPLACEMENT_2"),
+             "G7MP_ATTEMPT_SLOT_INVALID"),
+            (dict(record, schema="AUCDEV-023-GRANT-MINT-PUBLICATION-V2"),
+             "G7MP_SCHEMA_INVALID")):
+        with pytest.raises(ri.ReceiptIdentityError, match=constant):
+            ri.parse_g7_mint_publication(
+                json.dumps(mutated, separators=(",", ":")).encode())
+    duplicated = data.replace(
+        b'"grant_identity":"' + identity.encode() + b'"',
+        b'"grant_identity":"' + identity.encode()
+        + b'","grant_identity":"' + identity.encode() + b'"')
+    with pytest.raises(bab.BindingError):
+        ri.parse_g7_mint_publication(duplicated)
+
+
+def test_g7_selector_exact_one_and_five_value_identity(tmp_path):
+    """C1-C15 happy path: exactly one qualifying introduction; the
+    post-hoc FIVE-VALUE identity equals the actual Git facts (the same
+    values the world's verified G7 context carries)."""
+    world = _world(tmp_path, publish=False)
+    tip = _git(world["repo"], "rev-parse", "HEAD").stdout.strip()
+    selection = ri.select_canonical_g7_publication(world["repo"], tip, {
+        "grant_identity": bab.grant_identity(world["grant"]),
+        "g6_identity_set": G6_SET})
+    assert selection["commit"] == world["g7_commit"]
+    five = ri.derive_g7_post_publication_identity(selection)
+    assert five == {key: world["context"][key] for key in five}
+    assert five["grant_mint_publication_record_path"] == \
+        bab.G7_MINT_PUBLICATION_RECORD_PATH
+    wrong_g6 = dict(G6_SET,
+                    package_binding_authority_readback_disposition="OTHER")
+    for expected in ({"grant_identity": "e" * 64,
+                      "g6_identity_set": G6_SET},
+                     {"grant_identity": bab.grant_identity(
+                         world["grant"]), "g6_identity_set": wrong_g6}):
+        with pytest.raises(ri.ReceiptIdentityError,
+                           match="CANONICAL_G7_MINT_PUBLICATION_NOT_FOUND"):
+            ri.select_canonical_g7_publication(world["repo"], tip,
+                                               expected)
+
+
+@pytest.mark.parametrize("field,value", [
+    ("schema", "AUCDEV-023-GRANT-MINT-PUBLICATION-V2"),        # C5
+    ("grant_identity", "e" * 64),                              # C6
+    ("grant_issued_evidence_path",
+     "/synthetic/evidence-root/other.json"),                   # C7
+    ("grant_issued_evidence_size", 0),                         # C7
+    ("package_binding_authority_readback_disposition",
+     "OTHER_DISPOSITION"),                                     # C8
+    ("grant_mint_consideration_permitted", False),             # C9
+    ("execution_authority", "FULL"),                           # C10
+    ("secret_material", "PRESENT"),                            # C11
+    ("governance_event_id", "OTHER-EVENT"),                    # C12
+    ("auditor_role", "AUDITOR_B"),                             # C13
+    ("attempt_slot", "AUDITOR_A_REPLACEMENT_2"),               # C14
+])
+def test_g7_selector_c5_through_c14_predicates(tmp_path, field, value):
+    """Each C5-C14 predicate DISCRIMINATES: a record mutated on exactly
+    that predicate never qualifies (NOT_FOUND, fail closed)."""
+    identity = bab.grant_identity(synthetic_grant_bytes())
+    record = _g7_record(identity)
+    record[field] = value
+    repo, _path = _publish_g7_only(tmp_path, record)
+    tip = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    with pytest.raises(ri.ReceiptIdentityError,
+                       match="CANONICAL_G7_MINT_PUBLICATION_NOT_FOUND"):
+        ri.select_canonical_g7_publication(repo, tip, {
+            "grant_identity": identity, "g6_identity_set": G6_SET})
+
+
+def test_g7_selector_zero_delete_readd_and_modification(tmp_path):
+    """Cardinality semantics: zero candidates -> NOT_FOUND; delete +
+    re-add of the SAME qualifying record -> AMBIGUOUS; a later
+    modification NEVER replaces the original introduction C."""
+    identity = bab.grant_identity(synthetic_grant_bytes())
+    expected = {"grant_identity": identity, "g6_identity_set": G6_SET}
+    # zero: a seed-only repo has no G7 publication at all
+    repo0 = Path(tmp_path) / "seedonly"
+    repo0.mkdir(parents=True)
+    _git(repo0, "init", "-q", "-b", "main")
+    _git(repo0, "config", "user.email", "synthetic@test.invalid")
+    _git(repo0, "config", "user.name", "synthetic")
+    (repo0 / "seed.txt").write_bytes(b"SYNTHETIC-SEED")
+    _commit_all(repo0, "seed")
+    with pytest.raises(ri.ReceiptIdentityError,
+                       match="CANONICAL_G7_MINT_PUBLICATION_NOT_FOUND"):
+        ri.select_canonical_g7_publication(
+            repo0, "HEAD", expected)
+    # delete + re-add -> two qualifying introductions -> AMBIGUOUS
+    record = _g7_record(identity)
+    repo, path = _publish_g7_only(tmp_path, record)
+    payload = path.read_bytes()
+    path.unlink()
+    _commit_all(repo, "delete")
+    path.write_bytes(payload)
+    _commit_all(repo, "re-add same bytes")
+    with pytest.raises(ri.ReceiptIdentityError,
+                       match="CANONICAL_G7_MINT_PUBLICATION_AMBIGUOUS"):
+        ri.select_canonical_g7_publication(repo, "HEAD", expected)
+    # modification never replaces the ORIGINAL introduction
+    repo2, path2 = _publish_g7_only(tmp_path, record, name="g7repo2")
+    original_commit = _git(repo2, "rev-parse", "HEAD").stdout.strip()
+    path2.write_bytes(json.dumps(
+        dict(record, grant_document_sha256="9" * 64),
+        separators=(",", ":")).encode())
+    _commit_all(repo2, "modify non-predicate field")
+    selection = ri.select_canonical_g7_publication(repo2, "HEAD",
+                                                   expected)
+    assert selection["commit"] == original_commit
+    assert selection["record"]["grant_document_sha256"] == \
+        record["grant_document_sha256"]
+
+
+def test_g7_selector_first_parent_domain_only(tmp_path):
+    """C15: an introduction living ONLY on a side branch is NOT in the
+    authoritative first-parent domain — selection over main FAILS
+    CLOSED with NOT_FOUND (no side-branch reachability authority)."""
+    identity = bab.grant_identity(synthetic_grant_bytes())
+    repo = Path(tmp_path) / "repo"
+    repo.mkdir(parents=True)
+    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "config", "user.email", "synthetic@test.invalid")
+    _git(repo, "config", "user.name", "synthetic")
+    (repo / "seed.txt").write_bytes(b"SYNTHETIC-SEED")
+    _commit_all(repo, "seed")
+    _git(repo, "checkout", "-q", "-b", "side")
+    path = repo.joinpath(*bab.G7_MINT_PUBLICATION_RECORD_PATH.split("/"))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(json.dumps(_g7_record(identity),
+                                separators=(",", ":")).encode())
+    _commit_all(repo, "side-branch-only G7 publication")
+    _git(repo, "checkout", "-q", "main")
+    with pytest.raises(ri.ReceiptIdentityError,
+                       match="CANONICAL_G7_MINT_PUBLICATION_NOT_FOUND"):
+        ri.select_canonical_g7_publication(repo, "HEAD", {
+            "grant_identity": identity, "g6_identity_set": G6_SET})
+
+
+# --- CR-IMPL-004: the authoritative (remote, branch) tip binding -------
+
+
+def test_authoritative_ref_resolution_success_and_refusals(tmp_path):
+    """resolve_authoritative_tip returns the exact remote tip and
+    refuses a missing branch, an empty remote and an absent remote."""
+    world = _world(tmp_path)
+    binding = ri.resolve_authoritative_tip(world["repo"], world["remote"],
+                                           world["branch"])
+    assert binding["tip"] == _git(world["repo"], "rev-parse",
+                                  "main").stdout.strip()
+    assert binding["ref"] == "refs/heads/main"
+    with pytest.raises(ri.ReceiptIdentityError,
+                       match="AUTHORITATIVE_REF_NOT_RESOLVED"):
+        ri.resolve_authoritative_tip(world["repo"], world["remote"],
+                                     "nonexistent-branch")
+    empty_world = _world(tmp_path / "empty", publish=False, push=False)
+    with pytest.raises(ri.ReceiptIdentityError,
+                       match="AUTHORITATIVE_REF_NOT_RESOLVED"):
+        ri.resolve_authoritative_tip(empty_world["repo"],
+                                     empty_world["remote"], "main")
+    with pytest.raises(ri.ReceiptIdentityError,
+                       match="SELECTOR_GIT_INVOCATION_FAILED"):
+        ri.resolve_authoritative_tip(
+            world["repo"], str(Path(tmp_path) / "absent.git"), "main")
+
+
+def test_authoritative_ref_binds_remote_not_divergent_local(tmp_path):
+    """A DIVERGENT local branch is never the authority: after local-only
+    commits the binding (and G11's whole enumeration domain) stays the
+    REMOTE tip; G11 still succeeds against the intact remote world."""
+    world = _world(tmp_path)
+    (world["repo"] / "local-only.txt").write_bytes(b"LOCAL-DIVERGENCE")
+    _commit_all(world["repo"], "local-only divergence, never pushed")
+    binding = ri.resolve_authoritative_tip(world["repo"], world["remote"],
+                                           world["branch"])
+    assert binding["tip"] != _git(world["repo"], "rev-parse",
+                                  "HEAD").stdout.strip()
+    out = ri.g11_independent_rederivation(world["context"],
+                                          world["grant"],
+                                          world["artifact"],
+                                          world["repo"], world["remote"],
+                                          world["branch"], G6_SET)
+    assert out["authoritative_binding"] == binding
+
+
+def test_unpushed_local_publication_is_not_authority(tmp_path):
+    """A publication that exists ONLY locally is NOT authority: with the
+    G10 publication committed but NOT pushed, the primitive selector
+    over the local HEAD finds it, while the BOUND G10.6 readback /
+    G11 (which enumerate the ls-remote remote tip only) FAIL CLOSED
+    with NOT_FOUND — the authoritative-ref binding, not the caller's
+    local ref, defines the domain."""
+    world = _world(tmp_path, publish=False, push=True)
+    ri.stage_receipt_identity_publication(world["repo"], world["data"])
+    _commit_all(world["repo"], "local-only G10 publication, never pushed")
+    selection = ri.select_canonical_g10_publication(
+        world["repo"], "HEAD", world["record"])
+    assert selection["commit"] == _git(world["repo"], "rev-parse",
+                                       "HEAD").stdout.strip()
+    for call in (
+            lambda: ri.execute_g10_publication_readback(
+                world["repo"], world["remote"], world["branch"],
+                world["original"]),
+            lambda: ri.g11_independent_rederivation(
+                world["context"], world["grant"], world["artifact"],
+                world["repo"], world["remote"], world["branch"], G6_SET)):
+        with pytest.raises(ri.ReceiptIdentityError,
+                           match="CANONICAL_G10_RECEIPT_IDENTITY_"
+                                 "PUBLICATION_NOT_FOUND"):
+            call()
+
+
+def test_g11_g7_identity_independent_of_caller_context(tmp_path):
+    """CR-IMPL-002 core: a caller-supplied context that is fully
+    SHAPE-VALID (it parses cleanly) but whose G7 five-value identity
+    does NOT equal the independently Git-derived identity is REFUSED —
+    shape validation alone is never sufficient proof."""
+    world = _world(tmp_path)
+    forged = synthetic_g7_context(
+        world["ns"], world["grant"],
+        grant_mint_publication_commit_sha="a" * 40,
+        grant_mint_publication_root_tree="b" * 40,
+        grant_mint_publication_record_blob_sha1="c" * 40,
+        grant_mint_publication_record_sha256="d" * 64)
+    assert bab.parse_verified_g7_context(forged) == forged
+    with pytest.raises(ri.ReceiptIdentityError,
+                       match="G7_CONTEXT_IDENTITY_MISMATCH"):
+        ri.g11_independent_rederivation(forged, world["grant"],
+                                        world["artifact"], world["repo"],
+                                        world["remote"], world["branch"],
+                                        G6_SET)
 
 
 # --- RI-AC matrix (criterion-by-criterion; each entry names the tests

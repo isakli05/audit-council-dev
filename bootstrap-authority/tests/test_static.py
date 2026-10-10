@@ -160,15 +160,16 @@ def test_ba04_new_authority_blobs():
 
 
 def test_ba05_manifest_provenance():
+    """ALL EIGHT production modules carry manifest provenance (the
+    2026-10-10 operator-authorized provenance rebind, CR-IMPL-001):
+    the SEVEN historical records byte-held EXACTLY plus the extension
+    module's truthful NEW_AUTHORITY_SPECIFIC record from its creation
+    authority."""
     doc = json.loads((AUTHORITY_ROOT / "MANIFEST.json").read_text())
     provenance = doc["source_provenance"]
-    # source_provenance covers the SEVEN legacy production modules
-    # exactly (the byte-held runtime EXPECTED_PROVENANCE contract; the
-    # RECEIPTIMMUT-001 extension module's boundary is asserted by
-    # test_ba05_extension_module_provenance_boundary below)
-    legacy = {"bootstrap_authority/%s" % n for n in EXPECTED_PRODUCTION
-              if n not in EXTENSION_PRODUCTION}
-    assert set(provenance) == legacy
+    production = {"bootstrap_authority/%s" % n
+                  for n in EXPECTED_PRODUCTION}
+    assert set(provenance) == production
     for name, blob in PINNED_REUSE_BLOBS.items():
         entry = provenance["bootstrap_authority/%s" % name]
         assert entry == {"kind": "EXACT_PRETARGET_BLOB_REUSE",
@@ -188,23 +189,29 @@ def test_ba05_manifest_provenance():
             "origin": "THIS_BOUNDED_IMPLEMENTATION"}
 
 
-def test_ba05_extension_module_provenance_boundary():
-    """2026-10-09 scope rebind boundary: manifest source_provenance is
-    the EXACT seven-record byte-held historical V2-lineage set that the
-    UNCHANGED runtime admission contract (runtime.py EXPECTED_PROVENANCE
-    exact equality) pins; the RECEIPTIMMUT-001 extension module is NEW
-    authority-specific source from THIS bounded implementation
-    extension and is deliberately NOT added to source_provenance —
-    adding an eighth record would require changing protected
-    runtime.py (a PACKAGE_MANIFEST_CONTRACT_REBIND reserved to the
-    operator).  Its origin is recorded here and in the canonical
-    implementation record instead."""
+def test_ba05_extension_module_provenance_rebound():
+    """2026-10-10 operator-authorized provenance rebind (CR-IMPL-001):
+    the RECEIPTIMMUT-001 extension module now carries its truthful
+    provenance record in BOTH the manifest source_provenance and the
+    runtime EXPECTED_PROVENANCE admission contract — an EXPLICIT
+    extension of the prior seven-record contract by the operator's
+    remediation authority, NEVER a claim that the old contract already
+    allowed an eighth entry; the seven historical records are
+    unchanged and the manifest equals the runtime contract on EXACTLY
+    the eight production entries."""
     doc = json.loads((AUTHORITY_ROOT / "MANIFEST.json").read_text())
     provenance = doc["source_provenance"]
+    production = {"bootstrap_authority/%s" % n
+                  for n in EXPECTED_PRODUCTION}
+    assert set(provenance) == production
+    assert set(barmod.EXPECTED_PROVENANCE) == production
+    assert provenance == barmod.EXPECTED_PROVENANCE
+    assert provenance["bootstrap_authority/receiptidentity.py"] == {
+        "kind": "NEW_AUTHORITY_SPECIFIC",
+        "origin": "AUCDEV-023-PCH6B-RECEIPTIMMUT-001-IMPL-20261009-01"}
     legacy = {"bootstrap_authority/%s" % n for n in EXPECTED_PRODUCTION
               if n not in EXTENSION_PRODUCTION}
-    assert set(provenance) == legacy
-    assert "bootstrap_authority/receiptidentity.py" not in provenance
+    assert set(barmod.EXPECTED_PROVENANCE) >= legacy
     # the extension module IS a recorded package payload file with a
     # truthful row (bytes/sha256), verified by BA-09/BA-11 against the
     # live bytes
