@@ -10,7 +10,15 @@ and the GAP-D import boundary — blob pinning + GAP-D-STATIC-V2 census
 BEFORE an ORDINARY lazy import of bootstrap_authority.receiptidentity
 (transitive runtime load disclosed; never any runtime authority).
 NON-AUTHORITY: creates no grant/evidence/publication/receipt/package;
-every verification fail-closed, no retry, no fallback."""
+every verification fail-closed, no retry, no fallback.
+P3 remediation R1a+R2..R7 (CR-P3 readback dispositions): complete
+18-field GRANT_ISSUED evidence validation (R2), preloaded-module and
+import-origin binding (R3), anchored handoff consumption (R4), the one
+bounded pipeline with the explicit favorable-G6 hard barrier (R5),
+regular-file/nonblocking object custody (R6) and the G5 identity-
+limitation disclosure (R1a: G5 content/provenance verification is NOT
+established by this caller and remains assigned to the future G7
+mint-time verifier V1-V17)."""
 
 import ast
 import hashlib
@@ -57,6 +65,11 @@ HANDOFF_UNAVAILABLE = "HANDOFF_UNAVAILABLE"; HANDOFF_STALE_REFUSED = "HANDOFF_ST
 DUPLICATE_HANDOFF_EVIDENCE_REFUSED = "DUPLICATE_HANDOFF_EVIDENCE_REFUSED"
 HANDOFF_EVIDENCE_BYTE_MISMATCH = "HANDOFF_EVIDENCE_BYTE_MISMATCH"
 IMPORT_GATE_NOT_RUN = "IMPORT_GATE_NOT_RUN"; IMPORT_DISCLOSURE_REFUSED = "IMPORT_DISCLOSURE_REFUSED"
+EVIDENCE_SCHEMA_INVALID = "EVIDENCE_SCHEMA_INVALID"; EVIDENCE_CANONICAL_BYTES_INVALID = "EVIDENCE_CANONICAL_BYTES_INVALID"
+EVIDENCE_G6_IDENTITY_MISMATCH = "EVIDENCE_G6_IDENTITY_MISMATCH"; EVIDENCE_CROSS_BIND_MISMATCH = "EVIDENCE_CROSS_BIND_MISMATCH"
+PRELOADED_PACKAGE_MODULE_REFUSED = "PRELOADED_PACKAGE_MODULE_REFUSED"; IMPORT_ORIGIN_MISMATCH = "IMPORT_ORIGIN_MISMATCH"
+HANDOFF_ANCHOR_REFUSED = "HANDOFF_ANCHOR_REFUSED"; OBJECT_CUSTODY_REFUSED = "OBJECT_CUSTODY_REFUSED"
+G6_BARRIER_REFUSED = "G6_BARRIER_REFUSED"
 
 class LifecycleCallerError(Exception):
     """Fail-closed refusal carrying the exact contract refusal code."""
@@ -280,6 +293,17 @@ G6_DISPOSITIONS = (G6_PUBLICATION_DISPOSITION_PERMIT, "REFUSE", "BLOCK",
 G5_PUBLICATION_RECORD_PATH = (
     "docs/chatgpt-project/AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-"
     "A-PACKAGE-BINDING-AUTHORITY.md")
+# --- R1a (CR-P3-G5-001 Option A): NON-AUTHORITY disclosure statuses.
+# Identity-level derivation only; the G5 record's content schema is
+# accepted only as "conceptual; at minimum" and its content/provenance
+# verification is assigned to the future G7 mint-time verifier V1-V17.
+G5_GIT_IDENTITY_DERIVED = "G5_GIT_IDENTITY_DERIVED"
+G5_CONTENT_VERIFICATION_NOT_ESTABLISHED = \
+    "G5_CONTENT_VERIFICATION_NOT_ESTABLISHED"
+UPSTREAM_V1_V17_NOT_VERIFIED = "UPSTREAM_V1_V17_NOT_VERIFIED"
+G5_VERIFICATION_STATUS = (G5_GIT_IDENTITY_DERIVED,
+                          G5_CONTENT_VERIFICATION_NOT_ESTABLISHED,
+                          UPSTREAM_V1_V17_NOT_VERIFIED)
 G6_PUBLICATION_RECORD_PATH = G5_PUBLICATION_RECORD_PATH[:-3] \
     + "-READBACK-PUBLICATION.md"
 _T = "package_binding_authority_target_"
@@ -346,7 +370,10 @@ def _package_module():
 def derive_g5_identity(repo, tip):
     """K9 support: canonical G5 identity by the SAME first-parent
     exact-one raw-ADD discipline through the SHARED core; missing or
-    ambiguous FAILS CLOSED."""
+    ambiguous FAILS CLOSED. R1a: the result carries the explicit
+    NON-AUTHORITY disclosure that ONLY the Git identity is derived —
+    G5 content/provenance verification is NOT established here and
+    remains assigned to the future G7 mint-time verifier (V1-V17)."""
     package = _package_module()
     candidates = list(package._qualifying_introductions(
         repo, tip, G5_PUBLICATION_RECORD_PATH, lambda raw: {"raw": raw}))
@@ -354,8 +381,11 @@ def derive_g5_identity(repo, tip):
         _fail(G5_TARGET_NOT_RESOLVABLE,
               [candidate["commit"] for candidate in candidates])
     selected = candidates[0]
-    return {key: selected[key] for key in
-            ("commit", "record_path", "record_blob_sha1", "record_sha256")}
+    identity = {key: selected[key] for key in
+                ("commit", "record_path", "record_blob_sha1",
+                 "record_sha256")}
+    identity["verification_status"] = G5_VERIFICATION_STATUS
+    return identity
 
 def select_canonical_g6_publication(repo, tip):
     """K1-K14 over the SHARED core on the FIRST-PARENT history of the
@@ -407,22 +437,87 @@ def derive_g6_layer2(selection):
         record["package_binding_authority_readback_disposition"],
         record["grant_mint_consideration_permitted"])))
 
-# --- GRANT_ISSUED original-evidence verification (R-EVID) ----------
-def verify_grant_issued_evidence(repo, tip, evidence_root, grant_identity,
-                                 g6_layer2):
-    """Exact G7 mint-time evidence identity: G7 re-selected with the
-    INDEPENDENTLY derived G6 set; path must equal
-    <root>/grant-issued-<gid>.json (R-EVID-3); ORIGINAL bytes re-read
-    via held-dirfd must match pinned digest/size (R-EVID-1/2) and
-    grant_identity (R-EVID-4)."""
+# --- GRANT_ISSUED original-evidence verification (R-EVID + R2) -----
+EVIDENCE_DOCUMENT_SCHEMA = "AUCDEV-023-GRANT-ISSUED-EVIDENCE-V1"
+EVIDENCE_DOCUMENT_SEMANTICS = \
+    "IMMUTABLE_NON_EXECUTION_GRANT_ISSUED_EVIDENCE"
+_RB = "package_binding_authority_readback_"
+EVIDENCE_DOCUMENT_FIELDS = (
+    "schema", "evidence_semantics", "governance_event_id", "auditor_role",
+    "attempt_slot", "future_machine_attempt_id", "grant_identity",
+    "grant_document_sha256",
+    _RB + "commit_sha", _RB + "root_tree", _RB + "record_path",
+    _RB + "record_blob_sha1", _RB + "record_sha256",
+    _RB + "target_commit_sha", _RB + "disposition",
+    "grant_mint_consideration_permitted", "execution_authority",
+    "secret_material")
+del _RB
+
+def select_g7_with_g6_set(repo, tip, grant_identity, g6_layer2):
+    """Pipeline stage 6: canonical G7 re-selection (C1-C15; C6 the grant
+    identity, C8 the eight-field G6 set BY VALUE) against the
+    INDEPENDENTLY derived G6 layer-2 values — never caller input."""
     package = _package_module()
     try:
-        g7 = package.select_canonical_g7_publication(repo, tip, {
+        return package.select_canonical_g7_publication(repo, tip, {
             "grant_identity": grant_identity,
             "g6_identity_set": {name: g6_layer2[name]
                                 for name in package.G6_IDENTITY_FIELDS}})
     except package.ReceiptIdentityError as exc:
         _fail(EVIDENCE_UNAVAILABLE, str(exc))
+
+def _validate_evidence_document(current, record, grant_identity, g6_layer2):
+    """Pipeline stage 7 core (R2, CR-P3-EVID-002): the accepted 18-field
+    closed-world schema AUCDEV-023-GRANT-ISSUED-EVIDENCE-V1 with its
+    fixed canonical serialization (compact separators, fixed declared
+    key order, printable-ASCII, JSON booleans, exactly one trailing
+    LF, duplicate keys and the self-digest field refused) and the
+    cross-binds to the canonical G7 record and the INDEPENDENTLY
+    derived G6 values (evidence-provided values are never the
+    authority for their own comparison)."""
+    doc = _strict_loads(current, EVIDENCE_SCHEMA_INVALID)
+    if not isinstance(doc, dict) or set(doc) != set(EVIDENCE_DOCUMENT_FIELDS):
+        _fail(EVIDENCE_SCHEMA_INVALID, "not the closed-world 18-field set"
+              f" (self-digest field refused): {sorted(map(str, doc))[:6]}")
+    pairs = {"schema": EVIDENCE_DOCUMENT_SCHEMA,
+             "evidence_semantics": EVIDENCE_DOCUMENT_SEMANTICS,
+             "governance_event_id": GOVERNANCE_EVENT_ID,
+             "auditor_role": "AUDITOR_A",
+             "attempt_slot": "AUDITOR_A_REPLACEMENT_1",
+             "execution_authority": "NONE", "secret_material": "NONE"}
+    for field, expected in pairs.items():
+        if doc[field] != expected:
+            _fail(EVIDENCE_SCHEMA_INVALID, f"{field}={doc[field]!r}")
+    permitted = doc["grant_mint_consideration_permitted"]
+    if not isinstance(permitted, bool) or permitted is not True:
+        _fail(EVIDENCE_SCHEMA_INVALID, f"permitted={permitted!r} not JSON true")
+    canonical = json.dumps(
+        {name: doc[name] for name in EVIDENCE_DOCUMENT_FIELDS},
+        separators=(",", ":"), ensure_ascii=False).encode() + b"\n"
+    if current != canonical or current.count(b"\n") != 1 \
+            or any(byte < 0x20 or byte > 0x7E for byte in current[:-1]):
+        _fail(EVIDENCE_CANONICAL_BYTES_INVALID,
+              "not the canonical serialization (fixed order, compact,"
+              " printable-ASCII, exactly one trailing LF)")
+    if doc["grant_identity"] != grant_identity:
+        _fail(EVIDENCE_IDENTITY_MISMATCH, "grant_identity (R-EVID-4)")
+    for field in ("future_machine_attempt_id", "grant_document_sha256"):
+        if doc[field] != record[field]:
+            _fail(EVIDENCE_CROSS_BIND_MISMATCH, f"{field} vs canonical G7")
+    for name in _package_module().G6_IDENTITY_FIELDS[:7]:
+        if doc[name] != g6_layer2[name]:
+            _fail(EVIDENCE_G6_IDENTITY_MISMATCH, f"{name} vs derived G6")
+    return doc
+
+def verify_grant_issued_evidence(repo, tip, evidence_root, grant_identity,
+                                 g6_layer2, g7=None):
+    """Exact G7 mint-time evidence identity (R-EVID complete with R2):
+    G7 re-selected with the INDEPENDENTLY derived G6 set; path must
+    equal <root>/grant-issued-<gid>.json (R-EVID-3); ORIGINAL bytes
+    re-read via held-dirfd must match pinned digest/size (R-EVID-1/2);
+    the document must satisfy the accepted 18-field closed-world
+    schema, canonical bytes and cross-binds (R2)."""
+    g7 = g7 or select_g7_with_g6_set(repo, tip, grant_identity, g6_layer2)
     record = g7["record"]
     expected_name = f"grant-issued-{grant_identity}.json"
     root = os.path.realpath(os.fspath(evidence_root))
@@ -443,13 +538,7 @@ def verify_grant_issued_evidence(repo, tip, evidence_root, grant_identity,
         _fail(EVIDENCE_BYTE_MISMATCH, "SHA-256 mismatch (R-EVID-1)")
     if len(current) != record["grant_issued_evidence_size"]:
         _fail(EVIDENCE_BYTE_MISMATCH, "size mismatch (R-EVID-2)")
-    try:
-        evidence_doc = json.loads(current.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        _fail(EVIDENCE_IDENTITY_MISMATCH, "not JSON")
-    if not isinstance(evidence_doc, dict) \
-            or evidence_doc.get("grant_identity") != grant_identity:
-        _fail(EVIDENCE_IDENTITY_MISMATCH, "grant_identity (R-EVID-4)")
+    _validate_evidence_document(current, record, grant_identity, g6_layer2)
     return {"g7_commit": g7["commit"], "g7_record_path": g7["record_path"],
             "evidence_path": os.path.join(root, expected_name),
             "evidence_sha256": digest, "evidence_size": len(current)}
@@ -476,12 +565,25 @@ def _held_dir_fd(root, code):
         _fail(code, "held namespace object is not a directory")
     return fd
 
+_MAX_OBJECT_BYTES = 1 << 24
+
 def _read_at(dir_fd, name):
-    fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dir_fd)
+    """R6 (CR-P3-CUSTODY-006): open with O_NONBLOCK (a FIFO cannot
+    block or stream past the byte checks) and prove on the OPENED fd
+    via fstat + S_ISREG that the object is a regular file BEFORE any
+    read (FIFO/device/special refused); bounded reading; fd closed on
+    every path."""
+    fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                 dir_fd=dir_fd)
     try:
-        chunks = []
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            _fail(OBJECT_CUSTODY_REFUSED, f"{name}: not a regular file")
+        chunks, total = [], 0
         while chunk := os.read(fd, 65536):
             chunks.append(chunk)
+            total += len(chunk)
+            if total > _MAX_OBJECT_BYTES:
+                _fail(OBJECT_CUSTODY_REFUSED, f"{name}: oversized object")
     finally:
         os.close(fd)
     return b"".join(chunks)
@@ -519,7 +621,11 @@ def create_lifecycle_handoff(root, tip, payload):
             "handoff_size": len(reread)}
 
 def read_lifecycle_handoff(root, tip):
-    """Consumer re-read through the identical held-dirfd discipline."""
+    """Consumer re-read through the identical held-dirfd discipline.
+    R4: EXPLICITLY UNTRUSTED informational read — without an
+    independently retained anchor the handoff remains informational
+    (content = untrusted claims); the anchored consumer form is
+    consume_lifecycle_handoff."""
     name = handoff_name(tip)
     root = os.path.realpath(os.fspath(root))
     dir_fd = _held_dir_fd(root, HANDOFF_ROOT_UNAVAILABLE)
@@ -532,12 +638,43 @@ def read_lifecycle_handoff(root, tip):
         os.close(dir_fd)
     return {"handoff_path": os.path.join(root, name),
             "handoff_sha256": hashlib.sha256(current).hexdigest(),
-            "handoff_size": len(current), "handoff_bytes": current}
+            "handoff_size": len(current), "handoff_bytes": current,
+            "trust_status": "UNANCHORED_INFORMATIONAL_READ"}
 def require_current_handoff(root, tip, current_tip):
     """Stale-by-name refusal: the tip is the correlation key."""
     if tip != current_tip:
         _fail(HANDOFF_STALE_REFUSED, (tip, current_tip))
     return read_lifecycle_handoff(root, tip)
+def consume_lifecycle_handoff(root, tip, current_tip, expected_path,
+                              expected_sha256, expected_size):
+    """R4 (CR-P3-HANDOFF-004), GAP C 6.2 consumer form: the anchor
+    (path/SHA-256/size of the recorded original plus the authoritative
+    tip) is REQUIRED and independently retained — a digest supplied
+    only by the mutable handoff itself is NOT an anchor; byte/SHA-256/
+    size equality with the recorded original is enforced, mismatch ->
+    HANDOFF_EVIDENCE_BYTE_MISMATCH, no retry, no fallback, no silent
+    replacement. NON-AUTHORITY classification unchanged."""
+    name = handoff_name(tip)
+    root = os.path.realpath(os.fspath(root))
+    deterministic = os.path.join(root, name)
+    if not isinstance(expected_path, str) or os.path.realpath(
+            expected_path) != deterministic:
+        _fail(HANDOFF_ANCHOR_REFUSED, f"anchor path vs {deterministic}")
+    if not isinstance(expected_sha256, str) \
+            or not _SHA256_RE.match(expected_sha256) \
+            or isinstance(expected_size, bool) \
+            or not isinstance(expected_size, int) or expected_size < 0:
+        _fail(HANDOFF_ANCHOR_REFUSED, "anchor digest/size shape")
+    current = require_current_handoff(root, tip, current_tip)
+    if (current["handoff_sha256"] != expected_sha256
+            or current["handoff_size"] != expected_size):
+        _fail(HANDOFF_EVIDENCE_BYTE_MISMATCH,
+              (current["handoff_sha256"], current["handoff_size"]))
+    return {"handoff_path": current["handoff_path"],
+            "handoff_sha256": current["handoff_sha256"],
+            "handoff_size": current["handoff_size"],
+            "authoritative_tip": current_tip,
+            "trust_status": "ANCHORED_IDENTITY_VERIFIED"}
 
 
 # --- GAP D: the closed-world static census (GAP-D-STATIC-V2) -------
@@ -975,18 +1112,62 @@ def verify_import_gate(repo, tip, package_dir):
     with open(os.path.abspath(__file__), "rb") as handle:
         check_caller_purity(handle.read())
     return {"package_identity": identity, "static_census": census}
+# --- R3 (CR-P3-IMPORT-003): dedicated, controlled import-gate state.
+# None until THIS gate has performed an import in the process; any
+# bootstrap_authority cache entry observed before that is FOREIGN and
+# refused; entries the gate itself produced are re-verified BY CONTENT
+# on every later gate pass (their on-disk source at the actual load
+# origin must equal the now-verified pinned package source).
+_GATE_IMPORTED_PARENT = None
+
 def import_verified_package(repo, tip, package_dir):
     """The ONLY import path: the gate MUST pass first, then an ORDINARY
     import (no synthetic parent / sys.modules substitution / custom
-    loader / copy) with the transitive load asserted POSITIVELY."""
+    loader / copy) with the transitive load asserted POSITIVELY.
+    R3: preloaded bootstrap_authority objects are refused unless this
+    gate imported earlier in the same process AND every cached entry's
+    source at its actual load origin is byte-identical to the pinned
+    verified package source; the pinned parent becomes the FIRST
+    effective sys.path entry; the imported origin is asserted after
+    the import."""
+    global _GATE_IMPORTED_PARENT
     verify_import_gate(repo, tip, package_dir)
     parent = os.path.realpath(os.fspath(package_dir))
-    if parent not in sys.path:
-        sys.path.insert(0, parent)
+    expected_dir = os.path.join(parent, _PACKAGE_DIR_NAME)
+    cached = {key: sys.modules[key] for key in sorted(sys.modules)
+              if key == "bootstrap_authority"
+              or key.startswith("bootstrap_authority.")}
+    if cached and _GATE_IMPORTED_PARENT is None:
+        _fail(PRELOADED_PACKAGE_MODULE_REFUSED, sorted(cached))
+    for key, module in cached.items():
+        name = "__init__.py" if key == "bootstrap_authority" \
+            else f"{key.split('.', 1)[1]}.py"
+        origin = os.path.realpath(getattr(module, "__file__", "") or "")
+        try:
+            with open(origin, "rb") as handle:
+                loaded = handle.read()
+            with open(os.path.join(expected_dir, name), "rb") as handle:
+                pinned = handle.read()
+        except OSError as exc:
+            _fail(IMPORT_ORIGIN_MISMATCH, f"{key}: origin {exc!r}")
+        if loaded != pinned:
+            _fail(IMPORT_ORIGIN_MISMATCH,
+                  f"{key}: cached source at the actual load origin "
+                  "differs from the pinned verified source")
+    if parent in sys.path:
+        sys.path.remove(parent)
+    sys.path.insert(0, parent)     # the pinned parent is FIRST, always
     import bootstrap_authority.receiptidentity as receiptidentity
+    package = sys.modules["bootstrap_authority"]
+    origin_dir = os.path.realpath(next(iter(package.__path__)))
+    if os.path.realpath(receiptidentity.__file__) \
+            != os.path.join(origin_dir, "receiptidentity.py") \
+            or (origin_dir != expected_dir and not cached):
+        _fail(IMPORT_ORIGIN_MISMATCH, (origin_dir, expected_dir))
     if "bootstrap_authority.runtime" not in sys.modules:
         _fail(IMPORT_DISCLOSURE_REFUSED,
               "the disclosed transitive runtime load is absent")
+    _GATE_IMPORTED_PARENT = parent
     return receiptidentity
 
 def run_authenticated_binding(config_path, repo, package_dir, *,
@@ -998,3 +1179,49 @@ def run_authenticated_binding(config_path, repo, package_dir, *,
     module = import_verified_package(repo, binding["authoritative_tip"],
                                      package_dir)
     return {"binding": binding, "receiptidentity": module}
+
+def run_authenticated_lifecycle(config_path, repo, package_dir,
+                                evidence_root, handoff_root, grant_identity,
+                                *, ls_remote=None, api_read=None):
+    """R5 (CR-P3-PIPELINE-005): the ONE bounded NON-RUNTIME pipeline —
+    stages execute in the EXACT order, fail-closed, none skippable or
+    reorderable, every stage consuming the SAME verified tip and only
+    the previous stage's verified outputs: (1) authenticated
+    repository/branch/tip T1-T8; (2) source identity, import gate and
+    actual-module binding (R3); (3) canonical G5 Git identity with the
+    R1a limitation disclosure; (4) canonical G6 selection K1-K14 +
+    Layer-2; (5) the EXPLICIT favorable-G6 hard barrier (G6-001
+    Section 6: disposition PERMIT_GRANT_MINT_CONSIDERATION AND
+    permitted TRUE — adverse/absent/stale/ambiguous G6 is a CORRECT
+    fail-closed outcome); (6) canonical G7 re-selection against the
+    INDEPENDENTLY derived G6 values; (7) complete original GRANT_ISSUED
+    evidence validation (R-EVID complete with R2); (8) terminal
+    NON-AUTHORITY handoff whose payload is the canonical 12-field
+    invocation-evidence binding, anchor returned as the interim anchor.
+    SELECTS and VERIFIES only — no mint, no publication, no receipt,
+    no execution authority; a completed synthetic sequence is NOT
+    proof that the upstream V1-V17 G5 content checks were run."""
+    binding = verify_trust_root(config_path, repo, ls_remote=ls_remote,
+                                api_read=api_read)
+    tip = binding["authoritative_tip"]
+    module = import_verified_package(repo, tip, package_dir)
+    g5 = derive_g5_identity(repo, tip)
+    selection = select_canonical_g6_publication(repo, tip)
+    layer2 = derive_g6_layer2(selection)
+    if layer2["package_binding_authority_readback_disposition"] \
+            != G6_PUBLICATION_DISPOSITION_PERMIT \
+            or layer2["grant_mint_consideration_permitted"] is not True:
+        _fail(G6_BARRIER_REFUSED,
+              f"favorable-G6 hard barrier: {layer2}")
+    g7 = select_g7_with_g6_set(repo, tip, grant_identity, layer2)
+    evidence = verify_grant_issued_evidence(
+        repo, tip, evidence_root, grant_identity, layer2, g7=g7)
+    handoff = create_lifecycle_handoff(
+        handoff_root, tip,
+        _canonical_json(binding, INVOCATION_EVIDENCE_FIELDS))
+    return {"binding": binding, "receiptidentity": module, "g5": g5,
+            "g6_selection": selection, "g6_layer2": layer2,
+            "evidence": evidence, "handoff": handoff,
+            "stages": ("trust_root", "import_gate", "g5_identity",
+                       "g6_selection", "g6_hard_barrier", "g7_selection",
+                       "evidence_validation", "handoff")}

@@ -734,7 +734,8 @@ def test_g6_selection_a4_current_g5_modified_after_g6(tmp_path,
 # ------------------------------------- GRANT_ISSUED evidence (R-EVID)
 def evidence_doc(g6_layer2, grant_identity=GRANT_ID):
     return {"schema": "AUCDEV-023-GRANT-ISSUED-EVIDENCE-V1",
-            "evidence_semantics": "NON_EXECUTION_EVIDENCE_RECORD",
+            "evidence_semantics":
+                "IMMUTABLE_NON_EXECUTION_GRANT_ISSUED_EVIDENCE",
             "governance_event_id": "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01",
             "auditor_role": "AUDITOR_A",
             "attempt_slot": "AUDITOR_A_REPLACEMENT_1",
@@ -754,15 +755,39 @@ def evidence_doc(g6_layer2, grant_identity=GRANT_ID):
             "secret_material": "NONE"}
 
 
+def g7_record_doc(layer2, *, gid=GRANT_ID, pinned_bytes=b"",
+                  size_delta=0, path_override=None, evidence_root=None):
+    """The canonical 21-field G7 mint record payload (synthetic)."""
+    return {
+        "schema": "AUCDEV-023-GRANT-MINT-PUBLICATION-V1",
+        "governance_event_id": "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01",
+        "auditor_role": "AUDITOR_A",
+        "attempt_slot": "AUDITOR_A_REPLACEMENT_1",
+        "future_machine_attempt_id": "FUTURE-ATTEMPT-ID",
+        "grant_identity": gid,
+        "grant_document_sha256": "b" * 64,
+        "grant_issued_evidence_path": path_override or str(
+            evidence_root / f"grant-issued-{gid}.json"),
+        "grant_issued_evidence_sha256": hashlib.sha256(
+            pinned_bytes).hexdigest(),
+        "grant_issued_evidence_size": len(pinned_bytes) + size_delta}
+
+
 def build_evidence_world(tmp_path, pkg_blob_files, *, evidence=True,
                          mutate=None, size_delta=0, path_override=None,
-                         other_grant=False):
+                         other_grant=False, doc_mutate=None,
+                         pin_mutated=False):
+    """doc_mutate: mutate the 18-field semantic document BEFORE
+    serialization; pin_mutated: the G7 record pins the POST-mutation
+    bytes (the T55 form — byte checks pass, semantics must catch)."""
     repo, tip, g5_id = build_g6_world(tmp_path, pkg_blob_files)
     lc.import_verified_package(repo, tip, repo / "bootstrap-authority")
     selection = lc.select_canonical_g6_publication(repo, tip)
     layer2 = lc.derive_g6_layer2(selection)
     gid = "c" * 64 if other_grant else GRANT_ID
     doc = evidence_doc(layer2, gid)
+    if doc_mutate is not None:
+        doc = doc_mutate(doc)
     pinned_bytes = json.dumps(doc, separators=(",", ":")).encode() + b"\n"
     evidence_bytes = mutate(pinned_bytes) if mutate else pinned_bytes
     evidence_root = tmp_path / "evidence"
@@ -770,19 +795,10 @@ def build_evidence_world(tmp_path, pkg_blob_files, *, evidence=True,
     if evidence:
         (evidence_root / f"grant-issued-{gid}.json").write_bytes(
             evidence_bytes)
-    record = {
-        "schema": "AUCDEV-023-GRANT-MINT-PUBLICATION-V1",
-        "governance_event_id": "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01",
-        "auditor_role": "AUDITOR_A",
-        "attempt_slot": "AUDITOR_A_REPLACEMENT_1",
-        "future_machine_attempt_id": "FUTURE-ATTEMPT-ID",
-        "grant_identity": GRANT_ID,
-        "grant_document_sha256": "b" * 64,
-        "grant_issued_evidence_path": path_override or str(
-            evidence_root / f"grant-issued-{GRANT_ID}.json"),
-        "grant_issued_evidence_sha256": hashlib.sha256(
-            pinned_bytes).hexdigest(),
-        "grant_issued_evidence_size": len(pinned_bytes) + size_delta}
+    record = g7_record_doc(
+        layer2, pinned_bytes=evidence_bytes if pin_mutated
+        else pinned_bytes, size_delta=size_delta,
+        path_override=path_override, evidence_root=evidence_root)
     ri = lc._package_module()
     for name in ri.G6_IDENTITY_FIELDS:
         record[name] = layer2[name]
@@ -934,6 +950,205 @@ def test_handoff_root_unavailable(tmp_path):
     assert ei.value.code == lc.HANDOFF_ROOT_UNAVAILABLE
 
 
+# ------------------------------------- R1a G5 disclosure (AM-1/AM-2)
+@pytest.mark.parametrize("content", [
+    b"definitely not a G5 record: \x00\x01 arbitrary garbage bytes",
+    b'{"operator_authority_id": "WRONG-AUTHORITY", "g2_commit": "'
+    b'0000000000000000000000000000000000000000", "g3_commit": "deadbeef"}',
+])
+def test_am1_am2_arbitrary_g5_bytes_identity_only_disclosed(
+        tmp_path, pkg_blob_files, content):
+    """AM-1/AM-2: arbitrary (or G2/G3-incoherent) bytes at the canonical
+    G5 path still pass IDENTITY derivation AS DESIGNED, and the result
+    carries the explicit NON-AUTHORITY disclosure — no content-verified
+    claim exists anywhere in the caller."""
+    repo = tmp_path / "r1aworld"
+    repo.mkdir()
+    git(repo, "init", "-q", "-b", "master")
+    commit_files(repo, {f"bootstrap-authority/{rel}": data for rel, data
+                        in pkg_blob_files.items()}, "package")
+    g5_id = commit_g5(repo, content)
+    commit_g6(repo, g5_id)
+    tip = _gated(repo)
+    g5 = lc.derive_g5_identity(repo, tip)
+    assert g5["commit"] == g5_id["commit"]
+    assert g5["verification_status"] == (
+        lc.G5_GIT_IDENTITY_DERIVED,
+        lc.G5_CONTENT_VERIFICATION_NOT_ESTABLISHED,
+        lc.UPSTREAM_V1_V17_NOT_VERIFIED)
+    selection = lc.select_canonical_g6_publication(repo, tip)
+    assert selection["record"][
+        "package_binding_authority_target_commit_sha"] == g5["commit"]
+
+
+# --------------------------------- R2 evidence content (AM-3..AM-6)
+@pytest.mark.parametrize("field,value", [
+    ("package_binding_authority_readback_disposition", "REFUSE"),
+    ("package_binding_authority_readback_target_commit_sha", "9" * 40),
+])
+def test_am3_evidence_g6_set_mismatch_refused(tmp_path, pkg_blob_files,
+                                              field, value):
+    # the T55 form: the G7 record PINS the semantically wrong evidence
+    # bytes, so R-EVID-1/2 pass — the G6 cross-bind must catch them
+    repo, tip, layer2, evidence_root = build_evidence_world(
+        tmp_path, pkg_blob_files, doc_mutate=lambda d, f=field, v=value:
+        {**d, f: v}, pin_mutated=True)
+    with pytest.raises(lc.LifecycleCallerError) as ei:
+        lc.verify_grant_issued_evidence(repo, tip, evidence_root, GRANT_ID,
+                                        layer2)
+    assert ei.value.code == lc.EVIDENCE_G6_IDENTITY_MISMATCH
+
+
+@pytest.mark.parametrize("doc_mutate", [
+    lambda d: {k: v for k, v in d.items() if k != "execution_authority"},
+    lambda d: {**d, "extra_field": "x"},
+    lambda d: {**d, "grant_issued_evidence_sha256": "a" * 64},
+    lambda d: {**d, "governance_event_id": "OTHER-EVENT"},
+    lambda d: {**d, "auditor_role": "AUDITOR_B"},
+    lambda d: {**d, "attempt_slot": "AUDITOR_A_REPLACEMENT_2"},
+    lambda d: {**d, "grant_mint_consideration_permitted": "true"},
+    lambda d: {**d, "grant_mint_consideration_permitted": 1},
+    lambda d: {**d, "execution_authority": "SOME"},
+    lambda d: {**d, "secret_material": "SOME"},
+])
+def test_am4_evidence_schema_refusals(tmp_path, pkg_blob_files, doc_mutate):
+    repo, tip, layer2, evidence_root = build_evidence_world(
+        tmp_path, pkg_blob_files, doc_mutate=doc_mutate, pin_mutated=True)
+    with pytest.raises(lc.LifecycleCallerError) as ei:
+        lc.verify_grant_issued_evidence(repo, tip, evidence_root, GRANT_ID,
+                                        layer2)
+    assert ei.value.code == lc.EVIDENCE_SCHEMA_INVALID
+
+
+@pytest.mark.parametrize("mutate,code", [
+    (lambda raw: json.dumps(json.loads(raw), sort_keys=True,
+                            separators=(",", ":")).encode() + b"\n",
+     lc.EVIDENCE_CANONICAL_BYTES_INVALID),
+    (lambda raw: raw.replace(b",", b", "),
+     lc.EVIDENCE_CANONICAL_BYTES_INVALID),
+    (lambda raw: raw[:-1], lc.EVIDENCE_CANONICAL_BYTES_INVALID),
+    (lambda raw: raw + b"\n", lc.EVIDENCE_CANONICAL_BYTES_INVALID),
+    (lambda raw: raw[:-1] + b',"grant_identity":"' + GRANT_ID.encode()
+     + b'"}', lc.EVIDENCE_SCHEMA_INVALID),
+])
+def test_am5_evidence_canonical_bytes_refusals(tmp_path, pkg_blob_files,
+                                               mutate, code):
+    repo, tip, layer2, evidence_root = build_evidence_world(
+        tmp_path, pkg_blob_files, mutate=mutate, pin_mutated=True)
+    with pytest.raises(lc.LifecycleCallerError) as ei:
+        lc.verify_grant_issued_evidence(repo, tip, evidence_root, GRANT_ID,
+                                        layer2)
+    assert ei.value.code == code
+
+
+@pytest.mark.parametrize("field,value", [
+    ("grant_document_sha256", "c" * 64),
+    ("future_machine_attempt_id", "OTHER-ATTEMPT-ID"),
+])
+def test_am6_evidence_g7_cross_bind_refused(tmp_path, pkg_blob_files,
+                                            field, value):
+    repo, tip, layer2, evidence_root = build_evidence_world(
+        tmp_path, pkg_blob_files, doc_mutate=lambda d, f=field, v=value:
+        {**d, f: v}, pin_mutated=True)
+    with pytest.raises(lc.LifecycleCallerError) as ei:
+        lc.verify_grant_issued_evidence(repo, tip, evidence_root, GRANT_ID,
+                                        layer2)
+    assert ei.value.code == lc.EVIDENCE_CROSS_BIND_MISMATCH
+
+
+def test_r2_evidence_happy_path_still_green(tmp_path, pkg_blob_files):
+    repo, tip, layer2, evidence_root = build_evidence_world(
+        tmp_path, pkg_blob_files)
+    result = lc.verify_grant_issued_evidence(
+        repo, tip, evidence_root, GRANT_ID, layer2)
+    assert result["evidence_size"] > 0
+    doc = json.loads((evidence_root / f"grant-issued-{GRANT_ID}.json")
+                     .read_bytes())
+    assert list(doc) == list(lc.EVIDENCE_DOCUMENT_FIELDS)
+
+
+# --------------------------- R4 anchored handoff consumption (AM-9/10)
+def test_am9_anchored_consumer_refuses_mutation(tmp_path):
+    root = tmp_path / "handoff"
+    root.mkdir()
+    tip = "a" * 40
+    original = lc.create_lifecycle_handoff(root, tip, b"original payload")
+    (root / f"lifecycle-caller-handoff-{tip}.json").write_bytes(b"tampered")
+    with pytest.raises(lc.LifecycleCallerError) as ei:
+        lc.consume_lifecycle_handoff(
+            root, tip, tip, original["handoff_path"],
+            original["handoff_sha256"], original["handoff_size"])
+    assert ei.value.code == lc.HANDOFF_EVIDENCE_BYTE_MISMATCH
+    # the unanchored informational read still SUCCEEDS and is explicit
+    info = lc.read_lifecycle_handoff(root, tip)
+    assert info["trust_status"] == "UNANCHORED_INFORMATIONAL_READ"
+    assert info["handoff_bytes"] == b"tampered"
+
+
+def test_am10_anchored_consumer_happy_and_anchor_refusals(tmp_path):
+    root = tmp_path / "handoff"
+    root.mkdir()
+    tip = "b" * 40
+    original = lc.create_lifecycle_handoff(root, tip, b"anchored payload")
+    consumed = lc.consume_lifecycle_handoff(
+        root, tip, tip, original["handoff_path"],
+        original["handoff_sha256"], original["handoff_size"])
+    assert consumed["trust_status"] == "ANCHORED_IDENTITY_VERIFIED"
+    assert consumed["handoff_sha256"] == original["handoff_sha256"]
+    with pytest.raises(lc.LifecycleCallerError) as ei:
+        lc.consume_lifecycle_handoff(
+            root, tip, tip, original["handoff_path"], "c" * 64,
+            original["handoff_size"])
+    assert ei.value.code == lc.HANDOFF_EVIDENCE_BYTE_MISMATCH
+    for path, digest, size in (
+            (str(root / "elsewhere.json"), original["handoff_sha256"],
+             original["handoff_size"]),
+            (original["handoff_path"], "not-hex", original["handoff_size"]),
+            (original["handoff_path"], original["handoff_sha256"], -1)):
+        with pytest.raises(lc.LifecycleCallerError) as ei:
+            lc.consume_lifecycle_handoff(root, tip, tip, path, digest,
+                                         size)
+        assert ei.value.code == lc.HANDOFF_ANCHOR_REFUSED
+    with pytest.raises(lc.LifecycleCallerError) as ei:
+        lc.consume_lifecycle_handoff(
+            root, tip, "e" * 40, original["handoff_path"],
+            original["handoff_sha256"], original["handoff_size"])
+    assert ei.value.code == lc.HANDOFF_STALE_REFUSED
+
+
+# --------------------------------- R6 object custody (AM-11/AM-12)
+def test_am11_fifo_evidence_refused(tmp_path, pkg_blob_files):
+    # a writer-controlled FIFO cannot stream the pinned bytes past the
+    # checks: the open is nonblocking and S_ISREG refuses before reads
+    repo, tip, layer2, evidence_root = build_evidence_world(
+        tmp_path, pkg_blob_files)
+    name = f"grant-issued-{GRANT_ID}.json"
+    (evidence_root / name).unlink()
+    os.mkfifo(evidence_root / name)
+    with pytest.raises(lc.LifecycleCallerError) as ei:
+        lc.verify_grant_issued_evidence(repo, tip, evidence_root, GRANT_ID,
+                                        layer2)
+    assert ei.value.code == lc.OBJECT_CUSTODY_REFUSED
+
+
+def test_am11b_fifo_handoff_refused(tmp_path):
+    root = tmp_path / "handoff"
+    root.mkdir()
+    os.mkfifo(root / f"lifecycle-caller-handoff-{'a' * 40}.json")
+    with pytest.raises(lc.LifecycleCallerError) as ei:
+        lc.read_lifecycle_handoff(root, "a" * 40)
+    assert ei.value.code == lc.OBJECT_CUSTODY_REFUSED
+
+
+def test_am12_special_object_refused(tmp_path):
+    root = tmp_path / "handoff"
+    root.mkdir()
+    (root / f"lifecycle-caller-handoff-{'a' * 40}.json").mkdir()
+    with pytest.raises(lc.LifecycleCallerError) as ei:
+        lc.read_lifecycle_handoff(root, "a" * 40)
+    assert ei.value.code == lc.OBJECT_CUSTODY_REFUSED
+
+
 # ------------------------------------------------------------- glue
 def test_run_authenticated_binding_smoke(tmp_path, anchor_template,
                                          pkg_blob_files):
@@ -950,6 +1165,153 @@ def test_run_authenticated_binding_smoke(tmp_path, anchor_template,
     assert result["binding"]["authoritative_tip"] == tip
     assert "bootstrap_authority.runtime" in sys.modules
     assert hasattr(result["receiptidentity"], "G6_IDENTITY_FIELDS")
+
+
+# ------------------------------------- R5 pipeline (AM-14..AM-16)
+def _pipeline_world(tmp_path, anchor_template, pkg_blob_files, *,
+                    g6=True, g6_over=None, g6_before_g5=False):
+    """Anchor-descended synthetic world: package, then G5, then G6."""
+    repo, _ = build_anchor_world(tmp_path, anchor_template)
+    commit_files(repo, {f"bootstrap-authority/{rel}": data for rel, data
+                        in pkg_blob_files.items()}, "package")
+    if g6_before_g5:
+        assert g6 and not g6_over
+        commit_g6(repo, {"commit": "0" * 40, "record_path": G5_PATH,
+                         "record_blob_sha1": "0" * 40,
+                         "record_sha256": "0" * 64})
+        commit_g5(repo)
+        return repo
+    g5_id = commit_g5(repo)
+    if g6:
+        commit_g6(repo, g5_id, **(g6_over or {}))
+    return repo
+
+
+def _pipeline_setup(tmp_path, repo):
+    """Complete the world through G7 + evidence; return the run inputs."""
+    tip = git(repo, "rev-parse", "HEAD").strip()
+    lc.import_verified_package(repo, tip, repo / "bootstrap-authority")
+    layer2 = lc.derive_g6_layer2(lc.select_canonical_g6_publication(
+        repo, tip))
+    evidence_root = tmp_path / "evidence"
+    evidence_root.mkdir()
+    doc = evidence_doc(layer2)
+    pinned = json.dumps(doc, separators=(",", ":")).encode() + b"\n"
+    (evidence_root / f"grant-issued-{GRANT_ID}.json").write_bytes(pinned)
+    record = g7_record_doc(layer2, pinned_bytes=pinned,
+                           evidence_root=evidence_root)
+    ri = lc._package_module()
+    for name in ri.G6_IDENTITY_FIELDS:
+        record[name] = layer2[name]
+    record.update(grant_mint_consideration_permitted=True,
+                  execution_authority="NONE", secret_material="NONE",
+                  publication_semantics="NON_EXECUTION_MINT_EVIDENCE_"
+                                        "IDENTITY_RECORD")
+    raw = json.dumps({k: record[k] for k in ri.G7_MINT_PUBLICATION_FIELDS},
+                     separators=(",", ":")).encode()
+    commit_files(repo, {G7_PATH: raw}, "g7")
+    tip = git(repo, "rev-parse", "HEAD").strip()
+    cfg = write_config(tmp_path, CANONICAL_CONFIG, name="pcfg.json")
+    remote = LS_REMOTE_OK.replace(TIP, tip)
+    handoff_root = tmp_path / "handoff"
+    handoff_root.mkdir()
+    return cfg, remote, tip, evidence_root, handoff_root
+
+
+def test_am16_pipeline_full_synthetic_success(tmp_path, anchor_template,
+                                              pkg_blob_files):
+    repo = _pipeline_world(tmp_path, anchor_template, pkg_blob_files)
+    cfg, remote, tip, evidence_root, handoff_root = _pipeline_setup(
+        tmp_path, repo)
+    result = lc.run_authenticated_lifecycle(
+        cfg, repo, repo / "bootstrap-authority", evidence_root,
+        handoff_root, GRANT_ID,
+        ls_remote=TransportDouble([remote, remote]),
+        api_read=ApiDouble(api_result(tip)))
+    assert result["binding"]["authoritative_tip"] == tip
+    assert lc.G5_CONTENT_VERIFICATION_NOT_ESTABLISHED \
+        in result["g5"]["verification_status"]
+    payload = json.dumps(
+        {k: result["binding"][k] for k in lc.INVOCATION_EVIDENCE_FIELDS},
+        separators=(",", ":")).encode()
+    assert (handoff_root / f"lifecycle-caller-handoff-{tip}.json"
+            ).read_bytes() == payload
+    consumed = lc.consume_lifecycle_handoff(
+        handoff_root, tip, tip, result["handoff"]["handoff_path"],
+        result["handoff"]["handoff_sha256"],
+        result["handoff"]["handoff_size"])
+    assert consumed["trust_status"] == "ANCHORED_IDENTITY_VERIFIED"
+    assert result["stages"] == ("trust_root", "import_gate", "g5_identity",
+                                "g6_selection", "g6_hard_barrier",
+                                "g7_selection", "evidence_validation",
+                                "handoff")
+    expected_evidence = json.dumps(evidence_doc(result["g6_layer2"]),
+                                   separators=(",", ":")).encode() + b"\n"
+    assert result["evidence"]["evidence_sha256"] == hashlib.sha256(
+        expected_evidence).hexdigest()
+
+
+@pytest.mark.parametrize("disposition", ["REFUSE", "BLOCK",
+                                         "REMEDIATION_REQUIRED"])
+def test_am15_pipeline_adverse_g6_hard_barrier(tmp_path, anchor_template,
+                                               pkg_blob_files, disposition):
+    repo = _pipeline_world(
+        tmp_path, anchor_template, pkg_blob_files,
+        g6_over={"package_binding_authority_readback_disposition": disposition,
+                 "grant_mint_consideration_permitted": False})
+    tip = git(repo, "rev-parse", "HEAD").strip()
+    cfg = write_config(tmp_path, CANONICAL_CONFIG, name="pcfg2.json")
+    remote = LS_REMOTE_OK.replace(TIP, tip)
+    with pytest.raises(lc.LifecycleCallerError) as ei:
+        lc.run_authenticated_lifecycle(
+            cfg, repo, repo / "bootstrap-authority", tmp_path / "ev",
+            tmp_path / "ho", GRANT_ID,
+            ls_remote=TransportDouble([remote, remote]),
+            api_read=ApiDouble(api_result(tip)))
+    assert ei.value.code == lc.G6_BARRIER_REFUSED
+
+
+def test_am14_pipeline_stage_sequence(tmp_path, anchor_template,
+                                      pkg_blob_files):
+    # no G6 at all: the pipeline fails closed at stage 4 (selection),
+    # never reaching the barrier or later stages
+    repo = _pipeline_world(tmp_path, anchor_template, pkg_blob_files,
+                           g6=False)
+    tip = git(repo, "rev-parse", "HEAD").strip()
+    cfg = write_config(tmp_path, CANONICAL_CONFIG, name="pcfg3.json")
+    remote = LS_REMOTE_OK.replace(TIP, tip)
+    with pytest.raises(lc.LifecycleCallerError) as ei:
+        lc.run_authenticated_lifecycle(
+            cfg, repo, repo / "bootstrap-authority", tmp_path / "ev",
+            tmp_path / "ho", GRANT_ID,
+            ls_remote=TransportDouble([remote, remote]),
+            api_read=ApiDouble(api_result(tip)))
+    assert ei.value.code == lc.CANONICAL_G6_READBACK_PUBLICATION_NOT_FOUND
+    # stale G5 (G6 introduced before its target): stage 4 STALE refusal
+    repo = _pipeline_world(tmp_path / "s", anchor_template, pkg_blob_files,
+                           g6_before_g5=True)
+    tip = git(repo, "rev-parse", "HEAD").strip()
+    remote = LS_REMOTE_OK.replace(TIP, tip)
+    with pytest.raises(lc.LifecycleCallerError) as ei:
+        lc.run_authenticated_lifecycle(
+            write_config(tmp_path / "s", CANONICAL_CONFIG, name="c.json"),
+            repo, repo / "bootstrap-authority", tmp_path / "ev2",
+            tmp_path / "ho2", GRANT_ID,
+            ls_remote=TransportDouble([remote, remote]),
+            api_read=ApiDouble(api_result(tip)))
+    assert ei.value.code == lc.G6_STALE_REFUSED
+
+
+# ------------------------------------------- budgets (AM-18)
+def test_am18_loc_budgets_and_zero_bytecode():
+    production = len(Path(lc.__file__).read_text().splitlines())
+    tests = sum(len(p.read_text().splitlines()) for p in (
+        Path(__file__).with_name("test_lifecycle_caller.py"),
+        Path(__file__).with_name("test_import_gate.py")))
+    assert production <= 1250, production
+    assert tests <= 2000, tests
+    for base in (REPO_ROOT / "bootstrap-authority", LC_ROOT):
+        assert not list(base.rglob("__pycache__"))
 
 
 def test_real_repository_g6_evaluation_refuses():

@@ -17,6 +17,7 @@ import os
 import subprocess
 import sys
 import time
+import types
 from pathlib import Path
 
 import pytest
@@ -181,6 +182,105 @@ def test_d5_blob_pin_mismatch_refuses_before_import(tmp_path):
     with pytest.raises(lc.LifecycleCallerError) as ei:
         lc.verify_import_gate(repo, tip, repo / "bootstrap-authority")
     assert ei.value.code == lc.SOURCE_BLOB_PIN_MISMATCH
+
+
+# ------------------------------------- R3 preload / origin (AM-7/AM-8)
+
+def _foreign_package(tmp_path, mutate_receiptidentity=False):
+    """Fake bootstrap_authority cache entries whose recorded origin is a
+    DIFFERENT directory (optionally carrying differing source bytes)."""
+    origin = tmp_path / "foreign" / "bootstrap_authority"
+    origin.mkdir(parents=True)
+    (origin / "__init__.py").write_bytes(
+        (PKG_SUB / "__init__.py").read_bytes())
+    data = (PKG_SUB / "receiptidentity.py").read_bytes()
+    if mutate_receiptidentity:
+        data += b"\n# foreign drift\n"
+    (origin / "receiptidentity.py").write_bytes(data)
+    parent = types.ModuleType("bootstrap_authority")
+    parent.__file__ = str(origin / "__init__.py")
+    parent.__path__ = [str(origin)]
+    module = types.ModuleType("bootstrap_authority.receiptidentity")
+    module.__file__ = str(origin / "receiptidentity.py")
+    return parent, module
+
+
+def test_am7_foreign_preload_refused_without_gate_history(
+        monkeypatch, tmp_path):
+    # AM-7: a foreign preloaded object with NO gate import history in
+    # this process (fresh-process form) is refused fail-closed
+    repo, tip = _world_with_package(tmp_path)
+    lc.verify_import_gate(repo, tip, repo / "bootstrap-authority")
+    parent, module = _foreign_package(tmp_path)
+    monkeypatch.setattr(lc, "_GATE_IMPORTED_PARENT", None)
+    monkeypatch.setitem(sys.modules, "bootstrap_authority", parent)
+    monkeypatch.setitem(sys.modules,
+                        "bootstrap_authority.receiptidentity", module)
+    with pytest.raises(lc.LifecycleCallerError) as ei:
+        lc.import_verified_package(repo, tip, repo / "bootstrap-authority")
+    assert ei.value.code == lc.PRELOADED_PACKAGE_MODULE_REFUSED
+
+
+def test_am7_cached_origin_differing_bytes_refused(monkeypatch, tmp_path):
+    # gate history exists, but the cached object's source at its actual
+    # load origin is NOT the pinned verified source -> refused
+    repo, tip = _world_with_package(tmp_path)
+    lc.verify_import_gate(repo, tip, repo / "bootstrap-authority")
+    parent, module = _foreign_package(tmp_path,
+                                      mutate_receiptidentity=True)
+    monkeypatch.setattr(lc, "_GATE_IMPORTED_PARENT",
+                        str(PKG_DIR.resolve()))
+    monkeypatch.setitem(sys.modules,
+                        "bootstrap_authority.receiptidentity", module)
+    with pytest.raises(lc.LifecycleCallerError) as ei:
+        lc.import_verified_package(repo, tip, repo / "bootstrap-authority")
+    assert ei.value.code == lc.IMPORT_ORIGIN_MISMATCH
+
+
+def test_r3_byte_identical_cached_origin_accepted(monkeypatch, tmp_path):
+    # repeat-invocation semantics: cached objects whose source at the
+    # actual load origin IS byte-identical to the pinned verified
+    # source are accepted (content-verified, not merely trusted); the
+    # ordinary import then returns the CACHED object (Python semantics)
+    repo, tip = _world_with_package(tmp_path)
+    lc.verify_import_gate(repo, tip, repo / "bootstrap-authority")
+    parent, module = _foreign_package(tmp_path)
+    monkeypatch.setattr(lc, "_GATE_IMPORTED_PARENT",
+                        str(PKG_DIR.resolve()))
+    monkeypatch.setitem(sys.modules, "bootstrap_authority", parent)
+    monkeypatch.setitem(sys.modules,
+                        "bootstrap_authority.receiptidentity", module)
+    result = lc.import_verified_package(repo, tip,
+                                        repo / "bootstrap-authority")
+    assert result is module        # the byte-verified cached object
+    assert sys.path[0] == str((repo / "bootstrap-authority").resolve())
+
+
+def test_am8_pinned_parent_first_beats_earlier_foreign_dir(
+        monkeypatch, tmp_path):
+    # AM-8: another bootstrap_authority source precedes the pinned
+    # parent on sys.path (fresh-process form: no cached objects): the
+    # gate moves the pinned parent FIRST and the loaded origin is the
+    # pinned package, never the foreign one
+    repo, tip = _world_with_package(tmp_path)
+    evil = tmp_path / "evil"
+    (evil / "bootstrap_authority").mkdir(parents=True)
+    (evil / "bootstrap_authority" / "__init__.py").write_bytes(b"")
+    (evil / "bootstrap_authority" / "receiptidentity.py").write_bytes(
+        b"MARKER_FOREIGN_PACKAGE = 1\n")
+    for key in [key for key in sys.modules
+                if key == "bootstrap_authority"
+                or key.startswith("bootstrap_authority.")]:
+        monkeypatch.delitem(sys.modules, key)
+    monkeypatch.syspath_prepend(str(evil))
+    module = lc.import_verified_package(repo, tip,
+                                        repo / "bootstrap-authority")
+    pinned = str((repo / "bootstrap-authority").resolve())
+    assert sys.path[0] == pinned
+    assert os.path.realpath(module.__file__).startswith(
+        pinned + os.sep)
+    assert "MARKER_FOREIGN_PACKAGE" not in Path(
+        module.__file__).read_text()
 
 
 # ------------------------------------------- GAP-D-BEHAV-V2 gate
