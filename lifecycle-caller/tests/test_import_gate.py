@@ -32,6 +32,16 @@ REPO_ROOT = LC_ROOT.parent
 PKG_DIR = REPO_ROOT / "bootstrap-authority"
 PKG_SUB = PKG_DIR / "bootstrap_authority"
 
+
+# R3 hygiene (IMPORT-009): every test starts fresh-interpreter form.
+@pytest.fixture(autouse=True)
+def _r3_fresh(monkeypatch):
+    for key in [key for key in sys.modules
+                if key.startswith("bootstrap_authority")]:
+        monkeypatch.delitem(sys.modules, key)
+    monkeypatch.setattr(lc, "_GATE_IMPORTED_PARENT", None)
+    monkeypatch.setattr(lc, "_GATE_TRUSTED_MODULES", {})
+
 # ------------------------------------------------- STATIC-V2 census
 
 def test_census_accepts_real_pinned_modules():
@@ -187,8 +197,8 @@ def test_d5_blob_pin_mismatch_refuses_before_import(tmp_path):
 # ------------------------------------- R3 preload / origin (AM-7/AM-8)
 
 def _foreign_package(tmp_path, mutate_receiptidentity=False):
-    """Fake bootstrap_authority cache entries whose recorded origin is a
-    DIFFERENT directory (optionally carrying differing source bytes)."""
+    """Fake cached entries whose recorded origin is a DIFFERENT
+    directory (optionally differing source bytes)."""
     origin = tmp_path / "foreign" / "bootstrap_authority"
     origin.mkdir(parents=True)
     (origin / "__init__.py").write_bytes(
@@ -212,7 +222,6 @@ def test_am7_foreign_preload_refused_without_gate_history(
     repo, tip = _world_with_package(tmp_path)
     lc.verify_import_gate(repo, tip, repo / "bootstrap-authority")
     parent, module = _foreign_package(tmp_path)
-    monkeypatch.setattr(lc, "_GATE_IMPORTED_PARENT", None)
     monkeypatch.setitem(sys.modules, "bootstrap_authority", parent)
     monkeypatch.setitem(sys.modules,
                         "bootstrap_authority.receiptidentity", module)
@@ -221,15 +230,19 @@ def test_am7_foreign_preload_refused_without_gate_history(
     assert ei.value.code == lc.PRELOADED_PACKAGE_MODULE_REFUSED
 
 
-def test_am7_cached_origin_differing_bytes_refused(monkeypatch, tmp_path):
-    # gate history exists, but the cached object's source at its actual
-    # load origin is NOT the pinned verified source -> refused
+@pytest.mark.parametrize("drift", [False, True])
+def test_r3_byte_identical_foreign_cached_module_refused(
+        monkeypatch, tmp_path, drift):
+    # IMPORT-009 (replaces the former POSITIVE acceptance test): with
+    # GENUINE gate history, a synthetic cached object whose __file__
+    # points at ANOTHER directory — even holding byte-identical source
+    # — is REFUSED: on-disk bytes at __file__ never establish the
+    # execution provenance of an already-created module object.
     repo, tip = _world_with_package(tmp_path)
-    lc.verify_import_gate(repo, tip, repo / "bootstrap-authority")
+    lc.import_verified_package(repo, tip, repo / "bootstrap-authority")
     parent, module = _foreign_package(tmp_path,
-                                      mutate_receiptidentity=True)
-    monkeypatch.setattr(lc, "_GATE_IMPORTED_PARENT",
-                        str(PKG_DIR.resolve()))
+                                      mutate_receiptidentity=drift)
+    monkeypatch.setitem(sys.modules, "bootstrap_authority", parent)
     monkeypatch.setitem(sys.modules,
                         "bootstrap_authority.receiptidentity", module)
     with pytest.raises(lc.LifecycleCallerError) as ei:
@@ -237,23 +250,45 @@ def test_am7_cached_origin_differing_bytes_refused(monkeypatch, tmp_path):
     assert ei.value.code == lc.IMPORT_ORIGIN_MISMATCH
 
 
-def test_r3_byte_identical_cached_origin_accepted(monkeypatch, tmp_path):
-    # repeat-invocation semantics: cached objects whose source at the
-    # actual load origin IS byte-identical to the pinned verified
-    # source are accepted (content-verified, not merely trusted); the
-    # ordinary import then returns the CACHED object (Python semantics)
+def test_r3_replaced_object_claiming_canonical_origin_refused(
+        monkeypatch, tmp_path):
+    # IMPORT-009: a synthetic object CLAIMING the exact canonical
+    # origin with identical bytes is NOT the gate object -> refused
     repo, tip = _world_with_package(tmp_path)
-    lc.verify_import_gate(repo, tip, repo / "bootstrap-authority")
-    parent, module = _foreign_package(tmp_path)
-    monkeypatch.setattr(lc, "_GATE_IMPORTED_PARENT",
-                        str(PKG_DIR.resolve()))
-    monkeypatch.setitem(sys.modules, "bootstrap_authority", parent)
+    lc.import_verified_package(repo, tip, repo / "bootstrap-authority")
+    genuine = sys.modules["bootstrap_authority.receiptidentity"]
+    fake = types.ModuleType("bootstrap_authority.receiptidentity")
+    fake.__file__ = genuine.__file__
     monkeypatch.setitem(sys.modules,
-                        "bootstrap_authority.receiptidentity", module)
-    result = lc.import_verified_package(repo, tip,
+                        "bootstrap_authority.receiptidentity", fake)
+    with pytest.raises(lc.LifecycleCallerError) as ei:
+        lc.import_verified_package(repo, tip, repo / "bootstrap-authority")
+    assert ei.value.code == lc.IMPORT_ORIGIN_MISMATCH
+
+
+def test_r3_added_package_module_key_refused(monkeypatch, tmp_path):
+    # IMPORT-009: an ADDED package-namespace key is refused
+    repo, tip = _world_with_package(tmp_path)
+    lc.import_verified_package(repo, tip, repo / "bootstrap-authority")
+    extra = types.ModuleType("bootstrap_authority.extra")
+    extra.__file__ = str(PKG_SUB / "extra.py")
+    monkeypatch.setitem(sys.modules, "bootstrap_authority.extra", extra)
+    with pytest.raises(lc.LifecycleCallerError) as ei:
+        lc.import_verified_package(repo, tip, repo / "bootstrap-authority")
+    assert ei.value.code == lc.IMPORT_ORIGIN_MISMATCH
+
+
+def test_r3_genuine_gate_imported_objects_reused(monkeypatch, tmp_path):
+    # IMPORT-009 positive regression: the EXACT same genuine gate-
+    # imported objects remain reusable while source, origin and
+    # identity stay valid (ordinary import returns the CACHED object)
+    repo, tip = _world_with_package(tmp_path)
+    first = lc.import_verified_package(repo, tip,
+                                       repo / "bootstrap-authority")
+    second = lc.import_verified_package(repo, tip,
                                         repo / "bootstrap-authority")
-    assert result is module        # the byte-verified cached object
-    assert sys.path[0] == str((repo / "bootstrap-authority").resolve())
+    assert second is first
+    assert second is sys.modules["bootstrap_authority.receiptidentity"]
 
 
 def test_am8_pinned_parent_first_beats_earlier_foreign_dir(

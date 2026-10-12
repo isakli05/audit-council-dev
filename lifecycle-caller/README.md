@@ -3,11 +3,13 @@
 `lifecycle_caller.py` is the P3 NON-RUNTIME authenticated lifecycle caller
 for the AUCDEV-023 Path-B replacement Auditor-A authority protocol. It is
 an IMPLEMENTATION CANDIDATE (post-remediation R1a+R2..R7 over the CR-P3
-readback findings) implementing the accepted design-layer contracts
-(records `8b31d8e5...` and `8bf12dea...`, Control Room dispositions
-`86f4e7c0...` and `bed8f50f...`) and it GRANTS NOTHING: it creates no
-grant, no GRANT_ISSUED evidence, no G5/G6/G7/G10/G11 publication, no
-receipt and no package, and performs no operative lifecycle action.
+readback findings, plus the trust-boundary remediation of
+CR-P3-TRUSTROOT-008 and CR-P3-IMPORT-009) implementing the accepted
+design-layer contracts (records `8b31d8e5...` and `8bf12dea...`, Control
+Room dispositions `86f4e7c0...` and `bed8f50f...`) and it GRANTS NOTHING:
+it creates no grant, no GRANT_ISSUED evidence, no G5/G6/G7/G10/G11
+publication, no receipt and no package, and performs no operative
+lifecycle action.
 
 ## What it does
 
@@ -22,6 +24,12 @@ receipt and no package, and performs no operative lifecycle action.
   trust anchor as CORROBORATION ONLY, re-resolves the tip immediately
   before binding, and returns the closed-world invocation evidence whose
   exact tip is the single history domain for all later selection.
+  TRUSTROOT-008: the verification channels are this module's OWN real
+  providers (`default_ls_remote` / `default_api_read`); NO production
+  entrypoint accepts a caller-selected transport or API provider —
+  synthetic doubles are installable ONLY by the isolated NON-OPERATIVE
+  test boundary (pytest monkeypatch), and absent real corroboration
+  refuses, never falls back.
 - **G6 provenance (GAP A)** — the closed-world 15-field Layer-1 parser
   with byte-canonical serialization, the K1-K14 canonical historical
   selector over the SHARED `_qualifying_introductions` core (reused from
@@ -52,19 +60,25 @@ receipt and no package, and performs no operative lifecycle action.
   `consume_lifecycle_handoff` is the anchored consumer form requiring
   the independently retained original path/SHA-256/size/tip and
   refusing any mismatch (`HANDOFF_EVIDENCE_BYTE_MISMATCH`).
-- **GAP-D import boundary (with R3)** — exact blob pinning of the eight
-  production modules and MANIFEST against the verified tip, the
-  GAP-D-STATIC-V2 closed-world census (42 pinned import-time sites,
-  PF-1..PF-5, PF-ARG purity, default-deny statement grammar), the
-  caller's own D4 purity gate, and only then an ORDINARY lazy import of
-  `bootstrap_authority.receiptidentity` with the transitive runtime load
-  disclosed positively. R3: preloaded `bootstrap_authority` cache
-  objects are refused unless this gate imported earlier in the same
-  process AND every cached object's source at its actual load origin is
-  byte-identical to the pinned verified source; the pinned parent is
-  always the FIRST `sys.path` entry and the imported origin is asserted
-  after import. A dedicated fresh interpreter remains the preferred
-  OPERATIONAL precondition for real invocations.
+- **GAP-D import boundary (with R3 + IMPORT-009)** — exact blob pinning
+  of the eight production modules and MANIFEST against the verified
+  tip, the GAP-D-STATIC-V2 closed-world census (42 pinned import-time
+  sites, PF-1..PF-5, PF-ARG purity, default-deny statement grammar),
+  the caller's own D4 purity gate, and only then an ORDINARY lazy
+  import of `bootstrap_authority.receiptidentity` with the transitive
+  runtime load disclosed positively. R3/IMPORT-009: the initial gated
+  import refuses ALL preloaded `bootstrap_authority` cache objects;
+  after a successful gate import the COMPLETE trusted imported-object
+  identity set is recorded (exact object identity + exact canonical
+  source location + expected source bytes) and every later pass accepts
+  ONLY those exact objects — replaced, added, foreign-origin or drifted
+  objects are refused (byte-identical files at a foreign origin NEVER
+  establish the execution provenance of an already-created module
+  object); the pinned parent is always the FIRST `sys.path` entry and
+  the imported origin is asserted after import. In-process checks
+  cannot defend against fully arbitrary code already executing in the
+  trusted interpreter (disclosed limit); a dedicated fresh interpreter
+  remains the preferred OPERATIVE precondition for real invocations.
 - **The one bounded pipeline (R5)** — `run_authenticated_lifecycle`
   enforces the exact fail-closed sequence trust root -> import gate ->
   G5 identity (with the R1a disclosure) -> G6 selection -> the EXPLICIT
@@ -83,12 +97,15 @@ receipt and no package, and performs no operative lifecycle action.
 
 ## Status
 
-`P3_REMEDIATION_IMPLEMENTED_AS_CANDIDATE /
-AWAITING_INDEPENDENT_CONTROL_ROOM_READBACK` — NOT
+`P3_TRUST_BOUNDARY_REMEDIATION_CANDIDATE /
+AWAITING_INDEPENDENT_CONTROL_ROOM_READBACK` (superseding the R1a+R2..R7
+remediation candidate it builds on) — NOT
 implementation-closed, NOT qualified, NOT installed. G4 FORBIDDEN;
 `package_binding_consideration_permitted = FALSE`; Auditor-B authority
 NONE. TRUSTROOT-001 remains CONFIRMED / NOT OPERATIVELY CLOSED;
-CR-P3-G5-001 remains OPEN / contract-dependent (Option B not decided).
+CR-P3-G5-001 remains OPEN / contract-dependent (Option B not decided);
+CR-P3-TRUSTROOT-008 and CR-P3-IMPORT-009 receive IMPLEMENTER dispositions
+only — no finding is closed by this candidate.
 
 ## Usage (synthetic only)
 
@@ -102,10 +119,12 @@ interpreter under network-namespace confinement with LD_PRELOAD
 interposition observation (see `tests/test_import_gate.py` for the
 strace-substitution disclosure on this host).
 
-Budgets: production `lifecycle_caller.py` 1227/1250 physical LOC
-(operator rebound 1000 -> 1250 for this remediation); tests 1912/2000
-combined. Reporting correction (R7, CR-P3-EVID-007): the pre-remediation
-baseline was 1450/2000 test LOC (969 + 481), not the previously
-published 1448 (a stale per-file figure 967 + 481); historical records
-are append-only and are not rewritten. The frozen package budgets
-(3577/900/4477, zero headroom) are untouched.
+Budgets: production `lifecycle_caller.py` 1248/1250 physical LOC
+(operator rebound 1000 -> 1250); tests 2000/2000 combined
+(1384 + 616) — the trust-boundary remediation consumed the remaining
+headroom exactly (21 production + 88 test LOC over the R1a+R2..R7
+candidate's 1227 + 1912). Reporting correction (R7, CR-P3-EVID-007): the
+pre-remediation baseline was 1450/2000 test LOC (969 + 481), not the
+previously published 1448 (a stale per-file figure 967 + 481);
+historical records are append-only and are not rewritten. The frozen
+package budgets (3577/900/4477, zero headroom) are untouched.

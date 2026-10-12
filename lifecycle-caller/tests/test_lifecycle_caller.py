@@ -23,6 +23,16 @@ if str(LC_ROOT) not in sys.path:
 sys.dont_write_bytecode = True   # never leave bytecode in the frozen tree
 import lifecycle_caller as lc  # noqa: E402
 
+
+# R3 hygiene (IMPORT-009): every test starts fresh-interpreter form.
+@pytest.fixture(autouse=True)
+def _r3_fresh(monkeypatch):
+    for key in [key for key in sys.modules
+                if key.startswith("bootstrap_authority")]:
+        monkeypatch.delitem(sys.modules, key)
+    monkeypatch.setattr(lc, "_GATE_IMPORTED_PARENT", None)
+    monkeypatch.setattr(lc, "_GATE_TRUSTED_MODULES", {})
+
 CONFIG_FIELDS = ("schema", "canonical_owner", "canonical_repository",
                  "canonical_provider_repository_id", "canonical_remote_url",
                  "expected_default_branch", "trust_anchor_commit",
@@ -112,6 +122,12 @@ class TransportDouble:
     def __call__(self, url, branch):
         self.calls.append((url, branch))
         return self.texts.pop(0)
+
+
+def _providers(monkeypatch, transport, api):
+    """TRUSTROOT-008 test boundary: doubles installed ONLY by monkeypatch."""
+    monkeypatch.setattr(lc, "default_ls_remote", transport)
+    monkeypatch.setattr(lc, "default_api_read", api)
 
 
 # ---------------------------------------------------------------- config
@@ -317,93 +333,124 @@ def _local_world(tmp_path, anchor_template):
     return repo, cfg, tip, remote
 
 
-def test_trust_root_b0_canonical_success(tmp_path, anchor_template):
+def test_trust_root_b0_canonical_success(tmp_path, anchor_template,
+                                          monkeypatch):
     repo, cfg, tip, remote = _local_world(tmp_path, anchor_template)
     api = ApiDouble(tip=tip)
     transport = TransportDouble([remote, remote])
-    had_package = "bootstrap_authority" in sys.modules
-    binding = lc.verify_trust_root(cfg, repo, ls_remote=transport,
-                                   api_read=api)
+    _providers(monkeypatch, transport, api)
+    binding = lc.verify_trust_root(cfg, repo)
     assert binding["authoritative_tip"] == tip
     assert binding["canonical_provider_repository_id"] == "1358379094"
     assert binding["config_source_path"] == str(cfg.resolve())
-    # trust-root verification itself imports no package module
-    assert ("bootstrap_authority" in sys.modules) == had_package
+    # fixture-fresh start: verification imports no package module
+    assert "bootstrap_authority" not in sys.modules
     assert transport.calls == [(CANONICAL_CONFIG["canonical_remote_url"],
                                 "master")] * 2          # B4: exact URL only
+    # TRUSTROOT-008 regression: the production path retains BOTH
+    # required external verification channels
+    assert api.calls == [CANONICAL_CONFIG["canonical_remote_url"]] * 2
 
 
-def test_trust_root_b1_same_anchor_decoy_repository(tmp_path, anchor_template):
+def test_trust_root_b1_same_anchor_decoy_repository(tmp_path,
+                                                    anchor_template,
+                                                    monkeypatch):
     repo, cfg, tip, remote = _local_world(tmp_path, anchor_template)
+    _providers(monkeypatch, TransportDouble([remote] * 2),
+               ApiDouble(tip=tip, id=1358379095))
     with pytest.raises(lc.LifecycleCallerError) as ei:
-        lc.verify_trust_root(cfg, repo,
-                             ls_remote=TransportDouble([remote] * 2),
-                             api_read=ApiDouble(tip=tip, id=1358379095))
+        lc.verify_trust_root(cfg, repo)
     assert ei.value.code == lc.IDENTITY_DISAGREEMENT_REFUSED
 
 
-def test_trust_root_b2_alternate_owner_name(tmp_path, anchor_template):
+def test_trust_root_b2_alternate_owner_name(tmp_path, anchor_template,
+                                            monkeypatch):
     repo, cfg, tip, remote = _local_world(tmp_path, anchor_template)
+    _providers(monkeypatch, TransportDouble([remote] * 2),
+               ApiDouble(tip=tip, full_name="attacker/audit-council-dev"))
     with pytest.raises(lc.LifecycleCallerError) as ei:
-        lc.verify_trust_root(cfg, repo,
-                             ls_remote=TransportDouble([remote] * 2),
-                             api_read=ApiDouble(
-                                 tip=tip,
-                                 full_name="attacker/audit-council-dev"))
+        lc.verify_trust_root(cfg, repo)
     assert ei.value.code == lc.IDENTITY_DISAGREEMENT_REFUSED
 
 
-def test_trust_root_b5_api_disagreement_per_field(tmp_path, anchor_template):
+def test_trust_root_b5_api_disagreement_per_field(tmp_path, anchor_template,
+                                                  monkeypatch):
     repo, cfg, tip, remote = _local_world(tmp_path, anchor_template)
     for over in ({"default_branch": "main"}, {"tip": "b" * 40}):
+        _providers(monkeypatch, TransportDouble([remote] * 2),
+                   ApiDouble(api_result(**{**{"tip": tip}, **over})))
         with pytest.raises(lc.LifecycleCallerError) as ei:
-            lc.verify_trust_root(
-                cfg, repo, ls_remote=TransportDouble([remote] * 2),
-                api_read=ApiDouble(api_result(**{**{"tip": tip},
-                                                  **over})))
+            lc.verify_trust_root(cfg, repo)
         assert ei.value.code == lc.IDENTITY_DISAGREEMENT_REFUSED
 
 
-def test_trust_root_b6_tip_moves_during_verification(tmp_path, anchor_template):
+def test_trust_root_b6_tip_moves_during_verification(tmp_path,
+                                                     anchor_template,
+                                                     monkeypatch):
     repo, cfg, tip, remote = _local_world(tmp_path, anchor_template)
     moved = remote.replace(tip, "c" * 40)
+    _providers(monkeypatch, TransportDouble([remote, moved]),
+               ApiDouble(api_result(tip), api_result("c" * 40)))
     with pytest.raises(lc.LifecycleCallerError) as ei:
-        lc.verify_trust_root(
-            cfg, repo,
-            ls_remote=TransportDouble([remote, moved]),
-            api_read=ApiDouble(api_result(tip), api_result("c" * 40)))
+        lc.verify_trust_root(cfg, repo)
     assert ei.value.code == lc.AUTHORITATIVE_TIP_MOVED_DURING_VERIFICATION
 
 
-def test_trust_root_b6_api_tip_moves(tmp_path, anchor_template):
+def test_trust_root_b6_api_tip_moves(tmp_path, anchor_template, monkeypatch):
     repo, cfg, tip, remote = _local_world(tmp_path, anchor_template)
+    _providers(monkeypatch, TransportDouble([remote, remote]),
+               ApiDouble(api_result(tip), api_result("d" * 40)))
     with pytest.raises(lc.LifecycleCallerError) as ei:
-        lc.verify_trust_root(
-            cfg, repo, ls_remote=TransportDouble([remote, remote]),
-            api_read=ApiDouble(api_result(tip), api_result("d" * 40)))
+        lc.verify_trust_root(cfg, repo)
     assert ei.value.code == lc.AUTHORITATIVE_TIP_MOVED_DURING_VERIFICATION
 
 
-def test_trust_root_b7_tip_not_a_local_commit(tmp_path, anchor_template):
+def test_trust_root_b7_tip_not_a_local_commit(tmp_path, anchor_template,
+                                              monkeypatch):
     repo, cfg, tip, remote = _local_world(tmp_path, anchor_template)
     absent = remote.replace(tip, "e" * 40)
+    _providers(monkeypatch, TransportDouble([absent] * 2),
+               ApiDouble(tip="e" * 40))
     with pytest.raises(lc.LifecycleCallerError) as ei:
-        lc.verify_trust_root(
-            cfg, repo, ls_remote=TransportDouble([absent] * 2),
-            api_read=ApiDouble(tip="e" * 40))
+        lc.verify_trust_root(cfg, repo)
     assert ei.value.code == lc.AUTHORITATIVE_TIP_NOT_A_LOCAL_COMMIT
 
 
-def test_trust_root_anchor_not_ancestor(tmp_path):
+def test_trust_root_anchor_not_ancestor(tmp_path, monkeypatch):
     repo = build_world(tmp_path, [("a", {"x": b"1"})])  # anchor not present
     tip = git(repo, "rev-parse", "HEAD").strip()
     cfg = write_config(tmp_path, CANONICAL_CONFIG, name="cfg2.json")
     remote = LS_REMOTE_OK.replace(TIP, tip)
+    _providers(monkeypatch, TransportDouble([remote] * 2),
+               ApiDouble(tip=tip))
     with pytest.raises(lc.LifecycleCallerError) as ei:
-        lc.verify_trust_root(cfg, repo,
-                             ls_remote=TransportDouble([remote] * 2),
-                             api_read=ApiDouble(tip=tip))
+        lc.verify_trust_root(cfg, repo)
     assert ei.value.code == lc.TRUST_ANCHOR_NOT_ANCESTOR
+
+
+# ------------------------- TRUSTROOT-008 non-injectable channels
+def test_trustroot008_entrypoints_refuse_provider_overrides(
+        tmp_path, anchor_template, monkeypatch):
+    # production entrypoints expose NO caller-selectable transport or
+    # API providers: supplying fake channels is refused at the call
+    repo, cfg, tip, remote = _local_world(tmp_path, anchor_template)
+    doubles = {"ls_remote": TransportDouble([remote] * 2),
+               "api_read": ApiDouble(api_result(tip))}
+    for entry in (lc.verify_trust_root, lc.run_authenticated_binding,
+                  lc.run_authenticated_lifecycle):
+        with pytest.raises(TypeError):
+            entry(cfg, repo, **doubles)
+
+
+def test_trustroot008_production_uses_the_required_providers():
+    import inspect
+    entries = (lc.verify_trust_root, lc.run_authenticated_binding,
+               lc.run_authenticated_lifecycle)
+    assert not any({"ls_remote", "api_read"} & set(
+        inspect.signature(entry).parameters) for entry in entries)
+    source = inspect.getsource(lc.verify_trust_root)
+    assert "default_ls_remote(url, branch)" in source
+    assert "default_api_read(url)" in source
 
 
 # ================================================ GAP A: G6 publication
@@ -1151,17 +1198,17 @@ def test_am12_special_object_refused(tmp_path):
 
 # ------------------------------------------------------------- glue
 def test_run_authenticated_binding_smoke(tmp_path, anchor_template,
-                                         pkg_blob_files):
+                                         monkeypatch, pkg_blob_files):
     repo, _ = build_anchor_world(tmp_path, anchor_template)
     commit_files(repo, {f"bootstrap-authority/{rel}": data for rel, data
                         in pkg_blob_files.items()}, "package")
     tip = git(repo, "rev-parse", "HEAD").strip()
     cfg = write_config(tmp_path, CANONICAL_CONFIG)
     remote = LS_REMOTE_OK.replace(TIP, tip)
+    _providers(monkeypatch, TransportDouble([remote, remote]),
+               ApiDouble(api_result(tip)))
     result = lc.run_authenticated_binding(
-        cfg, repo, repo / "bootstrap-authority",
-        ls_remote=TransportDouble([remote, remote]),
-        api_read=ApiDouble(api_result(tip)))
+        cfg, repo, repo / "bootstrap-authority")
     assert result["binding"]["authoritative_tip"] == tip
     assert "bootstrap_authority.runtime" in sys.modules
     assert hasattr(result["receiptidentity"], "G6_IDENTITY_FIELDS")
@@ -1219,15 +1266,15 @@ def _pipeline_setup(tmp_path, repo):
 
 
 def test_am16_pipeline_full_synthetic_success(tmp_path, anchor_template,
-                                              pkg_blob_files):
+                                              monkeypatch, pkg_blob_files):
     repo = _pipeline_world(tmp_path, anchor_template, pkg_blob_files)
     cfg, remote, tip, evidence_root, handoff_root = _pipeline_setup(
         tmp_path, repo)
+    _providers(monkeypatch, TransportDouble([remote, remote]),
+               ApiDouble(api_result(tip)))
     result = lc.run_authenticated_lifecycle(
         cfg, repo, repo / "bootstrap-authority", evidence_root,
-        handoff_root, GRANT_ID,
-        ls_remote=TransportDouble([remote, remote]),
-        api_read=ApiDouble(api_result(tip)))
+        handoff_root, GRANT_ID)
     assert result["binding"]["authoritative_tip"] == tip
     assert lc.G5_CONTENT_VERIFICATION_NOT_ESTABLISHED \
         in result["g5"]["verification_status"]
@@ -1254,7 +1301,8 @@ def test_am16_pipeline_full_synthetic_success(tmp_path, anchor_template,
 @pytest.mark.parametrize("disposition", ["REFUSE", "BLOCK",
                                          "REMEDIATION_REQUIRED"])
 def test_am15_pipeline_adverse_g6_hard_barrier(tmp_path, anchor_template,
-                                               pkg_blob_files, disposition):
+                                               monkeypatch, pkg_blob_files,
+                                               disposition):
     repo = _pipeline_world(
         tmp_path, anchor_template, pkg_blob_files,
         g6_over={"package_binding_authority_readback_disposition": disposition,
@@ -1262,17 +1310,17 @@ def test_am15_pipeline_adverse_g6_hard_barrier(tmp_path, anchor_template,
     tip = git(repo, "rev-parse", "HEAD").strip()
     cfg = write_config(tmp_path, CANONICAL_CONFIG, name="pcfg2.json")
     remote = LS_REMOTE_OK.replace(TIP, tip)
+    _providers(monkeypatch, TransportDouble([remote, remote]),
+               ApiDouble(api_result(tip)))
     with pytest.raises(lc.LifecycleCallerError) as ei:
         lc.run_authenticated_lifecycle(
             cfg, repo, repo / "bootstrap-authority", tmp_path / "ev",
-            tmp_path / "ho", GRANT_ID,
-            ls_remote=TransportDouble([remote, remote]),
-            api_read=ApiDouble(api_result(tip)))
+            tmp_path / "ho", GRANT_ID)
     assert ei.value.code == lc.G6_BARRIER_REFUSED
 
 
 def test_am14_pipeline_stage_sequence(tmp_path, anchor_template,
-                                      pkg_blob_files):
+                                      monkeypatch, pkg_blob_files):
     # no G6 at all: the pipeline fails closed at stage 4 (selection),
     # never reaching the barrier or later stages
     repo = _pipeline_world(tmp_path, anchor_template, pkg_blob_files,
@@ -1280,25 +1328,30 @@ def test_am14_pipeline_stage_sequence(tmp_path, anchor_template,
     tip = git(repo, "rev-parse", "HEAD").strip()
     cfg = write_config(tmp_path, CANONICAL_CONFIG, name="pcfg3.json")
     remote = LS_REMOTE_OK.replace(TIP, tip)
+    _providers(monkeypatch, TransportDouble([remote, remote]),
+               ApiDouble(api_result(tip)))
     with pytest.raises(lc.LifecycleCallerError) as ei:
         lc.run_authenticated_lifecycle(
             cfg, repo, repo / "bootstrap-authority", tmp_path / "ev",
-            tmp_path / "ho", GRANT_ID,
-            ls_remote=TransportDouble([remote, remote]),
-            api_read=ApiDouble(api_result(tip)))
+            tmp_path / "ho", GRANT_ID)
     assert ei.value.code == lc.CANONICAL_G6_READBACK_PUBLICATION_NOT_FOUND
+
+
+def test_am14b_stale_g6_before_g5_refused(tmp_path, anchor_template,
+                                          monkeypatch, pkg_blob_files):
     # stale G5 (G6 introduced before its target): stage 4 STALE refusal
-    repo = _pipeline_world(tmp_path / "s", anchor_template, pkg_blob_files,
+    # (fresh world — cross-directory cache reuse is refused per 009)
+    repo = _pipeline_world(tmp_path, anchor_template, pkg_blob_files,
                            g6_before_g5=True)
     tip = git(repo, "rev-parse", "HEAD").strip()
     remote = LS_REMOTE_OK.replace(TIP, tip)
+    _providers(monkeypatch, TransportDouble([remote, remote]),
+               ApiDouble(api_result(tip)))
     with pytest.raises(lc.LifecycleCallerError) as ei:
         lc.run_authenticated_lifecycle(
-            write_config(tmp_path / "s", CANONICAL_CONFIG, name="c.json"),
+            write_config(tmp_path, CANONICAL_CONFIG, name="c.json"),
             repo, repo / "bootstrap-authority", tmp_path / "ev2",
-            tmp_path / "ho2", GRANT_ID,
-            ls_remote=TransportDouble([remote, remote]),
-            api_read=ApiDouble(api_result(tip)))
+            tmp_path / "ho2", GRANT_ID)
     assert ei.value.code == lc.G6_STALE_REFUSED
 
 

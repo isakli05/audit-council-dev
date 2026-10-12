@@ -244,20 +244,22 @@ def _api_agrees(info, branch, tip):
             and str(info.get("id")) == CANONICAL_PROVIDER_REPOSITORY_ID
             and info.get("default_branch") == branch
             and info.get("tip") == tip)
-def verify_trust_root(config_path, repo, *, ls_remote=None, api_read=None):
+def verify_trust_root(config_path, repo):
     """T1-T8 (record A 5.2; fail-closed, refusals final): config source
     discipline; transport at the exact config URL; default branch BY
     the remote; MANDATORY API corroboration (full_name + numeric id +
     default branch + tip; ANY disagreement refused); local
     correspondence (anchor ancestry CORROBORATION ONLY); immediate
-    tip re-resolution; returns the invocation evidence."""
+    tip re-resolution; returns the invocation evidence.
+    TRUSTROOT-008: the verification channels are this module's OWN real
+    providers (default_ls_remote / default_api_read); NO caller-
+    selected transport or API channel exists (synthetic doubles are
+    installable ONLY by the isolated NON-OPERATIVE test boundary)."""
     config = load_trust_root_config(config_path, repo)
     url, branch = (config["canonical_remote_url"],
                    config["expected_default_branch"])
-    transport = ls_remote or default_ls_remote
-    api = api_read or default_api_read
-    _, tip = _parse_ls_remote(transport(url, branch), branch)
-    info = api(url)
+    _, tip = _parse_ls_remote(default_ls_remote(url, branch), branch)
+    info = default_api_read(url)
     if not _api_agrees(info, branch, tip):
         _fail(IDENTITY_DISAGREEMENT_REFUSED, repr(info))
     try:
@@ -270,8 +272,8 @@ def verify_trust_root(config_path, repo, *, ls_remote=None, api_read=None):
                  config["trust_anchor_commit"], tip).returncode:
         _fail(TRUST_ANCHOR_NOT_ANCESTOR, config["trust_anchor_commit"])
     _git(repo, "rev-parse", f"{tip}^{{tree}}")
-    _, tip_again = _parse_ls_remote(transport(url, branch), branch)
-    info_again = api(url)
+    _, tip_again = _parse_ls_remote(default_ls_remote(url, branch), branch)
+    info_again = default_api_read(url)
     if tip_again != tip or info_again.get("tip") != tip:
         _fail(AUTHORITATIVE_TIP_MOVED_DURING_VERIFICATION, tip_again)
     if not _api_agrees(info_again, branch, tip):
@@ -1112,48 +1114,66 @@ def verify_import_gate(repo, tip, package_dir):
     with open(os.path.abspath(__file__), "rb") as handle:
         check_caller_purity(handle.read())
     return {"package_identity": identity, "static_census": census}
-# --- R3 (CR-P3-IMPORT-003): dedicated, controlled import-gate state.
-# None until THIS gate has performed an import in the process; any
-# bootstrap_authority cache entry observed before that is FOREIGN and
-# refused; entries the gate itself produced are re-verified BY CONTENT
-# on every later gate pass (their on-disk source at the actual load
-# origin must equal the now-verified pinned package source).
+# --- R3 (CR-P3-IMPORT-003 + CR-P3-IMPORT-009): dedicated, controlled
+# import-gate state. None/empty until THIS gate has imported in the
+# process; any bootstrap_authority cache entry observed before that is
+# FOREIGN and refused. After a successful gate import the COMPLETE
+# trusted imported-object identity set is recorded (exact object
+# identity + canonical origin + expected bytes); every later pass
+# re-establishes provenance (replaced/added/foreign/drifted refused)
+# — byte-identical files at a foreign origin NEVER establish the
+# execution provenance of an already-created module object.
 _GATE_IMPORTED_PARENT = None
+_GATE_TRUSTED_MODULES = {}
+
+def _origin_digest(module):
+    """Canonical origin + source digest of an imported module object."""
+    origin = os.path.realpath(getattr(module, "__file__", "") or "")
+    try:
+        data = open(origin, "rb").read()
+    except OSError as exc:
+        _fail(IMPORT_ORIGIN_MISMATCH, repr(exc))
+    return origin, hashlib.sha256(data).hexdigest()
 
 def import_verified_package(repo, tip, package_dir):
     """The ONLY import path: the gate MUST pass first, then an ORDINARY
     import (no synthetic parent / sys.modules substitution / custom
     loader / copy) with the transitive load asserted POSITIVELY.
-    R3: preloaded bootstrap_authority objects are refused unless this
-    gate imported earlier in the same process AND every cached entry's
-    source at its actual load origin is byte-identical to the pinned
-    verified package source; the pinned parent becomes the FIRST
-    effective sys.path entry; the imported origin is asserted after
-    the import."""
-    global _GATE_IMPORTED_PARENT
+    R3/IMPORT-009: the initial gated import refuses ALL preloaded
+    bootstrap_authority objects; after a successful gate import the
+    complete trusted identity set is recorded and every later pass
+    accepts ONLY the exact gate-imported objects (identity, canonical
+    origin and expected bytes re-established each pass); replaced,
+    added, foreign-origin or drifted objects are refused; the pinned
+    parent becomes the FIRST effective sys.path entry and the imported
+    origin is asserted after import. In-process checks cannot defend
+    against fully arbitrary code already executing in the trusted
+    interpreter (disclosed limit); a fresh interpreter remains the
+    preferred OPERATIVE precondition."""
+    global _GATE_IMPORTED_PARENT, _GATE_TRUSTED_MODULES
     verify_import_gate(repo, tip, package_dir)
     parent = os.path.realpath(os.fspath(package_dir))
     expected_dir = os.path.join(parent, _PACKAGE_DIR_NAME)
     cached = {key: sys.modules[key] for key in sorted(sys.modules)
               if key == "bootstrap_authority"
               or key.startswith("bootstrap_authority.")}
-    if cached and _GATE_IMPORTED_PARENT is None:
-        _fail(PRELOADED_PACKAGE_MODULE_REFUSED, sorted(cached))
-    for key, module in cached.items():
-        name = "__init__.py" if key == "bootstrap_authority" \
-            else f"{key.split('.', 1)[1]}.py"
-        origin = os.path.realpath(getattr(module, "__file__", "") or "")
-        try:
-            with open(origin, "rb") as handle:
-                loaded = handle.read()
-            with open(os.path.join(expected_dir, name), "rb") as handle:
-                pinned = handle.read()
-        except OSError as exc:
-            _fail(IMPORT_ORIGIN_MISMATCH, f"{key}: origin {exc!r}")
-        if loaded != pinned:
+    if _GATE_IMPORTED_PARENT is None:
+        if cached:
+            _fail(PRELOADED_PACKAGE_MODULE_REFUSED, sorted(cached))
+    elif cached:
+        if set(cached) != set(_GATE_TRUSTED_MODULES):
             _fail(IMPORT_ORIGIN_MISMATCH,
-                  f"{key}: cached source at the actual load origin "
-                  "differs from the pinned verified source")
+                  ("replaced/added/missing package modules",
+                   sorted(cached), sorted(_GATE_TRUSTED_MODULES)))
+        for key, (obj, canonical, digest) \
+                in _GATE_TRUSTED_MODULES.items():
+            module = cached[key]
+            if module is not obj:
+                _fail(IMPORT_ORIGIN_MISMATCH, f"{key}: foreign object")
+            origin, digest_now = _origin_digest(module)
+            if origin != canonical or digest_now != digest:
+                _fail(IMPORT_ORIGIN_MISMATCH,
+                      f"{key}: non-canonical origin or drifted bytes")
     if parent in sys.path:
         sys.path.remove(parent)
     sys.path.insert(0, parent)     # the pinned parent is FIRST, always
@@ -1161,28 +1181,30 @@ def import_verified_package(repo, tip, package_dir):
     package = sys.modules["bootstrap_authority"]
     origin_dir = os.path.realpath(next(iter(package.__path__)))
     if os.path.realpath(receiptidentity.__file__) \
-            != os.path.join(origin_dir, "receiptidentity.py") \
-            or (origin_dir != expected_dir and not cached):
+            != os.path.join(expected_dir, "receiptidentity.py") \
+            or origin_dir != expected_dir:
         _fail(IMPORT_ORIGIN_MISMATCH, (origin_dir, expected_dir))
     if "bootstrap_authority.runtime" not in sys.modules:
         _fail(IMPORT_DISCLOSURE_REFUSED,
               "the disclosed transitive runtime load is absent")
     _GATE_IMPORTED_PARENT = parent
+    _GATE_TRUSTED_MODULES = {
+        key: (sys.modules[key], *_origin_digest(sys.modules[key]))
+        for key in sorted(sys.modules)
+        if key == "bootstrap_authority"
+        or key.startswith("bootstrap_authority.")}
     return receiptidentity
 
-def run_authenticated_binding(config_path, repo, package_dir, *,
-                              ls_remote=None, api_read=None):
+def run_authenticated_binding(config_path, repo, package_dir):
     """Bounded glue (T8): trust root -> gate -> import; grants
     NOTHING; later stages receive the SAME verified tip."""
-    binding = verify_trust_root(config_path, repo, ls_remote=ls_remote,
-                                api_read=api_read)
+    binding = verify_trust_root(config_path, repo)
     module = import_verified_package(repo, binding["authoritative_tip"],
                                      package_dir)
     return {"binding": binding, "receiptidentity": module}
 
 def run_authenticated_lifecycle(config_path, repo, package_dir,
-                                evidence_root, handoff_root, grant_identity,
-                                *, ls_remote=None, api_read=None):
+                                evidence_root, handoff_root, grant_identity):
     """R5 (CR-P3-PIPELINE-005): the ONE bounded NON-RUNTIME pipeline —
     stages execute in the EXACT order, fail-closed, none skippable or
     reorderable, every stage consuming the SAME verified tip and only
@@ -1201,8 +1223,7 @@ def run_authenticated_lifecycle(config_path, repo, package_dir,
     SELECTS and VERIFIES only — no mint, no publication, no receipt,
     no execution authority; a completed synthetic sequence is NOT
     proof that the upstream V1-V17 G5 content checks were run."""
-    binding = verify_trust_root(config_path, repo, ls_remote=ls_remote,
-                                api_read=api_read)
+    binding = verify_trust_root(config_path, repo)
     tip = binding["authoritative_tip"]
     module = import_verified_package(repo, tip, package_dir)
     g5 = derive_g5_identity(repo, tip)
