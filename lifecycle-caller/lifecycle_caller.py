@@ -1144,7 +1144,8 @@ def import_verified_package(repo, tip, package_dir):
     complete trusted identity set is recorded and every later pass
     accepts ONLY the exact gate-imported objects (identity, canonical
     origin and expected bytes re-established each pass); replaced,
-    added, foreign-origin or drifted objects are refused; the pinned
+    added, missing (partial or total cache erasure), foreign-origin
+    or drifted objects are refused; the pinned
     parent becomes the FIRST effective sys.path entry and the imported
     origin is asserted after import. In-process checks cannot defend
     against fully arbitrary code already executing in the trusted
@@ -1160,7 +1161,7 @@ def import_verified_package(repo, tip, package_dir):
     if _GATE_IMPORTED_PARENT is None:
         if cached:
             _fail(PRELOADED_PACKAGE_MODULE_REFUSED, sorted(cached))
-    elif cached:
+    elif _GATE_TRUSTED_MODULES:
         if set(cached) != set(_GATE_TRUSTED_MODULES):
             _fail(IMPORT_ORIGIN_MISMATCH,
                   ("replaced/added/missing package modules",

@@ -1,16 +1,13 @@
 """GAP-D import-gate synthetic tests: the STATIC-V2 census (positives
-on the real pinned modules; negatives on disposable mutated mirrors),
+on the real pinned modules, negatives on disposable mutated mirrors),
 the D4 caller-purity gate, D5 blob pinning, and the GAP-D-BEHAV-V2
 fresh-interpreter behavioral gate with bounded OS-level process and
-network observation.  strace is ABSENT on this host: the designed
-supplementary syscall trace is substituted by an LD_PRELOAD
-interposition shim (fork/execve/socket/connect + a SHIM_LOADED marker
-whose absence is a monitoring gap -> fail closed), a Python audit-hook
-channel, /proc children polling, and unshare -Urn network-namespace
-confinement; the glibc-internal posix_spawn path is not
-PLT-interceptable and is disclosed as a residual covered by the audit
-hook and /proc polling.  Disposable sandboxes and synthetic non-secret
-bytes only."""
+network observation.  strace is ABSENT here: the syscall trace is
+substituted by an LD_PRELOAD shim (fork/execve/socket/connect + a
+SHIM_LOADED marker whose absence fails closed), an audit hook, /proc
+polling and unshare netns confinement; glibc-internal posix_spawn is
+not PLT-interceptable (disclosed residual, audit-hook/proc-covered).
+Disposable sandboxes and synthetic non-secret bytes only."""
 
 import json
 import os
@@ -64,10 +61,8 @@ def mirror(tmp_path, module, appendix):
     return tmp_path / "mirror"
 
 
-# every appendix below is STATIC SOURCE TEXT appended to a disposable
-# mirror and parsed by the data-only census; none of it is ever
-# executed (the eval()/__import__/getattr strings exist precisely to
-# prove the census refuses these import-time forms)
+# every appendix is STATIC SOURCE TEXT on a disposable mirror, parsed
+# data-only (never executed; exists to prove the census refuses it)
 @pytest.mark.parametrize("module,appendix", [
     ("runtime.py", "\nimport os\nRESULT = os.getcwd()\n"),          # D2a
     ("runtime.py", "\nopen('/tmp/gate-d2a', 'w')\n"),               # D2a
@@ -121,8 +116,7 @@ def test_census_refuses_class_base_and_import_position(tmp_path):
 
 
 def test_census_refuses_network_import_time_use(tmp_path):
-    # an import STATEMENT alone is the disclosed surface; module-level
-    # socket USE is refused by the call census (D2a form)
+    # module-level socket USE is refused by the call census (D2a)
     with pytest.raises(lc.LifecycleCallerError):
         lc.static_census(mirror(tmp_path, "runtime.py",
                                 "\nimport socket\nS = socket.socket()\n"))
@@ -197,8 +191,7 @@ def test_d5_blob_pin_mismatch_refuses_before_import(tmp_path):
 # ------------------------------------- R3 preload / origin (AM-7/AM-8)
 
 def _foreign_package(tmp_path, mutate_receiptidentity=False):
-    """Fake cached entries whose recorded origin is a DIFFERENT
-    directory (optionally differing source bytes)."""
+    """Cached fakes whose origin is a DIFFERENT directory."""
     origin = tmp_path / "foreign" / "bootstrap_authority"
     origin.mkdir(parents=True)
     (origin / "__init__.py").write_bytes(
@@ -217,8 +210,7 @@ def _foreign_package(tmp_path, mutate_receiptidentity=False):
 
 def test_am7_foreign_preload_refused_without_gate_history(
         monkeypatch, tmp_path):
-    # AM-7: a foreign preloaded object with NO gate import history in
-    # this process (fresh-process form) is refused fail-closed
+    # AM-7: a foreign preload with NO gate history -> refused
     repo, tip = _world_with_package(tmp_path)
     lc.verify_import_gate(repo, tip, repo / "bootstrap-authority")
     parent, module = _foreign_package(tmp_path)
@@ -233,11 +225,9 @@ def test_am7_foreign_preload_refused_without_gate_history(
 @pytest.mark.parametrize("drift", [False, True])
 def test_r3_byte_identical_foreign_cached_module_refused(
         monkeypatch, tmp_path, drift):
-    # IMPORT-009 (replaces the former POSITIVE acceptance test): with
-    # GENUINE gate history, a synthetic cached object whose __file__
-    # points at ANOTHER directory — even holding byte-identical source
-    # — is REFUSED: on-disk bytes at __file__ never establish the
-    # execution provenance of an already-created module object.
+    # IMPORT-009 (replaces the former POSITIVE test): with GENUINE gate
+    # history a cached __file__ at ANOTHER directory — even byte-
+    # identical — is REFUSED (on-disk bytes never establish provenance)
     repo, tip = _world_with_package(tmp_path)
     lc.import_verified_package(repo, tip, repo / "bootstrap-authority")
     parent, module = _foreign_package(tmp_path,
@@ -252,8 +242,7 @@ def test_r3_byte_identical_foreign_cached_module_refused(
 
 def test_r3_replaced_object_claiming_canonical_origin_refused(
         monkeypatch, tmp_path):
-    # IMPORT-009: a synthetic object CLAIMING the exact canonical
-    # origin with identical bytes is NOT the gate object -> refused
+    # IMPORT-009: CLAIMED origin + identical bytes is NOT the gate object
     repo, tip = _world_with_package(tmp_path)
     lc.import_verified_package(repo, tip, repo / "bootstrap-authority")
     genuine = sys.modules["bootstrap_authority.receiptidentity"]
@@ -279,9 +268,7 @@ def test_r3_added_package_module_key_refused(monkeypatch, tmp_path):
 
 
 def test_r3_genuine_gate_imported_objects_reused(monkeypatch, tmp_path):
-    # IMPORT-009 positive regression: the EXACT same genuine gate-
-    # imported objects remain reusable while source, origin and
-    # identity stay valid (ordinary import returns the CACHED object)
+    # IMPORT-009 positive: the EXACT gate-imported objects stay reusable
     repo, tip = _world_with_package(tmp_path)
     first = lc.import_verified_package(repo, tip,
                                        repo / "bootstrap-authority")
@@ -291,12 +278,31 @@ def test_r3_genuine_gate_imported_objects_reused(monkeypatch, tmp_path):
     assert second is sys.modules["bootstrap_authority.receiptidentity"]
 
 
+@pytest.mark.parametrize("erase_all", [True, False])
+def test_import010_cache_erasure_refused(tmp_path, erase_all):
+    # IMPORT-010: with gate history retained, TOTAL (erase_all) and
+    # PARTIAL erasure are both refused and the recorded set still
+    # pins the ORIGINAL objects (post-erasure re-imports are foreign)
+    repo, tip = _world_with_package(tmp_path)
+    lc.import_verified_package(repo, tip, repo / "bootstrap-authority")
+    originals = {k: e[0] for k, e in lc._GATE_TRUSTED_MODULES.items()}
+    if erase_all:
+        for k in [k for k in sys.modules
+                  if k.startswith("bootstrap_authority")]:
+            del sys.modules[k]
+    else:
+        del sys.modules["bootstrap_authority.runtime"]
+    with pytest.raises(lc.LifecycleCallerError) as ei:
+        lc.import_verified_package(repo, tip, repo / "bootstrap-authority")
+    assert ei.value.code == lc.IMPORT_ORIGIN_MISMATCH
+    assert {k: e[0] for k, e in lc._GATE_TRUSTED_MODULES.items()} \
+        == originals
+
+
 def test_am8_pinned_parent_first_beats_earlier_foreign_dir(
         monkeypatch, tmp_path):
-    # AM-8: another bootstrap_authority source precedes the pinned
-    # parent on sys.path (fresh-process form: no cached objects): the
-    # gate moves the pinned parent FIRST and the loaded origin is the
-    # pinned package, never the foreign one
+    # AM-8: a foreign dir earlier on sys.path (fresh process) still
+    # yields the pinned origin, never the foreign one
     repo, tip = _world_with_package(tmp_path)
     evil = tmp_path / "evil"
     (evil / "bootstrap_authority").mkdir(parents=True)
@@ -319,13 +325,8 @@ def test_am8_pinned_parent_first_beats_earlier_foreign_dir(
 
 
 # ------------------------------------------- GAP-D-BEHAV-V2 gate
-# strace is absent on this host; the supplementary syscall trace is
-# substituted by PLT interposition (fork/execve/socket/connect) plus a
-# constructor SHIM_LOADED marker (absence == monitoring gap == fail
-# closed), an in-child audit hook, /proc children polling and unshare
-# network-namespace confinement.  posix_spawn via a glibc-internal
-# path is not PLT-interceptable (disclosed residual; the audit hook
-# and /proc polling cover Python-level spawning).
+# strace absent here: PLT shim + fail-closed marker + audit hook +
+# /proc + netns; full disclosure incl. posix_spawn in module docstring
 SHIM_C = r"""
 #define _GNU_SOURCE
 #include <dlfcn.h>
@@ -533,9 +534,8 @@ def test_behav_d1_d3_real_package_pass_with_observation(tmp_path):
     assert subject["sandbox_equal"] and subject["package_equal"]
     assert subject["repo_equal"]
     assert subject["children"] == []
-    # the constructor marker fires once per loader pass (unshare itself
-    # and the exec'd python); ONLY marker lines may appear, and the
-    # subject must equal the no-import control baseline exactly
+    # the marker fires once per loader pass; ONLY marker lines may
+    # appear and the subject must equal the control baseline exactly
     kinds = lambda log: sorted(line.split()[0] for line in log)
     assert set(kinds(subject["log"])) == {"SHIM_LOADED"}
     assert kinds(subject["log"]) == kinds(control["log"])
