@@ -13,6 +13,21 @@ NOT_RELEASE_QUALIFICATION / NOT_INSTALLATION_ACCEPTANCE / GRANTS_NOTHING.
 > written. Approved canonical G5 content is introduced by THIS publication;
 > G6 is next and NOT YET PERFORMED; G7-G12 NOT PERFORMED; no mint authority.
 
+> CURRENT TRANSITION — G6 (2026-10-20): the ACTUAL independent Codex Control
+> Room G6 readback of the published G5 record has been completed by a
+> fresh-context read-only reviewer and accepted by the primary Control Room
+> at its narrow scope — disposition PERMIT_GRANT_MINT_CONSIDERATION /
+> grant_mint_consideration_permitted TRUE (review identifier
+> `AUCDEV-023-G6-CR-AUDITOR-A-R1-20261020-01`, a Control Room review id,
+> NOT an operator mint authority). The exact closed-world 15-field record is
+> introduced by THIS separate publication at
+> `docs/chatgpt-project/AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-A-PACKAGE-BINDING-AUTHORITY-READBACK-PUBLICATION.md`;
+> see Section 10. Prior G6 NOT-YET statements (Sections 3/4/6/8) were true
+> when written and remain HISTORICAL. G7: preauthorization
+> checks/preparation, then the SEPARATE operator mint decision (NOT
+> SUPPLIED); NO G7 authority, mint or GRANT_ISSUED evidence exists; G8-G12
+> NOT PERFORMED; no qualification or installation transition.
+
 ## 1. Authority and scope of this record
 
 - Authority: the operator's 2026-10-20 tasking (Europe/Istanbul) mandating a
@@ -219,3 +234,75 @@ preserved unchanged above and was believed accurate when written:
   `GLM_DELEGATION_OK`, exit 0, 104720 ms, two turns. Raw journals remain
   excluded from any handoff. Further detail (data only) is local at
   `/home/isa/aucdev023-codex-g5-g12-20261020-02/delegation-diagnosis.json`.
+
+## 10. G6 Control Room readback record (2026-10-20)
+
+G6_READBACK_ACTUAL_AND_COMPLETE / PERMIT_GRANT_MINT_CONSIDERATION /
+GRANT_MINT_CONSIDERATION_PERMITTED_TRUE_NARROW_ONLY /
+RECORDED_BY_THIS_SEPARATE_G6_PUBLICATION / NOT_AN_IMPLEMENTER_VERDICT /
+NOT_INDEPENDENT_RELEASE_QUALIFICATION / G7_AUTHORITY_NOT_SUPPLIED /
+NO_G7_MINT_PERFORMED / NO_GRANT_ISSUED_EVIDENCE / FINDINGS_HELD /
+QUALIFICATION_INSTALLATION_UNCHANGED / GRANTS_NOTHING.
+
+- Attribution (actual, not implementer): a fresh-context read-only Codex
+  reviewer independently inspected the frozen G5 publication and reached
+  PERMIT_GRANT_MINT_CONSIDERATION; the primary Control Room accepted that
+  narrow disposition and its independently re-derived facts. Supplied
+  assessment input (external, outside the repo):
+  `/home/isa/aucdev023-codex-g5-g12-20261020-02/g6-assessment.json`.
+  This is NOT the GLM implementer's verdict, NOT a predetermined outcome
+  and NOT an independent release qualification.
+- Exact target G5 identity (reviewed; re-verified this session from live
+  Git): commit `1149d769057db4b078828e16c51090b101517e02` (root tree
+  `42eda1fb0f2015e3f0b6815090197c4801d2e17f`, sole parent
+  `7d59fbb7ee697f7d3ff4d8b11a907a216be3c79a`, four changed paths, canonical
+  raw ADD); record path
+  `docs/chatgpt-project/AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-A-PACKAGE-BINDING-AUTHORITY.md`;
+  blob `2e7f81f8d6704152ee7c93e686fa6ea791b22ee7`; SHA-256
+  `1f8888633d11ff288f296f104efb462998973660dcbcc8042c33d648cd13e24d`;
+  8052 bytes (canonical bytes re-hashed unchanged after this edit).
+- Reached disposition and scope: PERMIT_GRANT_MINT_CONSIDERATION with
+  grant_mint_consideration_permitted TRUE at its NARROW recorded meaning —
+  G7 CONSIDERATION is permitted only; NOTHING MINTS here; execution,
+  credential and auditor-B authority NONE; review completeness recorded as
+  COMPLETE_FOR_ASSIGNED_G6_FROZEN_RECORD_SCOPE.
+- Key checks performed by the reviewer (as recorded): exact G5 Git identity
+  including one-parent/four-path/canonical-raw-ADD geometry and public
+  unauthenticated readback; all eight G2 and seven G3 fields matched
+  against immutable artifacts including the actual G3
+  target/disposition/permission; G4 authority id and conditional scope
+  agreement; event/AUDITOR_A role/replacement slot/protected attempt
+  constant/one-shot lineage agreement; five protected trees equal across
+  G3/G5-parent/G5 with no intervening protected-source change; no
+  supersession, target mismatch, permission refusal, post-publication
+  modification or reachability failure. Unchanged suites were not rerun.
+- Reviewer independence / evidence-access limitations (recorded in
+  substance): fresh context but the same Codex model family as the primary
+  that prepared the candidate; NOT a blind external qualified auditor or
+  release-qualification verdict; the operator's G5 approval was supplied to
+  the reviewer by the primary and checked for faithful recording (no signed
+  artifact invented); the original G4 primary submission and the original
+  diagnostic journals were NOT independently examined by the reviewer.
+- Open findings held, not closed: PKGIDENT-001/002 OPEN; RECEIPTIMUT-001
+  readback-supported / NOT operatively closed; RECEIPTCTX-001 PARTIALLY
+  REMEDIATED; TRUSTROOT-001 NOT OPERATIVELY CLOSED; CR-P3-G5-001 OPEN /
+  CONTRACT-DEPENDENT; B2 deferred / no schema adopted; G4 provenance
+  limits preserved (source-attributed, unresolved draft-label
+  contradiction, partially reproduced external uniqueness, Git cannot
+  prove zero external runtime activity, no unconditional provenance PASS);
+  shared-selector parse-as-filter boundary; G7 byte-serialization rule
+  residual; G11 GRANT_ISSUED evidence verification outstanding; extension
+  LOC 3577/900/4477 held. AUCDEV-023 P1 / READY / NOT DONE; installed
+  qualification provenance NOT ESTABLISHED; qualification NONE;
+  installation NONE.
+- Current G6 canonical path (this working-tree change; the Codex Control
+  Room owns review and Git publication — NO own prospective commit SHA,
+  root tree or digest is claimed here):
+  `docs/chatgpt-project/AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-A-PACKAGE-BINDING-AUTHORITY-READBACK-PUBLICATION.md`
+  — exact 15-field closed-world record, verified locally against
+  `lifecycle-caller/lifecycle_caller.py` `parse_g6_publication` (field
+  order, literals, disposition/boolean coherence, canonical bytes).
+- Next (grants nothing): G7 preauthorization checks/preparation (V1-V35),
+  then the SEPARATE operator G7 mint decision. G7 mint authority is NOT
+  SUPPLIED; NO G7 authority, mint, grant or GRANT_ISSUED evidence exists;
+  G8-G12 NOT PERFORMED.

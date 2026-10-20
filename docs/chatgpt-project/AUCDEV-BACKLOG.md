@@ -1,5 +1,20 @@
 # Audit Council Dev — Engineering Backlog
 
+2026-10-20 G6 transition: the ACTUAL independent Codex Control Room G6
+readback of the published G5 record reached the narrow favorable
+disposition PERMIT_GRANT_MINT_CONSIDERATION /
+grant_mint_consideration_permitted TRUE (review id
+`AUCDEV-023-G6-CR-AUDITOR-A-R1-20261020-01`, NOT an operator mint
+authority); the exact 15-field record is introduced by THIS separate
+publication at
+[AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-A-PACKAGE-BINDING-AUTHORITY-READBACK-PUBLICATION.md](AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-A-PACKAGE-BINDING-AUTHORITY-READBACK-PUBLICATION.md)
+(target G5 commit `1149d769057db4b078828e16c51090b101517e02`). G7 mint
+decision still pending (separate operator authority NOT SUPPLIED);
+G7-G12 NOT PERFORMED; no findings closed; counts, priorities and every
+entry below unchanged. Earlier G6-NOT-YET statuses below are HISTORICAL,
+true when written. See
+[AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01](AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01.md).
+
 2026-10-20 G5 transition: the operator APPROVED the exact G5 candidate and
 supplied separate G5 publication authority
 `AUCDEV-023-G5-PUB-AUDITOR-A-R1-20261020-01` (referenced G4 authority
@@ -5154,5 +5169,16 @@ reserved canonical path (SHA-256
 bytes; authority `AUCDEV-023-G5-PUB-AUDITOR-A-R1-20261020-01`; scope
 PACKAGE_BINDING_ONLY; grant-mint permission TRUE CONDITIONAL ONLY). G6 NOT
 YET PERFORMED (separate assessment next); G7-G12 NOT PERFORMED; no findings
+closed, no mint authority, qualification/installation unchanged. See
+[AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01](AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01.md).
+
+2026-10-20 — G6 readback of the published G5 record completed (independent
+Codex Control Room reviewer `AUCDEV-023-G6-CR-AUDITOR-A-R1-20261020-01`):
+PERMIT_GRANT_MINT_CONSIDERATION / grant_mint_consideration_permitted TRUE,
+recorded by THIS separate G6 publication (canonical
+docs/chatgpt-project/AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-A-PACKAGE-BINDING-AUTHORITY-READBACK-PUBLICATION.md;
+target G5 commit 1149d769057db4b078828e16c51090b101517e02). G7 requires
+preauthorization checks/preparation and the separate operator mint
+decision (authority NOT SUPPLIED); G7-G12 NOT PERFORMED; no findings
 closed, no mint authority, qualification/installation unchanged. See
 [AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01](AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01.md).

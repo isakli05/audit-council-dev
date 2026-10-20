@@ -1,5 +1,24 @@
 # Audit Council Dev — Current State
 
+G6 transition (2026-10-20): the ACTUAL independent Codex Control Room G6
+readback of the published G5 record is COMPLETE at its narrow scope —
+disposition PERMIT_GRANT_MINT_CONSIDERATION /
+grant_mint_consideration_permitted TRUE (fresh-context Codex reviewer;
+Control Room review id `AUCDEV-023-G6-CR-AUDITOR-A-R1-20261020-01`, NOT an
+operator mint authority; NOT the GLM implementer's verdict). The exact
+closed-world 15-field record is introduced by THIS separate publication at
+[AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-A-PACKAGE-BINDING-AUTHORITY-READBACK-PUBLICATION.md](AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-A-PACKAGE-BINDING-AUTHORITY-READBACK-PUBLICATION.md)
+(target G5 commit `1149d769057db4b078828e16c51090b101517e02`, record SHA-256
+`1f8888633d11ff288f296f104efb462998973660dcbcc8042c33d648cd13e24d`, 8052
+bytes, unchanged). G7 consideration permitted ONLY: preauthorization
+checks/preparation next and the SEPARATE operator G7 mint decision still
+pending / NOT SUPPLIED; no mint, no GRANT_ISSUED evidence; G8-G12 NOT
+PERFORMED. AUCDEV-023 P1 / READY / NOT DONE; source, findings,
+qualification and installation held. Earlier G6-NOT-YET statements below —
+including the G5 transition block immediately below — are HISTORICAL, true
+when written. See
+[AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01](AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01.md).
+
 G5 transition (2026-10-20): the operator APPROVED the exact G5 candidate in
 the Codex Control Room (current submission; not a signed artifact) and
 supplied separate G5 publication authority
@@ -1907,4 +1926,20 @@ canonical G5 bytes introduced by THIS publication (SHA-256
 bytes). Exactly one record-only G5 publication, then SEPARATE G6; G6 NOT YET
 PERFORMED; G7-G12 NOT PERFORMED; no mint authority; findings, qualification
 and installation unchanged. Record:
+[AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01](AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01.md).
+
+2026-10-20 — ACTUAL independent Codex Control Room G6 readback of the
+published G5 record completed (fresh-context reviewer; Control Room review
+id `AUCDEV-023-G6-CR-AUDITOR-A-R1-20261020-01`); narrow disposition
+PERMIT_GRANT_MINT_CONSIDERATION with grant_mint_consideration_permitted
+TRUE, recorded by THIS separate G6 publication at
+[AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-A-PACKAGE-BINDING-AUTHORITY-READBACK-PUBLICATION.md](AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-A-PACKAGE-BINDING-AUTHORITY-READBACK-PUBLICATION.md)
+(exact 15-field record; target G5 commit
+1149d769057db4b078828e16c51090b101517e02, record SHA-256
+`1f8888633d11ff288f296f104efb462998973660dcbcc8042c33d648cd13e24d`, 8052
+bytes, unchanged). G7 preauthorization checks/preparation next with the
+SEPARATE operator G7 mint decision still pending / NOT SUPPLIED; G7-G12
+NOT PERFORMED; no mint, no GRANT_ISSUED evidence, no qualification or
+installation transition; AUCDEV-023 P1 / READY / NOT DONE; source,
+findings, qualification and installation held. Record:
 [AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01](AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01.md).
