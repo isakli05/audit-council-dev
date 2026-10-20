@@ -1959,3 +1959,12 @@ review and Git publication; post-push G7.8 readback pending; G7 not yet
 COMPLETE; NO G8; execution/credential/Auditor-B authority NONE; G12
 still requires a separate operator execution decision; no findings
 closed, qualification/installation unchanged.
+
+2026-10-20 — G8/G9 transition recorded: G8 build ran under a synthetic self-issued marker (PM-held scope incident; repaired
+in place after a Control-Room-SIGTERM'd repair busy loop; originals preserved) and the G9 freeze's external facts
+serialization failed and was recovered — the operative static package.tar is pinned byte-exact (sha256
+f5dbde97148cf585aa4d13da4235471c61166e2f36bc877c52b99aeaca6138e2, 593920 bytes) together with the external
+freeze-recovery-facts.json (sha256 b31568dcb605011a6c984115b408af3746d2b8263a7321f455496396deb53121, 7492 bytes; fresh
+post-artifact pre-pin successor observation inside); NON-RUNTIME static package for independent G11 only; launcher-byte
+timing unresolved; no receipt, no G10; STOPPED BEFORE COMMIT/PUSH — primary owns Git publication.
+See [AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01](AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01.md).

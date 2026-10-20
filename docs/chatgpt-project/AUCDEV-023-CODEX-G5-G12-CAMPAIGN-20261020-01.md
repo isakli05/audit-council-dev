@@ -323,3 +323,46 @@ COMPLETE; NO G8; execution/credential/Auditor-B authority NONE; G12
 still requires a separate operator execution decision; no findings
 closed, qualification/installation unchanged.
 G7-MINT-CONTEXT-ANCHOR grant_identity=b4c8fb7c41af4fedf51108ac75056c6dd12cdcd5649e3d36e9dd7e758191cbde path=/home/isa/aucdev023-codex-g5-g12-20261020-02/g7/g7-mint-context.json sha256=7dd777e2a36330a241c1611a638166bfa649ec69485edd01037e8e753e50e9d4 size=2687
+
+2026-10-20 — G8/G9 TRANSITION (recorded by the bounded G9 recovery implementer; the primary owns the separate exact-diff Git
+publication of this entry; no commit id predicted here). stage: G8 static package build/review + G9 freeze + G9 identity-pin
+recovery. actual G7C 9e353fe896f57cba1ab88a7f7e217d78329000d1 (grant b4c8fb7c41af4fedf51108ac75056c6dd12cdcd5649e3d36e9dd7e758191cbde;
+boundary local==authenticated==G7C re-verified at recovery).
+G8 chronology (PM records are authority): the G8 build ran under an explicitly synthetic self-issued marker and was PM-held
+as a scope incident (g8-scope-incident.json — the marker was NOT Control Room approval; operator G8-G11 permission after
+valid G7 was already active); the directed repair script ended in a busy loop (`while True: pass`) and the Control Room
+SIGTERM'd the busy-loop python child only (g8-repair-interruption.json); partial writes were reconciled by GLM; originals
+preserved byte-exact under static-package/incident-originals/; the in-place repair added the byte-exact public G7 campaign
+doc (g7/published-campaign.md, sha256 09e8ecfac8be4b40f2f2b352fc102194f9bd4376b60e58d68e2adffe8c093eae, 21039 bytes) and
+regenerated inventory/build-facts honestly (30 files / 29 rows); CodeX review adopted the repaired unfrozen candidate as a
+source-bearing NON-RUNTIME static package for independent G11 assessment only
+(ADOPT_REPAIRED_UNFROZEN_CANDIDATE_FOR_NON_RUNTIME_STATIC_G9_ONLY).
+G9: ONE freeze execution created the deterministic artifact, then the external freeze-facts serialization FAILED
+(TypeError: text-mode write of canonical bytes in freeze_worker); the worker return document — including the then-fresh
+pre-freeze successor observation — was never emitted and is LOST, not reconstructed; the empty original freeze-facts.json
+(0 bytes) and the g8-freeze-result.json refusal record are preserved; the reviewed original driver (sha256
+4865f59ccab0fe28ce538a951b489b001e197073e0bff5e99df875224ff84cdc) is preserved exclusively under
+static-package/incident-originals/g8_static_package.py and only the failed serialization was corrected (binary exclusive
+full-write/fsync/reread via the existing g7 held-dir writer; compile-verified only, sha256
+9dfd14f1d348e164bd898078bacc1f962b72a5cc5219f6b0a898e3dd7bfe09ba; freeze NOT re-invoked; no artifact rewrite).
+ACTUAL OUTER ARTIFACT: /home/isa/aucdev023-codex-g5-g12-20261020-03/static-package/package.tar — sha256
+f5dbde97148cf585aa4d13da4235471c61166e2f36bc877c52b99aeaca6138e2 — 593920 bytes — 38 members / 30 regular files,
+byte-equal to the reverified working tree (in-memory decode, no live extraction; safe paths/types/metadata held:
+mtime 0, uid/gid 0, 0755 dirs / 0644 files, no symlinks).
+EXTERNAL FREEZE-RECOVERY-FACTS: /home/isa/aucdev023-codex-g5-g12-20261020-03/static-package/freeze-recovery-facts.json —
+sha256 b31568dcb605011a6c984115b408af3746d2b8263a7321f455496396deb53121 — 7492 bytes — completes the external G9 identity
+pin after the serialization failure; it is NOT the original freeze facts and NOT a second package.
+inner manifest (separate from the outer artifact identity): V2, 14 files, manifest_sha256
+a7f4cc28f0ca1aa6b7db2967da7edcac51b5db693a649916c04b5586ebe65deb / package_sha256
+6ce210ea84ecdc0b25ca57c7cc626362e2787e7c5f969a518af73c4106a13121.
+FRESH SUCCESSOR FACTS (actual): read-only O_NOFOLLOW held-fd observation taken AFTER artifact creation and BEFORE this G9
+identity pin — prelaunch_prearm_gate_opadopt_v1.py sha256
+410b141054c347f42422e402dde22a966f608adf1f83605eab539656d29cebf4, 20535 bytes, mode 0o500, uid 1000, nlink 1, observed
+2026-10-20T20:34:11Z, all mandatory fields equal to the retained unchanged build-time observation inside the packet.
+checks/disposition: read-only re-authentication via the existing derive_complete_g7()/freeze-path verifiers (G7
+re-derivation, protected trees clean, working pins, payload inventory, V2 pure verifiers, receipt absence, stable boundary)
+ALL PASS; disposition G9_ARTIFACT_IDENTITY_PINNED_EXTERNALLY_AFTER_SERIALIZATION_FAILURE_RECOVERY; no receipt; no G10;
+RECEIPT_BINDING PENDING_G10.
+open limitation: launcher-byte timing ambiguity UNRESOLVED — the independent G11 assessment must decide evidence
+sufficiency and chronology (the original pre-freeze observation document is lost; the recorded observation is post-artifact,
+pre-Git-pin); no runtime readiness, no G11 outcome, no execution/credential authority claimed.
