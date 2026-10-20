@@ -306,3 +306,20 @@ QUALIFICATION_INSTALLATION_UNCHANGED / GRANTS_NOTHING.
   then the SEPARATE operator G7 mint decision. G7 mint authority is NOT
   SUPPLIED; NO G7 authority, mint, grant or GRANT_ISSUED evidence exists;
   G8-G12 NOT PERFORMED.
+
+2026-10-20 — G7 mint executed locally under operator authority AUCDEV-023-G7-MINT-AUDITOR-A-R1-20261020-01 (operator decision submitted directly in the
+Control Room; PM reconciliation EXACT_OPERATOR_REQUEST_RECONCILIATION_PASS;
+grant operator_authority_id remains the G4 decision AUCDEV-023-G4-PBONLY-AUDITOR-A-R1-20261014-01).
+Mint-time V1-V35 preflight re-run 35/35 PASS at live tip df04a9c737b44c63e2173ea2429346f05cd1d4c6
+(fresh result retained at /home/isa/aucdev023-codex-g5-g12-20261020-03/g7-preflight-minttime-result.json). One immutable
+NON_EXECUTION 20-field grant minted (grant_identity `b4c8fb7c41af4fedf51108ac75056c6dd12cdcd5649e3d36e9dd7e758191cbde`);
+genuine original 18-field GRANT_ISSUED evidence created exactly once at
+`/home/isa/aucdev023-codex-g5-g12-20261020-02/g7/evidence/grant-issued-b4c8fb7c41af4fedf51108ac75056c6dd12cdcd5649e3d36e9dd7e758191cbde.json` (sha256 `83cc20a32fb0e1a7b2e7b171c25b760c9d39926697c07258a2d0f2e2ba072780`, 1366 bytes);
+canonical 21-field G7 mint publication record created at
+`docs/chatgpt-project/AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-A-GRANT-MINT-PUBLICATION.md` (sha256 `7c0e63beb3a23acd19ccb4a107892c08c024480a28ed821937b4c1f62326d000` over the
+created bytes). STOPPED BEFORE COMMIT/PUSH — Codex Control Room owns
+review and Git publication; post-push G7.8 readback pending; G7 not yet
+COMPLETE; NO G8; execution/credential/Auditor-B authority NONE; G12
+still requires a separate operator execution decision; no findings
+closed, qualification/installation unchanged.
+G7-MINT-CONTEXT-ANCHOR grant_identity=b4c8fb7c41af4fedf51108ac75056c6dd12cdcd5649e3d36e9dd7e758191cbde path=/home/isa/aucdev023-codex-g5-g12-20261020-02/g7/g7-mint-context.json sha256=7dd777e2a36330a241c1611a638166bfa649ec69485edd01037e8e753e50e9d4 size=2687
