@@ -1968,3 +1968,19 @@ freeze-recovery-facts.json (sha256 b31568dcb605011a6c984115b408af3746d2b8263a732
 post-artifact pre-pin successor observation inside); NON-RUNTIME static package for independent G11 only; launcher-byte
 timing unresolved; no receipt, no G10; STOPPED BEFORE COMMIT/PUSH — primary owns Git publication.
 See [AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01](AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01.md).
+
+2026-10-20 — G10 package-binding receipt identity derived and created
+locally under the supplied CodeX bind instruction (PM orchestration
+context under the already-published G4/G5/G6/G7 authority chain; NOT
+a new operator grant). Original receipt identity fixed in memory from
+the VERIFIED G7 context, the original grant bytes and the ACTUAL
+public G9 frozen artifact (package_sha256
+`f5dbde97148cf585aa4d13da4235471c61166e2f36bc877c52b99aeaca6138e2`); one receipt created exactly once at
+`/home/isa/aucdev023-codex-g5-g12-20261020-02/g7/b4c8fb7c41af4fedf51108ac75056c6dd12cdcd5649e3d36e9dd7e758191cbde.package-binding-receipt.json` (sha256 `8a72b50bae5f59e9e8ef1e5128e167f7aa92afe564e925cdd16069e9fa4d4482`,
+622 bytes; immediate G10.4 readback PASS).
+Canonical 24-field receipt-identity publication record created at
+`docs/chatgpt-project/AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-A-PACKAGE-BINDING-RECEIPT-IDENTITY-PUBLICATION.md` (sha256 `61a7b893f9e7ed4140a20d633a77ccea03303620aefa48e8191f02615b7b43b2` over the
+created bytes; tip at bind 1dd814bf4cd285f2a5e68f7a1c3d1eb46a39d858). STOPPED BEFORE COMMIT/PUSH —
+Codex Control Room owns review and Git publication; post-push G10.6
+readback pending; G10 not yet complete; NO G11 verdict;
+execution/credential/Auditor-B authority NONE.
