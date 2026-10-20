@@ -5,6 +5,14 @@ G5_PREPARATION_BLOCKED_SEPARATE_OPERATOR_AUTHORITY /
 G6_G7_G8_G9_G10_G11_G12_NOT_PERFORMED / NOT_AN_INDEPENDENT_AUDIT_VERDICT /
 NOT_RELEASE_QUALIFICATION / NOT_INSTALLATION_ACCEPTANCE / GRANTS_NOTHING.
 
+> CURRENT TRANSITION (2026-10-20): the operator has now approved the exact G5
+> candidate and supplied the separate G5 publication authority
+> (`AUCDEV-023-G5-PUB-AUDITOR-A-R1-20261020-01`, referencing G4 authority
+> `AUCDEV-023-G4-PBONLY-AUDITOR-A-R1-20261014-01`); see Section 8. The G5
+> pending statuses in Sections 3/6/7 are HISTORICAL and were true when
+> written. Approved canonical G5 content is introduced by THIS publication;
+> G6 is next and NOT YET PERFORMED; G7-G12 NOT PERFORMED; no mint authority.
+
 ## 1. Authority and scope of this record
 
 - Authority: the operator's 2026-10-20 tasking (Europe/Istanbul) mandating a
@@ -131,3 +139,83 @@ execution authority follows automatically from this record.
 - Source/test/schema changes: none. Frozen source was inspected with relevant
   tests, but suites were not repeated for this documentation transition.
   Qualification, installation and historical failures remain unchanged.
+
+## 8. G5 operator decision and publication authorization (2026-10-20)
+
+OPERATOR_DECISION_G5_APPROVED / SEPARATE_G5_PUBLICATION_AUTHORITY_SUPPLIED /
+SCOPE_PACKAGE_BINDING_ONLY / PACKAGE_BINDING_PERMITTED_TRUE /
+GRANT_MINT_PERMITTED_TRUE_CONDITIONAL_ONLY /
+EXECUTION_CREDENTIAL_AUDITOR_B_AUTHORITY_NONE /
+EXACTLY_ONE_G5_PUBLICATION_THEN_SEPARATE_G6 / NO_NEW_SIGNED_ARTIFACT /
+NO_G7_MINT_DECISION / NO_G12_EXECUTION_DECISION / G6_NOT_YET_PERFORMED /
+NOT_AN_INDEPENDENT_AUDIT_VERDICT / NOT_RELEASE_QUALIFICATION /
+NOT_INSTALLATION_ACCEPTANCE / GRANTS_NOTHING_BEYOND_THE_RECORDED_G5_AUTHORIZATION.
+
+- Actual source of the decision: the current user message supplied directly in
+  the Codex Control Room. This is the actual decision source, not a signed
+  artifact. Operative statements recorded verbatim: heading
+  "OPERATOR DECISION — G5 IS APPROVED"; "The operator has now explicitly
+  approved publication of the exact G5 candidate previously submitted for
+  approval."; instruction "This is the required separate G5 operator decision.
+  Do not request G5 approval again."
+- Approved exact candidate bytes: SHA-256
+  `1f8888633d11ff288f296f104efb462998973660dcbcc8042c33d648cd13e24d`, 8052
+  bytes, introduced unmodified at the reserved canonical path
+  `docs/chatgpt-project/AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-A-PACKAGE-BINDING-AUTHORITY.md`
+  by THIS publication (destination verified absent before ordinary copy;
+  byte-for-byte copy verified equal to the approved candidate;
+  no overwrite observed; filesystem O_EXCL exclusivity is a G10 receipt-bind
+  property, not a G5 publication requirement — G5 binds through the
+  canonical Git raw-ADD with unchanged bytes).
+- Separate G5 publication authority (supplied with this decision; the Section 4
+  proposal-only marker for this id ceases): `AUCDEV-023-G5-PUB-AUDITOR-A-R1-20261020-01`.
+  Referenced G4 operator authority (V11 dependency unchanged):
+  `AUCDEV-023-G4-PBONLY-AUDITOR-A-R1-20261014-01`.
+- Authorized shape: exactly ONE canonical record-only G5 publication, followed
+  by a SEPARATE G6 assessment. Scope PACKAGE_BINDING_ONLY;
+  package_binding_permitted TRUE; grant_mint_permitted TRUE CONDITIONAL ONLY —
+  an independent favorable G6 readback, all G7 mint-time fail-closed checks
+  (V1-V35) and a separate G7 operator authorization remain mandatory before
+  any mint; nothing mints at G5 or G6. Execution authority NONE; credential
+  authority NONE; auditor-B authority NONE.
+- Not authorized by this decision: any new signed artifact, any G7 mint
+  decision, any G12 execution decision, and any widening beyond the one-shot
+  G5 lineage. Historical pending statements above (Sections 3, 6 and the
+  Section 7 authority line) were TRUE at their times and remain preserved
+  unchanged; approval exists only from the current 2026-10-20 submission
+  recorded in this section.
+- G5 canonical bytes for the current publication: prepared by the bounded GLM
+  implementer session as the byte-exact canonical copy above; the Codex
+  Control Room owns integration and Git publication of this working-tree
+  change. G6 NOT YET PERFORMED (independent Codex Control Room assessment is
+  the next action).
+- Unchanged: source qualification/provenance/open findings (Section 5 carried
+  in full), AUCDEV-023 P1 / READY / NOT DONE, installed qualification
+  provenance NOT ESTABLISHED, qualification NONE, installation NONE.
+
+## 9. Delegation diagnostic correction (2026-10-20)
+
+CORRECTION to the Section 7 delegation description; the original wording is
+preserved unchanged above and was believed accurate when written:
+
+- The two original session journals show successful provider responses and
+  tool activity until seconds before Codex explicitly sent SIGTERM
+  (terminated PIDs 3056716, 3102711), and the first invocation DID write
+  policy drafts. The earlier "stalled with unrelated MCP startup and no
+  edits" and "stalled without a final handoff" characterizations were
+  INCORRECT as claims of no progress; quiet stdout in print mode did not
+  establish absence of progress.
+- No recorded API errors and no unmatched tool calls were found; the SDK alias
+  warning was demonstrably non-blocking. The exact signal-sending shell PID
+  was not retained and no OS-level signal audit was available to or
+  inspected by this assessment, so the SIGTERM attribution rests on the
+  journals plus Codex's own action record. The MCP
+  startup contribution to elapsed time was not quantified.
+- Remedies now in use, session-scoped only (no broad tooling or routing
+  change): a supported empty MCP configuration is applied session-scoped and
+  event streams are monitored; the wrapper forwards flags and init reports
+  zero MCP servers.
+- One bounded GLM hash-check delegation completed with an explicit final
+  `GLM_DELEGATION_OK`, exit 0, 104720 ms, two turns. Raw journals remain
+  excluded from any handoff. Further detail (data only) is local at
+  `/home/isa/aucdev023-codex-g5-g12-20261020-02/delegation-diagnosis.json`.

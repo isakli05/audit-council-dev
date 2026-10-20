@@ -1,5 +1,17 @@
 # Audit Council Dev — Engineering Backlog
 
+2026-10-20 G5 transition: the operator APPROVED the exact G5 candidate and
+supplied separate G5 publication authority
+`AUCDEV-023-G5-PUB-AUDITOR-A-R1-20261020-01` (referenced G4 authority
+`AUCDEV-023-G4-PBONLY-AUDITOR-A-R1-20261014-01`); the approved exact canonical
+G5 content is introduced by THIS publication at
+[AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-A-PACKAGE-BINDING-AUTHORITY.md](AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-A-PACKAGE-BINDING-AUTHORITY.md)
+(SHA-256 `1f8888633d11ff288f296f104efb462998973660dcbcc8042c33d648cd13e24d`,
+8052 bytes). G6 is next and NOT YET assessed; G7-G12 NOT PERFORMED; no mint
+authority; counts, priorities and every entry below unchanged. Earlier
+G5-pending statuses below are HISTORICAL, true when written. See
+[AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01](AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01.md).
+
 2026-10-20 current AUCDEV-023 campaign: **P1 / READY / NOT DONE**; bounded
 Codex-managed workflow adopted; G5 candidate prepared, separate operator
 publication authority pending; G6-G12 not performed. [AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01](AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01.md).
@@ -5134,3 +5146,13 @@ Record-only publication authority AUCDEV-023-PCH6B-G4-POSTPUB-CR-READBACK-PUB-20
 readiness preparation completed; separate G5 operator publication decision
 remains the next action. No findings closed, qualification/installation unchanged.
 See [AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01](AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01.md).
+
+2026-10-20 — G5 operator publication decision APPROVED (current Codex Control
+Room submission); exactly one record-only G5 publication introduced at the
+reserved canonical path (SHA-256
+`1f8888633d11ff288f296f104efb462998973660dcbcc8042c33d648cd13e24d`, 8052
+bytes; authority `AUCDEV-023-G5-PUB-AUDITOR-A-R1-20261020-01`; scope
+PACKAGE_BINDING_ONLY; grant-mint permission TRUE CONDITIONAL ONLY). G6 NOT
+YET PERFORMED (separate assessment next); G7-G12 NOT PERFORMED; no findings
+closed, no mint authority, qualification/installation unchanged. See
+[AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01](AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01.md).

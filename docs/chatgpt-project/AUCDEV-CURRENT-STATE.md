@@ -1,5 +1,21 @@
 # Audit Council Dev — Current State
 
+G5 transition (2026-10-20): the operator APPROVED the exact G5 candidate in
+the Codex Control Room (current submission; not a signed artifact) and
+supplied separate G5 publication authority
+`AUCDEV-023-G5-PUB-AUDITOR-A-R1-20261020-01`, referencing G4 authority
+`AUCDEV-023-G4-PBONLY-AUDITOR-A-R1-20261014-01`. The approved exact canonical
+G5 content is introduced by THIS publication at
+[AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-A-PACKAGE-BINDING-AUTHORITY.md](AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-A-PACKAGE-BINDING-AUTHORITY.md)
+(SHA-256 `1f8888633d11ff288f296f104efb462998973660dcbcc8042c33d648cd13e24d`,
+8052 bytes). Scope PACKAGE_BINDING_ONLY; grant-mint permission TRUE
+CONDITIONAL ONLY. G6 is next and NOT YET assessed; G7-G12 NOT PERFORMED; no
+mint authority. AUCDEV-023 P1 / READY / NOT DONE; installed qualification
+and installation unchanged. Earlier G5-pending statements below — including
+the campaign-update block immediately below — are HISTORICAL, true when
+written. See
+[AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01](AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01.md).
+
 Campaign update: **2026-10-20** — bounded Codex-managed G5-G12 workflow adopted;
 last verified checkpoint `8564bdc54bb50c1792a61a64c810b5b9a529b385`.
 G5 candidate ready / separate operator publication decision pending; G6-G12
@@ -1881,3 +1897,14 @@ Record-only publication authority AUCDEV-023-PCH6B-G4-POSTPUB-CR-READBACK-PUB-20
 2026-10-20 — Bounded G5-G12 campaign policy adopted from the operator mandate;
 27 readiness checks pass; exact G5 candidate awaits separate human authority.
 Record: [AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01](AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01.md).
+
+2026-10-20 — G5 operator decision APPROVED (current Codex Control Room
+submission, heading "OPERATOR DECISION — G5 IS APPROVED"); separate G5
+publication authority `AUCDEV-023-G5-PUB-AUDITOR-A-R1-20261020-01`
+referencing G4 `AUCDEV-023-G4-PBONLY-AUDITOR-A-R1-20261014-01`; approved
+canonical G5 bytes introduced by THIS publication (SHA-256
+`1f8888633d11ff288f296f104efb462998973660dcbcc8042c33d648cd13e24d`, 8052
+bytes). Exactly one record-only G5 publication, then SEPARATE G6; G6 NOT YET
+PERFORMED; G7-G12 NOT PERFORMED; no mint authority; findings, qualification
+and installation unchanged. Record:
+[AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01](AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01.md).
