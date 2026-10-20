@@ -5224,3 +5224,8 @@ Codex Control Room owns review and Git publication; post-push G10.6
 readback pending; G10 not yet complete; NO G11 verdict;
 execution/credential/Auditor-B authority NONE.
 See [AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01](AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01.md).
+
+2026-10-20 — G11 recorded: static-only favorable package/receipt readback (COMPLETE_FAVORABLE_STATIC_PACKAGE_AND_RECEIPT_READBACK; qualified_audit_verdict null — not a qualified-audit PASS); primary decision ADOPT_ACTUAL_INDEPENDENT_G11_RESULT_FOR_SEPARATE_G12_CONSIDERATION_ONLY.
+Immutable data anchor G11-CONTROL-ROOM-ASSESSMENT path=/home/isa/aucdev023-codex-g5-g12-20261020-03/g11-control-room-assessment.json sha256=44ca139965b3972d882bdc54c259e8e4f8d435d0cbe163ab94e0226270526689 size=6305
+OPEN (not created here): separate actual operator G12 execution-authority decision — consideration permitted by the recorded assessment but NO authority issued; any G12 must preserve the held obligations: launcher-byte timing unresolved, complete active v3 prelaunch admission / actual launcher review / live preflight NOT ESTABLISHED, installed-source qualification provenance NOT_ESTABLISHED (installed_source_recorded 8ae33444f349ce73c1359b963722e2d16acba630), lost pre-freeze observation with post-artifact pre-Git-pin recovery, G4 provenance limitations; reviewer limits (same model family, frozen-source helpers, not a qualified auditor) stand.
+See [AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01](AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01.md).

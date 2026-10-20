@@ -1984,3 +1984,8 @@ created bytes; tip at bind 1dd814bf4cd285f2a5e68f7a1c3d1eb46a39d858). STOPPED BE
 Codex Control Room owns review and Git publication; post-push G10.6
 readback pending; G10 not yet complete; NO G11 verdict;
 execution/credential/Auditor-B authority NONE.
+
+2026-10-20 — G11 independent Control Room static assessment RECORDED (recorder transcribes only; verdict owned by the separate reviewer): disposition COMPLETE_FAVORABLE_STATIC_PACKAGE_AND_RECEIPT_READBACK (STATIC ONLY; qualified_audit_verdict null — NOT a qualified-audit PASS); primary adopted the actual independent result for SEPARATE G12 consideration only.
+Immutable data anchor G11-CONTROL-ROOM-ASSESSMENT path=/home/isa/aucdev023-codex-g5-g12-20261020-03/g11-control-room-assessment.json sha256=44ca139965b3972d882bdc54c259e8e4f8d435d0cbe163ab94e0226270526689 size=6305
+Targets unchanged at tip 4ba8be665f076574d5d40c881e4718f14488a25a: G9 publication 1dd814bf4cd285f2a5e68f7a1c3d1eb46a39d858, package sha256 f5dbde97148cf585aa4d13da4235471c61166e2f36bc877c52b99aeaca6138e2 (593920 bytes), receipt 8a72b50bae5f59e9e8ef1e5128e167f7aa92afe564e925cdd16069e9fa4d4482 (622 bytes). Held limitations: same-model-family reviewer using authenticated frozen-source helpers (independent Control Room scope, NOT a qualified auditor); original pre-freeze observation lost with truthful post-artifact pre-Git-pin recovery; launcher-byte timing unresolved; no runtime prelaunch/qualification/install claims (installed_qualification_provenance NOT_ESTABLISHED); AUCDEV_023 P1 / READY / NOT DONE. G12 requires a NEW separate operator decision (consideration permitted; none created here).
+See [AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01](AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01.md).
