@@ -62,6 +62,19 @@ Updating repository instructions does not update ChatGPT settings automatically:
 the operator copies the compact Project Instructions text separately. Procedures
 stay in the runbook/architecture/update documents; do not create a duplicate full policy.
 
+### AUCDEV-023 Codex G5-G12 campaign evidence exception (scoped, 2026-10-20)
+
+Within the bounded AUCDEV-023 Codex G5-G12 campaign only (canonical record
+[AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01](AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01.md)):
+record updates use short evidence rows (date, authority, key identities,
+canonical path) instead of verbose reports or duplicate status-token chains;
+one live bootstrap per session with live-tip re-resolution before protected
+transitions; refresh only changed dependencies; no review-of-review chains
+unless binding; no intermediate archives; no repeat tests of frozen unchanged
+code. All other protocol rules, exact identity recording and append-only
+history remain unchanged; the exception grants no stage authority and the
+autonomous lifecycle remains deferred.
+
 ## Instructions deployment check
 
 The operator observed an **8,000-character UI maximum** and a rejected paste.

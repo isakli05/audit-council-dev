@@ -1,0 +1,133 @@
+# AUCDEV-023 Codex G5-G12 Campaign Record — 2026-10-20
+
+CAMPAIGN_PREPARATION / BOUNDED_WORKFLOW_ADOPTED / NO_G5_G7_G12_DECISION /
+G5_PREPARATION_BLOCKED_SEPARATE_OPERATOR_AUTHORITY /
+G6_G7_G8_G9_G10_G11_G12_NOT_PERFORMED / NOT_AN_INDEPENDENT_AUDIT_VERDICT /
+NOT_RELEASE_QUALIFICATION / NOT_INSTALLATION_ACCEPTANCE / GRANTS_NOTHING.
+
+## 1. Authority and scope of this record
+
+- Authority: the operator's 2026-10-20 tasking (Europe/Istanbul) mandating a
+  bounded Codex-managed G5-G12 campaign workflow. It authorizes WORKFLOW
+  practices, bounded local development/preparation and continued progression
+  when predecessor gates pass. It supplies no G5 publication decision, G7
+  mint decision or G12 execution decision. Those separate human decisions,
+  plus any additional explicitly contract-protected separate decision,
+  remain mandatory; routine handoffs need no renewed operator approval.
+- Campaign owner: the Codex Control Room (integration, source verification,
+  decisions, publication). Implementing sessions are bounded to documentation
+  and preparation in this first task; later assignments must retain explicit
+  ownership, narrow exit checks and independent Control Room acceptance.
+- Exception scope: THIS CAMPAIGN ONLY. The fully autonomous product lifecycle
+  remains DEFERRED; every standing runbook/update-protocol rule continues to
+  apply outside this campaign. No product redesign and no standards weakening
+  is authorized or performed.
+- Baseline of this record: exact live GitHub master == local HEAD
+  `8564bdc54bb50c1792a61a64c810b5b9a529b385` (root tree
+  `f919bec0ea115e30d03d7796912b28497d7d2261`, sole parent
+  `14678a6a0103428c194774510c5346335c595e29`), one live bootstrap fetch rc 0.
+
+## 2. Workflow exceptions (this campaign only)
+
+1. One live bootstrap per session; re-resolve the live tip before protected
+   transitions instead of repeated fetch cycles.
+2. Refresh only changed dependencies and the live tip before protected
+   transitions; do not re-verify unchanged frozen evidence.
+3. Short evidence rows in CURRENT-STATE/BACKLOG (date, authority, key
+   identities, canonical path) instead of verbose reports and duplicate
+   status-token chains; the canonical record carries the detail.
+4. No review-of-review chains unless a binding readback requires one.
+5. No intermediate handoff archives; the operator requires one minimal
+   sanitized final archive as the last artifact-generation operation at
+   campaign completion or a terminal blocker.
+6. No repeat test runs of frozen, unchanged code for documentation-only work.
+7. Direct GLM implementation with independent Codex G6/G11 Control Room
+   assessments — NOT independent release qualification and NOT a substitute
+   for any operator qualification decision.
+8. Preserved unchanged: exact forward G5-G12 identities (no skipping, no
+   float-to-HEAD), one-shot lineage rules, stale/superseded refusal (R1-R8),
+   and separate human operator decisions for G5 publication, G7 mint and G12.
+
+## 3. Campaign state (2026-10-20)
+
+- G5: PREPARATION / BLOCKED_SEPARATE_OPERATOR_AUTHORITY. Candidate prepared
+  externally at
+  `/home/isa/aucdev023-codex-g5-g12-20261020-01/G5-PUBLICATION-CANDIDATE.md`
+  (PROPOSAL ONLY — no authority until separately approved; reserved canonical
+  path `docs/chatgpt-project/AUCDEV-023-PCH6-B-PATH-B-REPLACEMENT-AUDITOR-A-PACKAGE-BINDING-AUTHORITY.md`
+  verified ABSENT tracked/history/disk and NOT created).
+- G6-G12: NOT_PERFORMED.
+- AUCDEV-023 remains P1 / READY / NOT DONE; installed qualification
+  provenance NOT ESTABLISHED; qualification NONE; installation NONE.
+
+## 4. Minimum stage requirements (compact)
+
+- G5: operator approval of the exact candidate bytes (digest pinned below)
+  + separate G5 publication authority
+  (proposed id `AUCDEV-023-G5-PUB-AUDITOR-A-R1-20261020-01`, PROPOSAL ONLY)
+  + introduction ONLY at the reserved canonical path. The published record's
+  `operator_authority_id` must equal the actual G4 authority
+  `AUCDEV-023-G4-PBONLY-AUDITOR-A-R1-20261014-01` (mint-time check V11).
+- G6: independent Codex Control Room substantive readback of the published
+  G5 record; favorable disposition required before G7 consideration;
+  its exact canonical 15-field record and substantive assessment must be
+  published separately from the G5 identity it reviews.
+- G7: all mint-time fail-closed checks (V1-V35) + separate operator
+  authorization; nothing mints at G5 or G6.
+- G8: construct the authorized package only after verified G7 completion.
+- G9: freeze package bytes and pin their actual immutable identity.
+- G10: contract-defined non-runtime O_EXCL receipt bind and exact canonical
+  receipt-identity publication, with original bytes fixed before filesystem
+  readback and no accounting/runtime state.
+- G11: separate Codex assessment of frozen G9/G10 plus genuine original
+  GRANT_ISSUED evidence bytes and independent canonical Git re-derivation.
+  Disclose shared-session/non-blind Control Room review limits; this is no
+  independently qualified auditor verdict.
+- G12: separate human execution decision.
+
+## 5. Open findings and provenance limits carried (not closed)
+
+PKGIDENT-001/002 OPEN; RECEIPTIMMUT-001 readback-supported / NOT operatively
+closed; RECEIPTCTX-001 PARTIALLY REMEDIATED; TRUSTROOT-001 NOT OPERATIVELY
+CLOSED; CR-P3-G5-001 OPEN / CONTRACT-DEPENDENT; B2 deferred / no schema
+adopted; shared-selector parse-as-filter boundary; G7 byte-serialization rule
+residual; G11 GRANT_ISSUED evidence verification outstanding; extension LOC
+ceilings 3577/900/4477 (900/900 extension, zero headroom). G4 provenance limitations preserved: the
+complete primary operator submission was NOT independently examined; the
+disclosed stale-marker contradiction remains preserved and unresolved; the
+external authority-ID uniqueness claim is only PARTIALLY reproduced; Git
+readback cannot prove zero external runtime activity; NO unconditional
+full-provenance PASS; NO G5 authority exists.
+
+## 6. Single next action (grants nothing)
+
+OPERATOR DECISION whether to approve the exact G5 publication candidate bytes
+and authorize the separate G5 package-binding-authority record-only
+publication under the one-shot G5 lineage, with its own exact scope,
+provenance and authority-id requirements. Until that separate explicit
+approval, G5 remains NOT AUTHORIZED / NOT PUBLISHED and the reserved canonical
+path remains absent. Recording NEXT grants nothing; no stage authority,
+finding closure, schema adoption, attempt authority, grant-mint authority or
+execution authority follows automatically from this record.
+
+## 7. Preparation evidence (Codex Control Room; no G6 verdict)
+
+- Target: baseline `8564bdc54bb50c1792a61a64c810b5b9a529b385`.
+- 27 data-only readiness checks passed: G2/G3/G4 ancestry and record bytes,
+  five protected trees/worktree equality, G2 source/current equality, four
+  reserved paths absent with no introduction, accepted G5 contract digest,
+  and G3 exact target/disposition/permission presence. Full G2/G3 tuples and
+  G0/closure/G4 identities are in the candidate and external readiness.json.
+- G5 candidate SHA-256: `1f8888633d11ff288f296f104efb462998973660dcbcc8042c33d648cd13e24d`;
+  8052 bytes. Separate G5 publication authority: NOT SUPPLIED.
+- GLM invoked directly through `cc-zai --dangerously-skip-permissions`. First
+  invocation stalled with unrelated MCP startup and no edits; stopped rc 143.
+  Retry disabled unrelated MCP servers for that invocation, produced this
+  record's initial draft and runbook/protocol additions, then stalled without
+  a final handoff; stopped rc 143. No model/version verification was run.
+  Codex completed documentation integration and candidate preparation. No
+  implementer success verdict or independent audit is claimed. Raw CLI output
+  retained locally and excluded from the sanitized final handoff.
+- Source/test/schema changes: none. Frozen source was inspected with relevant
+  tests, but suites were not repeated for this documentation transition.
+  Qualification, installation and historical failures remain unchanged.

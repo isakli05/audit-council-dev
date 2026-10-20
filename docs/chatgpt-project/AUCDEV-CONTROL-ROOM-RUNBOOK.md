@@ -26,6 +26,23 @@ is not live state; insufficient identity/evidence blocks dependent execution.
 Memory and uploaded Sources may orient but cannot establish current facts.
 The baseline ZIP is historical, not an alternative current-state authority.
 
+### AUCDEV-023 Codex G5-G12 campaign exception (scoped, 2026-10-20)
+
+For the bounded AUCDEV-023 Codex G5-G12 campaign ONLY (canonical record
+[AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01](AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01.md)),
+the operator has authorized these workflow practices: one live bootstrap per
+session with re-resolution of the live tip before protected transitions;
+refreshing only changed dependencies; short evidence rows instead of verbose
+reports or duplicate status-token chains; no review-of-review chains unless a
+binding readback requires one; no intermediate archives; no repeat tests of
+frozen unchanged code; direct GLM implementation with independent Codex
+G6/G11 Control Room assessments (not independent release qualification).
+Exact forward G5-G12 identities, one-shot lineage rules, stale/superseded
+refusal (R1-R8) and separate human G5/G7/G12 decisions remain mandatory. The
+exception is scoped to this campaign only; the autonomous product lifecycle
+remains deferred and no product redesign or standards weakening is
+authorized.
+
 ## Start a cycle
 
 After bootstrap, use the live [CURRENT-STATE](AUCDEV-CURRENT-STATE.md) and
