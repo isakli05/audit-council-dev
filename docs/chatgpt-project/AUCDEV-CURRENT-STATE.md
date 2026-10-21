@@ -1,5 +1,33 @@
 # Audit Council Dev — Current State
 
+2026-10-21 credential authority decision transition: the operator's ACTUAL
+reply on the exact credential request
+(`docs/chatgpt-project/AUCDEV-023-AUDITOR-A-R1-CREDENTIAL-AUTHORITY-REQUEST-20261021-01.json`,
+SHA-256 `014eda5dad2a89bc3a11ad420cbfeee6ff53ec4fc01931a8962bbce54c4a0b68`,
+8882 B, blob `9e8831680e0789d576ef94842b6fdfc2f5eb63dc`, published at
+`957379ccb4da8742e93fc793270dd2709990abb9`) returned
+`APPROVE_CONDITIONAL_ONE_SHOT_CREDENTIAL_DELIVERY` with credential authority
+ID `AUCDEV-023-CRED-DELIVERY-AUDITOR-A-R1-20261021-01` (event
+`AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01`, role AUDITOR_A, slot
+AUDITOR_A_REPLACEMENT_1, attempt
+`AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01-AUDITOR-A-R1`). Recorded
+disposition CONDITIONAL_OPERATOR_APPROVAL_RECORDED_NOT_ACTIVATED: approval
+RECORDED ONLY — NOT live admission, NOT permission to execute; actual
+delivery NOT_OCCURRED; initiation window NOT_STARTED (starts only at a future
+freshly bound live R1 PREARM session), one-shot budget NOT_CONSUMED; class-C
+then-live checks NOT_PERFORMED; no VM/QGA/auditor execution authorized. The
+request file is unchanged (its PENDING_OPERATOR/null-decision fields remain
+historical); G12 `b2872137d5597ec95136ce1a6ffca3fdc9cd342d` / G11
+`d3546f1c664604f3a284ab56aa80bca00650c990` verdicts,
+grant/package/receipt identities and the LOST pre-freeze-observation
+limitation all unchanged; installed qualification NOT_ESTABLISHED. Sole
+remaining blocker: separately valid authority for the then-live
+VM/QGA/preflight/PREARM operations and actual fresh live checks (this
+approval and the G12 decision need no repetition). Record:
+[AUCDEV-023-AUDITOR-A-R1-CREDENTIAL-AUTHORITY-DECISION-20261021-01.md](AUCDEV-023-AUDITOR-A-R1-CREDENTIAL-AUTHORITY-DECISION-20261021-01.md).
+AUCDEV-023 P1 / READY / NOT DONE. The 2026-10-21 preparation block below and
+all earlier blocks are HISTORICAL, true when written.
+
 2026-10-21 prelaunch final preparation transition: at checkpoint
 `b2872137d5597ec95136ce1a6ffca3fdc9cd342d` (the published operator-approved
 conditional G12 decision; G5–G12 sequence complete per the campaign record)

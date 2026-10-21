@@ -1,5 +1,18 @@
 # Audit Council Dev — Engineering Backlog
 
+2026-10-21 AUCDEV-023 credential decision (no backlog transition): the
+operator's ACTUAL reply approved the exact credential request (SHA-256
+`014eda5dad2a89bc3a11ad420cbfeee6ff53ec4fc01931a8962bbce54c4a0b68`, 8882 B)
+as `APPROVE_CONDITIONAL_ONE_SHOT_CREDENTIAL_DELIVERY`, authority ID
+`AUCDEV-023-CRED-DELIVERY-AUDITOR-A-R1-20261021-01` — recorded ONLY, NOT
+activated (disposition CONDITIONAL_OPERATOR_APPROVAL_RECORDED_NOT_ACTIVATED);
+actual delivery NOT_OCCURRED; one-shot budget NOT_CONSUMED; initiation window
+NOT_STARTED; no VM/QGA/auditor execution authorized by it; request file
+unchanged. AUCDEV-023 remains P1 / READY; counts, priorities and every entry
+below unchanged. Record:
+[AUCDEV-023-AUDITOR-A-R1-CREDENTIAL-AUTHORITY-DECISION-20261021-01.md](AUCDEV-023-AUDITOR-A-R1-CREDENTIAL-AUTHORITY-DECISION-20261021-01.md).
+Historical entries below preserved.
+
 2026-10-21 AUCDEV-023 prelaunch final preparation (no backlog transition):
 the final Control Room assessment at `b2872137d5597ec95136ce1a6ffca3fdc9cd342d`
 returned technical preparation complete with live admission and credential
