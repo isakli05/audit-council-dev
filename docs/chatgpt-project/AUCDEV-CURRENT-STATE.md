@@ -1,5 +1,29 @@
 # Audit Council Dev — Current State
 
+2026-10-21 prelaunch final preparation transition: at checkpoint
+`b2872137d5597ec95136ce1a6ffca3fdc9cd342d` (the published operator-approved
+conditional G12 decision; G5–G12 sequence complete per the campaign record)
+the final Codex Control Room assessment of workspace
+`/home/isa/aucdev023-prelaunch-remediation-20261021-01` (SHA-256
+`fe601b15c0718f8c9ce7885da61e1f4d43c1eabfb7f0e4287b406879f8b1aa80`, 11600 B)
+returned `TECHNICAL_PREPARATION_COMPLETE_LIVE_ADMISSION_AND_CREDENTIAL_AUTHORITY_PENDING`:
+blockers 1/2 CLOSED at preparation/synthetic strength, 3
+READY_FOR_THEN_LIVE_CHECK (class-C then-live checks NOT performed), 4
+PENDING_OPERATOR. Actual execution NOT_OCCURRED; grant/package/receipt/G12
+bytes and five protected trees verified unchanged; installed source
+`8ae33444f349ce73c1359b963722e2d16acba630` / qualification NOT_ESTABLISHED
+unchanged. ONE canonical credential decision REQUEST prepared (proposed ID
+`AUCDEV-023-CRED-DELIVERY-AUDITOR-A-R1-20261021-01`;
+docs/chatgpt-project/AUCDEV-023-AUDITOR-A-R1-CREDENTIAL-AUTHORITY-REQUEST-20261021-01.json,
+SHA-256 `014eda5dad2a89bc3a11ad420cbfeee6ff53ec4fc01931a8962bbce54c4a0b68`,
+8882 B) — status PENDING_OPERATOR, NO authority issued; the operator reply
+is the sole remaining decision. Record:
+[AUCDEV-023-PRELAUNCH-REMEDIATION-20261021-01.md](AUCDEV-023-PRELAUNCH-REMEDIATION-20261021-01.md).
+AUCDEV-023 P1 / READY / NOT DONE. Earlier transition blocks below —
+including the G6 block immediately below — are HISTORICAL, true when
+written. See
+[AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01](AUCDEV-023-CODEX-G5-G12-CAMPAIGN-20261020-01.md).
+
 G6 transition (2026-10-20): the ACTUAL independent Codex Control Room G6
 readback of the published G5 record is COMPLETE at its narrow scope —
 disposition PERMIT_GRANT_MINT_CONSIDERATION /
