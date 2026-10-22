@@ -1,0 +1,32 @@
+# AUCDEV-023 R1 collector birth-capture guard — 2026-10-23
+
+**Control Room disposition: NOT_TECHNICALLY_ACCEPTABLE_INERT_ONLY; blocking finding CGR-001.** This is a technical implementation review, not the independent release audit. No remediation was implemented. GitHub master refreshed as `20dd47bb9793d473532575f17c267c21339804ef`; CURRENT-STATE/BACKLOG Git blob OIDs matched the connector and exact local object bytes. No Graphify graph exists.
+
+Candidate root: `/home/isa/aucdev023-r1-gpt-collector-guard-20261023-01/`. Master HEAD is a documentation checkpoint, not candidate source identity.
+
+| Exact source / artifact | SHA-256 |
+| --- | --- |
+| Candidate `implementation/gpt_metadata_collector.py` | `ed78d98f97b9f6b979f04a842d974bb1f646d1c26cc4b64a6bed1e581e7a6269` |
+| Candidate `tests/run_collector_checks.py` | `82d27ec8d214933d06ad9d11ab680fb5eb958e0df244d6e522fa7d5a9ba5aec2` |
+| Baseline collector, `/home/isa/aucdev023-r1-gpt-collector-20261022-01/implementation/gpt_metadata_collector.py` | `ca3bdcc5de98c816512b23d8f1057f521b5afb19bd01cb5b32ad0012d94dfc2c` |
+| Baseline tests, same baseline root, `tests/run_collector_checks.py` | `37204fac8aa46871b212319edecfc016093aa57a80f45aad97e938f06fff1e1a` |
+| Unchanged executor, `/home/isa/aucdev023-r1-executor-remediation-20261021-01/implementation/offline_inspection_executor.py` | `98bdac4ef805498b31a7374deaa4fe121c3642f4f48e6f2bc66dd7d82439244c` |
+| Input `AUCDEV-023-R1-GPT-COLLECTOR-GUARD-HANDOFF-20261023-01.tar.gz`, candidate root | `32c3fd830cc532c190820e4081778a599e6dc412b641cc957e9f22f9303a1a6a` |
+
+All 18 manifest payloads and the manifest itself were hashed. Supplied patches reconstructed complete new bytes from the pinned baselines (+62/-3 collector, +522/-6 tests). Collector changes are confined to `start_map`, `capture_child`, `finish_child` and new `_admit_map_child`; constants/deny-lists/budgets and all 58 original group bodies are unchanged. Design archive/manifest and eight referenced Git evidence bindings also matched.
+
+The predicate rejects empty captured argv, non-exact executable and any byte/count/order difference from the proven Popen launch args before storing/returning a capability. It retains the registered child and rejection residual; cleanup retains an alive no-cap residual/artifacts and suppresses post-hash. Source plus a fake-spawn production-call-chain probe show refusal propagates before fd inspection, returned map handle or NBD work. Original birth-first pre-signal checks, exe-before-argv refusal, byte-strict original argv, final birth recheck and bounded stop wait remain unchanged. Scoped birth/exe/argv refusal probes sent no signal.
+
+- **CGR-001 — harness/protocol defect, BLOCKING:** `capture_child` line 1148 calls `capture_birth` before `_tick` at 1184. The unchanged library can wait during acquisition; its deadline globals are not tied to the collector wall. With wall already expired, reviewer fake-clock probes performed **51 simulated sleeps / 1.02 seconds** before deadline refusal, or unstable-capture failure. No capability was retained. This does not satisfy immediate expired-wall refusal; existing library waits were not newly introduced. No Audit Council core product defect is established.
+- **CGR-002 — completeness limitation:** supplied A6 uses instant stable samples and misses that delay. A1–A4 call capture directly; B1–B3 check local equality/serialization helpers. Reviewer fake-boundary probes supplement exact-byte/order and production refusal propagation, without live evidence.
+- **CGR-003 — harness/protocol preservation defect, corrected final artifact; historical completeness limitation:** implementer admits an unsuccessful copy and overwriting a mislabeled interim RED artifact. Final records are consistent/reproducible, but missing swap/copy/hash commands and overwritten bytes prevent independent recovery of that chronology. No fabrication conclusion.
+- **CGR-004 — informational:** supplied lifetime test uses real monotonic time and scripted outcomes, despite “fake-clock” wording; identical GREEN counts do not mean byte-identical records. Historical io_uring ENOMEM is an **external condition**, not a demonstrated empty-argv cause; exec/proc race remains hypothetical.
+- **CGR-005 — accepted residual only within this review:** rejection can leave a live unverified child. Bounded termination and operational safety remain unproved, not accepted for use.
+
+Supplied guard-only command is `AUCDEV_GUARD_GROUPS_ONLY=1 python3 tests/run_collector_checks.py`. RED has 6 missing-keyword TypeErrors/4 passes; it is API fail-first evidence, not six behavioral regression proofs. Supplied GREEN has 10 passes/0 failures/0 blocked and null actual transport results. Reviewer replay reproduced both counts using exact source bytes and only in-memory fixture/output relocation; six additional inert probes support this disposition. Two reviewer probe setup errors were corrected only in reviewer instrumentation; failed scripts/stderr are retained. No candidate retry/remediation loop occurred.
+
+Before/after checks preserve original source/library, run007 evidence `7928b035b15fba9c63fde95179032f1cf4957e729307933c9ce5a150d8945786`, original producer `202500ea0cbb9a4ebf3b50c4e5c20a08384adab7cf7b12f72173cb75fcc01bf0`, historical Git bindings and every supplied member. This proves current binding/no review-time mutation, not absence of all implementer-time writes.
+
+**Untested:** original g01–g58 on this candidate, actual/live QEMU transport (including g44/g45), Root execution/admission, actual process/resource cleanup and real disk access. No protected invocation, signal, real QEMU/NBD/VM/QGA/PREARM, credential/auditor operation, full suite/new gate, qualification or installation occurred. Original TEARDOWN_INCOMPLETE_STOP, empty birth-argv FAILED evidence, missing post-hash, 1890.639 s >900 s lifetime violation, consumed cleanup allowance, incidents/LOST, frozen G5–G12 and credential holds remain unchanged. AUCDEV-023 stays **P1 / READY / NOT_DONE**.
+
+Full review, commands, probes, inventories and final publication identity: `/home/isa/aucdev023-r1-collector-guard-review-20261023-01/`. Only this record and minimal state/backlog entries are published; candidate code stays outside master. **Next recommended action:** separately authorize a bounded source-only CGR-001 correction and a no-capture/no-sleep expired-wall regression, then review the new exact pins. This record grants no remediation/execution authority and does not reopen cleanup.
