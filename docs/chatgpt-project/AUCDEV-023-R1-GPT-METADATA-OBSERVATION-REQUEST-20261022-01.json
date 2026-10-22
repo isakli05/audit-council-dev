@@ -1,0 +1,92 @@
+{
+  "record": "AUCDEV-023-R1-GPT-METADATA-OBSERVATION-20261022-01",
+  "template_status": "PREPARED_SCOPE_REQUEST_NOT_EXECUTION_READY",
+  "event": "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01",
+  "attempt": "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01-AUDITOR-A-R1",
+  "authority_scope": "PROPOSED NEW authority only; the 2026-10-22 offline-inspection authority is USED and is never refreshed or reused",
+  "target": {
+    "disk_path": "/var/lib/libvirt/images/aucdev-gatew/aucdev-frevp-cxfollowup-20261003-01-work.qcow2",
+    "disk_size": 1747124224,
+    "disk_sha256": "d1de371a0d07ef97fd1d55c794c9a05a4972b9119f3f55fda86e119dbbda321e",
+    "declared_virtual_size": 42949672960
+  },
+  "domain": {
+    "name": "aucdev-frevp-730d2b29-20261002-02",
+    "uuid": "d8d26fc1-15dc-4602-989c-ea40ec50010e",
+    "required_state": "UNDEFINED"
+  },
+  "preexisting_unactivated": [
+    "AUCDEV-023-G12-EXEC-AUDITOR-A-R1-20261020-01",
+    "AUCDEV-023-CRED-DELIVERY-AUDITOR-A-R1-20261021-01"
+  ],
+  "requested_observation": "ONE read-only primary-GPT metadata observation: fresh prechecks BEFORE any disk content; full identity hash immediately after metadata; ONE read-only qcow2 NBD map; bounded MBR/header/table reads; sanitized type-GUID/partition-number/LBA/length/CRC/bounds/classification only; owned exact-PID cleanup plus post-identity verification",
+  "explicit_exclusions": [
+    "partition slice",
+    "FUSE",
+    "filesystem content",
+    "VM",
+    "QGA",
+    "PREARM",
+    "credential access",
+    "auditor activation",
+    "raw GPT binary retention",
+    "partition names",
+    "unique GUID retention",
+    "whole-image/partition copy",
+    "force-share/lock override",
+    "retry",
+    "process-name cleanup"
+  ],
+  "proposed_caps": {
+    "wall_minutes": 15,
+    "work_dir_mib": 64,
+    "nbd_metadata_reads_max": 3,
+    "aggregate_read_bytes_max": 66560,
+    "temporary_buffer_bytes_max": 1048576
+  },
+  "hash_read_note": "streaming full-source hashes are explicitly separate identity reads; no secret file access",
+  "readiness": {
+    "collector_source": null,
+    "current_inert_consumer_sources": {
+      "/home/isa/aucdev023-r1-gpt-diagnostic-20261022-01/implementation/gpt_diagnostic.py": {
+        "sha256": "78d3fde645f532e5f1d257b547fe89d4e48be5062883d0fd5740476c1eae96f3",
+        "bytes": 20534
+      },
+      "/home/isa/aucdev023-r1-gpt-diagnostic-20261022-01/tests/run_inert_checks.py": {
+        "sha256": "7b4f2fef2d2cb713645e095dc5d38317b588fda192ce2678c92f858b9bfe7317",
+        "bytes": 34675
+      }
+    },
+    "blocker": "missing reviewed source-bound metadata-only collection entry; NO authority is granted by this template",
+    "binding_requirement": "the actual future collector must be concretely source-bound and independently reviewed, and the FINAL exact producer binding must be adopted by the applicable operator authorization BEFORE any real access"
+  },
+  "authority_granted": false,
+  "inherits_old_executor_verdict": false,
+  "note": "scope draft preserving known fields for a minimum future decision; historical incidents/LOST stand; no execution claimed",
+  "proposed_authority_id": "AUCDEV-023-R1-GPT-METADATA-OBSERVATION-20261022-01",
+  "control_room_inert_review": {
+    "verdict": "ACCEPTED_INERT",
+    "validation_sha256": "fbc5382f618daf6cbcde7bf35bced3e3807e2f0479c67d89e9f49df70929eba4",
+    "test_groups_passed": 26,
+    "does_not_review_or_authorize_collector": true
+  },
+  "original_offline_authority": "AUCDEV-023-R1-C12-SAFESTART-OFFLINE-INSPECTION-20261021-01",
+  "used_stop_lift_disposition": "AUCDEV-023-R1-OFFLINE-INSPECTION-STOP-LIFT-20261022-01",
+  "decision_readiness": "NOT_READY_FOR_OPERATOR_APPROVAL: exact collector source/test binding and fresh independent review must be completed first; no authority is sought prematurely",
+  "accepted_xml_prerequisite": {
+    "path": "/home/isa/aucdev023-pch6b-credential-channel-20261004-01/vm/credchannel-domain.xml",
+    "sha256": "065096925d43240b1c69b2f0c0ae976f7bd6202a30c11228c936e89ce40d30b3",
+    "bytes": 4417,
+    "verify_then_live_before_any_original_disk_content_read": true
+  },
+  "mandatory_conditions_before_any_target_content": [
+    "FINAL exact request + actual operator decision + reviewed producer/consumer source-test-control byte bindings; faithful root-owned readonly cache; no self-issued permission",
+    "Verified accepted XML; fixed source-bound fresh work root with safe ownership/permissions and no conflicting resources; old spent markers preserved",
+    "Healthy readonly domain-name AND UUID queries establish exact domain UNDEFINED; no lifecycle mutation",
+    "Component-safe no-symlink source metadata, regular UID0/nlink1/exact1747124224-byte size, before any content read",
+    "Only then: full pinned SHA-256 is FIRST original-disk content read; no partial-digest verification; no stale/replaced source acceptance",
+    "Source-bound readonly map and finite numeric metadata read plan only; zero filesystem/content traversal; unexpected layout/bound/integrity failure STOP",
+    "Every signal requires freshly matched executable/fullargv/ownedpath/boot/starttime; incomplete teardown or identity drift STOP"
+  ],
+  "preparation_limits": "Scope draft only. No collector or executable command is supplied or implicitly authorized; final exact producer binding must be reviewed and adopted before a real-access decision is sought. No old approval/budget refresh."
+}
