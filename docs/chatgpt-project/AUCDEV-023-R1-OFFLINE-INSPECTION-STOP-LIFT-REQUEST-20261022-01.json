@@ -1,0 +1,107 @@
+{
+  "record": "AUCDEV023-R1-OFFLINE-INSPECTION-STOP-LIFT-REQUEST",
+  "date": "2026-10-22",
+  "status": "PENDING_OPERATOR_DECISION — PROPOSED — NOT_AUTHORITY — NOT_ISSUED — NOT_EXECUTED — grants nothing; STOP_WITHOUT_REAL_NBD_FUSE_INSPECTION remains in force until the operator decides",
+  "requester": "GLM-5.3 implementer under Codex Control Room tasking; ONLY the operator can decide; this request chooses/issues no authority and is NOT separately signed",
+  "what_is_requested": "a fresh explicit operator decision to lift STOP for exactly ONE bounded read-only offline inspection of the exact original disk under the amended exact executor (changed executor bytes and ROOT-SAME-PROCESS entry adopted explicitly), consuming the same original ONE offline operation and budgets — or to MAINTAIN_STOP; nothing else",
+  "proposed_stop_lift_disposition_id": "AUCDEV-023-R1-OFFLINE-INSPECTION-STOP-LIFT-20261022-01",
+  "id_uniqueness_bounded": "0 hits in tracked docs and full git --all -S history at checkpoint 7b65fcc8c7ba26d38f60e93098b639248b520e86 (Root bounded check); no claim about records outside the searched scope",
+  "proposed_authority_id": "AUCDEV-023-R1-C12-SAFESTART-OFFLINE-INSPECTION-20261021-01",
+  "proposed_authority_id_semantics": "COMPATIBILITY FIELD required by the accepted gate (implementation/operator_disposition_gate.py): this value retains the EXISTING original offline-inspection authority for runtime-gate lineage matching and requests NO reissue and NO retroactive change of that old historical approval. What is NEW here is the decision being requested: a separate protected STOP-lift/amended-method operator decision for the CURRENT exact bytes, bound to the proposed_stop_lift_disposition_id AUCDEV-023-R1-OFFLINE-INSPECTION-STOP-LIFT-20261022-01 above.",
+  "original_request_sha256": "90fb50fcac1598df67fd2d044f0e9a03dce32fc672211469020f5c43184800e5",
+  "exact_target": {
+    "event": "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01",
+    "attempt": "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01-AUDITOR-A-R1",
+    "exact_disk": {
+      "path": "/var/lib/libvirt/images/aucdev-gatew/aucdev-frevp-cxfollowup-20261003-01-work.qcow2",
+      "sha256": "d1de371a0d07ef97fd1d55c794c9a05a4972b9119f3f55fda86e119dbbda321e",
+      "size_bytes": 1747124224
+    },
+    "vm_domain": {
+      "name": "aucdev-frevp-730d2b29-20261002-02",
+      "uuid": "d8d26fc1-15dc-4602-989c-ea40ec50010e"
+    },
+    "accepted_xml": {
+      "path": "/home/isa/aucdev023-pch6b-credential-channel-20261004-01/vm/credchannel-domain.xml",
+      "sha256": "065096925d43240b1c69b2f0c0ae976f7bd6202a30c11228c936e89ce40d30b3",
+      "size": 4417
+    }
+  },
+  "fixed_absolute_work_root": {
+    "path": "/home/isa/aucdev023-r1-c12-safestart-remediation-20261021-01/safe-start/work"
+  },
+  "reviewed_sources": {
+    "implementation/command_guard.py": "347102e9aa25230945127a9058163cfcf853d45158536d2ed32f39c6801ba789",
+    "implementation/offline_inspection_executor.py": "98bdac4ef805498b31a7374deaa4fe121c3642f4f48e6f2bc66dd7d82439244c",
+    "implementation/operator_disposition_gate.py": "7ced272a639dc40383ae54ce8ac1c30710f137af224dd5bfe07740827d53c553",
+    "implementation/real_inspection_entry.py": "d26a526349e1e529d607f39c5eb04c226e0fc5514fc6b2d422616573d9adda02",
+    "tests/cleanup_005_checks.py": "45e4f9f52edb24564613f01375aa770bb643a65f5c306388ee3a03792ad44191",
+    "tests/cleanup_owned_005.py": "c5d5375f03694648f1ba6bede1ad6fe8bd178322b3094d7e040ccadd5c07e3d6",
+    "tests/focused_checks.py": "0b255ed10aebd3a075d737d7973bfe7b5cbe7c482b3f1bc7d42ffce976044144",
+    "tests/guard_checks.py": "93adfc0f7cf150653bd4a92e6adb8be4390c0da7be1dc13e5d903819b9eced8d",
+    "tests/operator_disposition_checks.py": "7267ae3d3d976cbcdc7e052a2968cfc4f309c8eaba5a0060a0fad50e16341bcf",
+    "tests/real_entry_checks.py": "8a4b61c2badd5c5cdd47cad9e570011a6350c5d8043592a8f60ea98cf01b49a3",
+    "tests/run_inert_validation.py": "2a23a7e2ef235458573993f72282a2acca5ccfa99177cbdf15e6d46d20464774"
+  },
+  "reviewed_sources_note": "EXACT 11 relative keys + SHA-256 from the Root final technical assessment (independent before/after pin equality); a lift decision must adopt exactly these hashes and the changed ROOT-SAME-PROCESS entry; the executor recomputes them before any target IO and refuses on any change",
+  "requested_decision": "LIFT_STOP_FOR_ONE_READ_ONLY_OFFLINE_INSPECTION or MAINTAIN_STOP",
+  "operator_reply_must_confirm": [
+    "the new stop-lift disposition ID AUCDEV-023-R1-OFFLINE-INSPECTION-STOP-LIFT-20261022-01 (or the operator's actual distinct ID)",
+    "the EXACT SHA-256 of THIS actual new request bytes, supplied externally by Root/Codex at publication (this file intentionally contains NO self-hash and no future commit reference)",
+    "explicit acknowledgment that the corrected ROOT-SAME-PROCESS entry changed executor bytes/method since the original approval (adoption of the exact 11 reviewed_sources hashes + root entry), and that the historical incidents remain stopped and preserved"
+  ],
+  "existing_authority_context_only": {
+    "offline_inspection_authority": "AUCDEV-023-R1-C12-SAFESTART-OFFLINE-INSPECTION-20261021-01 — historically valid, NOT reissued here; no automatic continuation",
+    "g12": "AUCDEV-023-G12-EXEC-AUDITOR-A-R1-20261020-01 (approved request sha256 086b4ea0ae7138fd6df0160593c136a1f2aeb7f9024445125c1be2e1af96b32f, 4759 B) — unchanged, not reopened; NO G12 reapproval requested",
+    "credential": "AUCDEV-023-CRED-DELIVERY-AUDITOR-A-R1-20261021-01 (request sha256 014eda5dad2a89bc3a11ad420cbfeee6ff53ec4fc01931a8962bbce54c4a0b68, 8882 B) — RECORDED_NOT_ACTIVATED, window NOT_STARTED, budget NOT_CONSUMED; no credential repetition",
+    "vm_preflight": "AUCDEV-023-R1-VMQGA-LIVE-PREFLIGHT-20261021-01 — read-only live checks; does NOT cover disk content reads",
+    "g11_and_records_frozen_pins": {
+      "g11_publication": "d3546f1c664604f3a284ab56aa80bca00650c990 — FAVORABLE_STATIC_ONLY",
+      "g12_publication": "b2872137d5597ec95136ce1a6ffca3fdc9cd342d",
+      "grant_sha": "b4c8fb7c41af4fedf51108ac75056c6dd12cdcd5649e3d36e9dd7e758191cbde",
+      "package_sha256": "f5dbde97148cf585aa4d13da4235471c61166e2f36bc877c52b99aeaca6138e2",
+      "receipt_sha256": "8a72b50bae5f59e9e8ef1e5128e167f7aa92afe564e925cdd16069e9fa4d4482",
+      "protected_attempt": "already exact — pinned in exact_target.attempt above",
+      "note": "frozen historical context pins ONLY; no fresh verification or qualification claim; NO payloads and NO authority issued"
+    }
+  },
+  "amended_exact_executor": {
+    "future_command_NOT_RUN_NOW": "sudo -n /usr/bin/python3 /home/isa/aucdev023-r1-executor-remediation-20261021-01/implementation/real_inspection_entry.py",
+    "amendment_record": "Root same-process mechanic amendment, made EXPLICIT: the corrected ROOT-SAME-PROCESS entry invokes the amended exact executor as one root entry; executor bytes and method CHANGED since the original approval. This is NOT the old exact per-command form and NOT a silent Scope change — the original method, paths, allowlist and budgets are reused exactly as pinned below."
+  },
+  "execution_semantics_after_actual_fresh_decision": {
+    "invocations": "ONLY ONE bounded read-only original-disk inspection, only after an actual fresh LIFT decision; any precheck mismatch => STOP; failure or operator WITHHOLD => STOP; no retry, no second operation, no attempt reset, no budget refresh",
+    "provenance_and_duty_split": {
+      "executor_enforces": "reads ONLY the faithfully cached Root UID 0 read-only disposition/control records per the operator_disposition_gate.py contract (no separately signed artifact claim); recomputes the actual source-file pins (reviewed_sources) and the control-request bytes hash at start and refuses on any mismatch — the executor itself performs NO Git/HEAD check",
+      "control_room_pre_invocation_duty": "current Git checkpoint/HEAD, code and request reconciliation, and publication are Root/Control Room duties performed BEFORE invocation; the executor does not perform them"
+    },
+    "precheck_order_before_first_original_disk_content_read": [
+      "1. nonsecret identity: accepted XML (nonsecret path/size/sha) and request/control identity; work root UID 1000, mode 0700, with budget state and legacy/new markers verified ABSENT",
+      "2. quiescence: domain UNDEFINED re-check",
+      "3. component-safe original-disk metadata: UID 0, nlink 1, exact size 1747124224, ownership — BEFORE the first original-disk content read",
+      "4. the streamed full SHA-256 of the original disk is the FIRST source-content read, performed ONLY AFTER steps 1-3 and validated against the pinned sha256; only then may the read-only NBD phases begin"
+    ],
+    "no_hash_before_any_content_claim": "no field of this request claims a disk hash is obtained before ANY content: the streamed full SHA is itself the first original-disk content read",
+    "method_budgets_reused_exactly": {
+      "wall_minutes": 90,
+      "work_dir_mib": 512,
+      "max_nonsecret_reads": 2048,
+      "per_read_kib": 256,
+      "semantic_aggregate_mib": 16,
+      "partition_metadata_kib": 1024
+    },
+    "method_note": "exact original method/paths/allowlist reused (fixed startup-path allowlist, depth-1 transitive rules, secret-looking references => STOP unread); ONE temporary <=1 MiB partition-metadata buffer only, parsed locally then deleted",
+    "forbidden": [
+      "whole-image or partition copy",
+      "original disk metadata writes",
+      "guest exec / VM lifecycle / QGA / PREARM / credential / auditor / auditor-B / qualification / install",
+      "pkill, process-name or unknown-PID signalling; force-share; lock override"
+    ],
+    "teardown": "exact owned-PID identity only: exe/path/full argv and original boot starttime rechecked immediately before EVERY signal; bounded teardown and residual verification",
+    "lost_limitation": "the original LOST pre-freeze observation remains LOST (waives_lost_limitation=false)"
+  },
+  "consequence_of_approval": "PERMISSION FOR ONE CONDITIONAL READ-ONLY OFFLINE DISK ACCESS UNDER THE AMENDED EXACT EXECUTOR ONLY — NOT a safe-start PASS, NOT VM start or runtime authority, NOT qualification; actual evidence remains subject to independent review before any admission",
+  "consequence_of_refusal_or_failure": "STOP maintained; real-disk startup safety remains NOT_ESTABLISHED; live admission remains BLOCKED",
+  "no_side_effects": "this request creates NO cache, NO marker and NO control file, and performs no access; it grants nothing",
+  "termination": "PENDING OPERATOR DECISION via Root/Codex Control Room publication (ordinary, non-force); Root supplies the external request SHA-256; the implementer issues no authority"
+}
