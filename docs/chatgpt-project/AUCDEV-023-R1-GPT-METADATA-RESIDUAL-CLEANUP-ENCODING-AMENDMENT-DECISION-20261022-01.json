@@ -1,0 +1,103 @@
+{
+  "record": "AUCDEV-023-R1-GPT-METADATA-RESIDUAL-CLEANUP-ENCODING-AMENDMENT-DECISION-20261022-01",
+  "record_type": "OPERATOR_APPROVAL_TRANSCRIPTION",
+  "operator_decision": "APPROVE_ONLY_REPRESENTATION_LEVEL_AMENDMENT",
+  "decision_date": "2026-10-22",
+  "decision_provenance": {
+    "source": "Explicit operator message in the Audit Council Dev ChatGPT Control Room conversation",
+    "operator_timestamp_utc": "NOT_PROVIDED",
+    "operator_signature": "NONE_EXISTING",
+    "operator_statement": "I approve ONLY the representation-level amendment identified as `AUCDEV-023-R1-GPT-METADATA-RESIDUAL-CLEANUP-ENCODING-AMENDMENT-20261022-01`, bound to amendment request SHA-256 `38f2c63bcedab7a4f9106c32147b06207d59942e129060d797224ca636b46527` and original approved request SHA-256 `87cc793c5460625d50911d2502c5ec688ee3f609d728563e2287ecdffce73351`. Change only the cleanup capability argv representation from `tuple(...)` to `list(...)` and the corresponding comparison descriptor. Preserve all exact argv bytes, digest, target identities, library identity, preconditions, exclusions, and original budgets. This creates no new execution grant, retry, or budget refresh. The remaining original one-shot allowance is conditional on all fresh identity checks. Any mismatch requires STOP WITHOUT SIGNAL. Record this amendment decision. Do not perform a protected invocation as part of recording the decision."
+  },
+  "repository": {
+    "full_name": "isakli05/audit-council-dev",
+    "branch": "master",
+    "last_verified_head_before_record": "c93d2357f2c11dc99adabb9d83d921d6f8ea6bfd",
+    "note": "This is the snapshot SHA, not an assertion of permanent live HEAD."
+  },
+  "approved_binding": {
+    "amendment_disposition_id": "AUCDEV-023-R1-GPT-METADATA-RESIDUAL-CLEANUP-ENCODING-AMENDMENT-20261022-01",
+    "amendment_request_path": "docs/chatgpt-project/AUCDEV-023-R1-GPT-METADATA-RESIDUAL-CLEANUP-ENCODING-AMENDMENT-REQUEST-20261022-01.json",
+    "amendment_request_sha256": "38f2c63bcedab7a4f9106c32147b06207d59942e129060d797224ca636b46527",
+    "original_approved_request_path": "docs/chatgpt-project/AUCDEV-023-R1-GPT-METADATA-RESIDUAL-CLEANUP-REQUEST-20261022-01.json",
+    "original_approved_request_sha256": "87cc793c5460625d50911d2502c5ec688ee3f609d728563e2287ecdffce73351",
+    "existing_authority_id": "AUCDEV-023-R1-GPT-METADATA-RESIDUAL-CLEANUP-20261022-01",
+    "existing_approved_action": "AUTHORIZE_ONE_KNOWN_PROCESS_CLEANUP_WITH_LAUNCH_ARGV_RECONCILIATION"
+  },
+  "approved_representation_only_changes": [
+    {
+      "original_request_field": "method.capability_field_encoding.argv",
+      "from": "tuple(os.fsencode(arg) for arg in exact_target.expected_launch_argv)",
+      "to": "list(os.fsencode(arg) for arg in exact_target.expected_launch_argv)"
+    },
+    {
+      "original_request_field": "exact_target.expected_launch_argv_digest_encoding",
+      "from_descriptor": "tuple",
+      "to_descriptor": "list"
+    }
+  ],
+  "unchanged_target": {
+    "pid": 2063940,
+    "boot_id": "2980de59-4632-4e7a-a253-5498c094f169",
+    "startticks": 80682543,
+    "executable": "/usr/bin/qemu-nbd",
+    "required_uid": 0,
+    "expected_launch_argv_sha256": "c06d31cd7abb171ed5004e08d47ff96414aa8a499b6b85320aa222434c8dd24d",
+    "argv_element_count": 8,
+    "raw_argv_bytes_count_order_and_terminal_nul": "UNCHANGED",
+    "library_path": "/home/isa/aucdev023-r1-executor-remediation-20261021-01/implementation/offline_inspection_executor.py",
+    "library_sha256": "98bdac4ef805498b31a7374deaa4fe121c3642f4f48e6f2bc66dd7d82439244c",
+    "library_mutation": "FORBIDDEN"
+  },
+  "retained_execution_constraints": {
+    "one_remaining_original_invocation_only": true,
+    "new_execution_grant": false,
+    "permission_or_budget_refresh": false,
+    "retry_authorized": false,
+    "root_controlled_only": true,
+    "max_verified_SIGTERM": 1,
+    "signal_wait_seconds": 10,
+    "total_operation_seconds": 60,
+    "require_birth_first_pid_boot_id_startticks_verification": true,
+    "require_exact_uid_executable_and_full_byte_argv_verification": true,
+    "require_fresh_identity_recheck_immediately_before_signal": true,
+    "any_missing_or_mismatched_identity": "STOP_WITHOUT_SIGNAL",
+    "prohibited": [
+      "SIGKILL",
+      "fallback",
+      "retry",
+      "escalation",
+      "permission refresh",
+      "process-name kill",
+      "PID guessing",
+      "manual socket/workroot removal",
+      "disk stat/hash/read",
+      "NBD connection",
+      "VM/QGA operation",
+      "PREARM",
+      "credential delivery",
+      "auditor operation",
+      "metadata observation retry",
+      "collector rerun"
+    ]
+  },
+  "historical_evidence_retained": {
+    "original_metadata_observation": "TEARDOWN_INCOMPLETE_STOP",
+    "original_birth_argv_capture": "EMPTY_CAPTURE_NOT_ESTABLISHED",
+    "original_post_disk_hash": "NOT_PERFORMED",
+    "resource_lifetime_violation": "PRESERVED",
+    "startup_safety": "NOT_ESTABLISHED",
+    "installed_auditor_independent_qualification": "NOT_ESTABLISHED",
+    "last_read_only_process_birth_snapshot_utc": "2026-10-22T19:30:27.739878+00:00",
+    "current_process_existence": "NOT_VERIFIED_BY_THIS_RECORD"
+  },
+  "decision_effect": {
+    "approval": "APPROVED_BY_OPERATOR",
+    "recording_is_not_a_protected_invocation": true,
+    "signals_issued_by_this_recording": 0,
+    "protected_invocations_by_this_recording": 0,
+    "original_approved_request_remains_unchanged": true,
+    "amendment_request_remains_unchanged": true,
+    "note": "Approval concerns only encoding and descriptor and does not alone establish current process identity or qualification."
+  }
+}
