@@ -1,0 +1,100 @@
+{
+  "record": "AUCDEV-023-R1-OFFLINE-INSPECTION-STOP-LIFT-DISPOSITION",
+  "disposition_id": "AUCDEV-023-R1-OFFLINE-INSPECTION-STOP-LIFT-20261022-01",
+  "action": "LIFT_STOP_FOR_ONE_READ_ONLY_OFFLINE_INSPECTION",
+  "lifts_stop": true,
+  "date": "2026-10-22",
+  "event": "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01",
+  "attempt": "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01-AUDITOR-A-R1",
+  "original_offline_authority": "AUCDEV-023-R1-C12-SAFESTART-OFFLINE-INSPECTION-20261021-01",
+  "original_offline_authority_note": "gate lineage field: retains the EXISTING original offline-inspection authority; NO reissue and NO retroactive change of that old historical approval",
+  "approved_request": "/home/isa/audit-council-dev/docs/chatgpt-project/AUCDEV-023-R1-OFFLINE-INSPECTION-STOP-LIFT-REQUEST-20261022-01.json",
+  "approved_request_sha256": "6bedba07c04acd5cb3f49645de9dd66af8c54f1a0ba3e1bce8ffa5500f9a723c",
+  "original_request_sha256": "90fb50fcac1598df67fd2d044f0e9a03dce32fc672211469020f5c43184800e5",
+  "expected_head": "958d9556f16c45a375704f12032a143c90e987e6",
+  "expected_head_note": "Git HEAD of /home/isa/audit-council-dev bound by this decision; HEAD reconciliation before invocation is a Root/Control Room duty (the executor performs no Git check)",
+  "target_disk": {
+    "path": "/var/lib/libvirt/images/aucdev-gatew/aucdev-frevp-cxfollowup-20261003-01-work.qcow2",
+    "sha256": "d1de371a0d07ef97fd1d55c794c9a05a4972b9119f3f55fda86e119dbbda321e",
+    "size_bytes": 1747124224
+  },
+  "vm_domain": {
+    "name": "aucdev-frevp-730d2b29-20261002-02",
+    "uuid": "d8d26fc1-15dc-4602-989c-ea40ec50010e",
+    "required_state": "UNDEFINED"
+  },
+  "accepted_xml": {
+    "path": "/home/isa/aucdev023-pch6b-credential-channel-20261004-01/vm/credchannel-domain.xml",
+    "sha256": "065096925d43240b1c69b2f0c0ae976f7bd6202a30c11228c936e89ce40d30b3",
+    "size": 4417
+  },
+  "work_root": "/home/isa/aucdev023-r1-c12-safestart-remediation-20261021-01/safe-start/work",
+  "invocations": {
+    "offline_inspection": 1,
+    "retries": 0,
+    "attempt_reset": false,
+    "budget_refresh": false
+  },
+  "grants": [
+    "ONE_READ_ONLY_OFFLINE_INSPECTION"
+  ],
+  "denied": [
+    "VM_MUTATION",
+    "QGA_GUEST_EXEC",
+    "PREARM",
+    "CREDENTIAL_ACCESS_OR_DELIVERY",
+    "AUDITOR_MODEL_EXECUTION",
+    "AUDITOR_B",
+    "QUALIFICATION",
+    "INSTALL",
+    "NEW_GRANT_ISSUANCE",
+    "PACKAGE_CHANGE",
+    "RECEIPT_CHANGE"
+  ],
+  "budgets": {
+    "wall_minutes": 90,
+    "work_dir_mib": 512,
+    "max_nonsecret_reads": 2048,
+    "per_read_kib": 256,
+    "semantic_aggregate_mib": 16,
+    "partition_metadata_kib": 1024
+  },
+  "waives_lost_limitation": false,
+  "scope_widening": "NONE",
+  "amended_executor_entry": {
+    "command_NOT_RUN_BY_THIS_RECORD": "sudo -n /usr/bin/python3 /home/isa/aucdev023-r1-executor-remediation-20261021-01/implementation/real_inspection_entry.py",
+    "semantics": "ONE conditional ROOT SAME PROCESS invocation of the amended exact executor (executor bytes and method changed since the original approval — adopted explicitly with the exact 11 reviewed_sources hashes); no retry; precheck mismatch, failure, or operator WITHHOLD => STOP"
+  },
+  "reviewed_sources": {
+    "implementation/command_guard.py": "347102e9aa25230945127a9058163cfcf853d45158536d2ed32f39c6801ba789",
+    "implementation/offline_inspection_executor.py": "98bdac4ef805498b31a7374deaa4fe121c3642f4f48e6f2bc66dd7d82439244c",
+    "implementation/operator_disposition_gate.py": "7ced272a639dc40383ae54ce8ac1c30710f137af224dd5bfe07740827d53c553",
+    "implementation/real_inspection_entry.py": "d26a526349e1e529d607f39c5eb04c226e0fc5514fc6b2d422616573d9adda02",
+    "tests/cleanup_005_checks.py": "45e4f9f52edb24564613f01375aa770bb643a65f5c306388ee3a03792ad44191",
+    "tests/cleanup_owned_005.py": "c5d5375f03694648f1ba6bede1ad6fe8bd178322b3094d7e040ccadd5c07e3d6",
+    "tests/focused_checks.py": "0b255ed10aebd3a075d737d7973bfe7b5cbe7c482b3f1bc7d42ffce976044144",
+    "tests/guard_checks.py": "93adfc0f7cf150653bd4a92e6adb8be4390c0da7be1dc13e5d903819b9eced8d",
+    "tests/operator_disposition_checks.py": "7267ae3d3d976cbcdc7e052a2968cfc4f309c8eaba5a0060a0fad50e16341bcf",
+    "tests/real_entry_checks.py": "8a4b61c2badd5c5cdd47cad9e570011a6350c5d8043592a8f60ea98cf01b49a3",
+    "tests/run_inert_validation.py": "2a23a7e2ef235458573993f72282a2acca5ccfa99177cbdf15e6d46d20464774"
+  },
+  "reviewed_sources_note": "EXACT 11 relative keys + SHA-256 copied verbatim from the approved request; the executor recomputes them before any target IO and refuses on any change",
+  "history_unresolved": [
+    "two out-of-order reads",
+    "initially missed read",
+    "atime uncertainty",
+    "five broad process-name kills",
+    "later cleanup deviations",
+    "missing historical source",
+    "out-of-workspace writes/lookups",
+    "LOST pre-freeze observation (remains LOST; not waived)"
+  ],
+  "history_note": "all historical incidents and uncertainty remain unresolved and preserved; nothing here retroactively authorizes any past read, kill, or approval",
+  "provenance": {
+    "source": "actual operator decision in conversation on 2026-10-22, via Root/Codex Control Room publication",
+    "separately_signed": false,
+    "note": "no separately signed artifact claim; provenance is the root-installed faithful cache plus external Control Room operator provenance"
+  },
+  "installation_status": "CANDIDATE CACHE — implementer-written in a file-only session; NOT yet installed at /home/isa/aucdev023-r1-executor-remediation-20261021-01/control/OPERATOR-DISPOSITION.json; NO execution has occurred; Root reviews and installs before any invocation",
+  "request_immutability_note": "the approved request file is immutable; its PENDING_OPERATOR_DECISION status string remains as the historical record and is unchanged by this decision"
+}
