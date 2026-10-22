@@ -1,0 +1,74 @@
+{
+  "record": "AUCDEV-023-R1-GPT-METADATA-RESIDUAL-CLEANUP-ENCODING-AMENDMENT-REQUEST-20261022-01",
+  "template_status": "PROPOSED_OPERATOR_DISPOSITION_REQUEST_NOT_AUTHORITY_NOT_EXECUTED",
+  "proposed_disposition_id": "AUCDEV-023-R1-GPT-METADATA-RESIDUAL-CLEANUP-ENCODING-AMENDMENT-20261022-01",
+  "amends": {
+    "original_approved_request_path": "/home/isa/audit-council-dev/docs/chatgpt-project/AUCDEV-023-R1-GPT-METADATA-RESIDUAL-CLEANUP-REQUEST-20261022-01.json",
+    "original_approved_request_sha256": "87cc793c5460625d50911d2502c5ec688ee3f609d728563e2287ecdffce73351",
+    "existing_adopted_authority_id": "AUCDEV-023-R1-GPT-METADATA-RESIDUAL-CLEANUP-20261022-01",
+    "existing_approved_action": "AUTHORIZE_ONE_KNOWN_PROCESS_CLEANUP_WITH_LAUNCH_ARGV_RECONCILIATION"
+  },
+  "rationale": "Control Room pre-invocation review (STOP_BEFORE_PROTECTED_INVOCATION_ARGV_CONTAINER_TYPE_MISMATCH): the approved request mandates cap.argv = tuple(os.fsencode(arg)...), but the unchanged signal_verified library argv_list (line 1374) returns a LIST of bytes and signal_verified (line 1047) compares argv != cap.argv directly; list != tuple even with all byte elements identical (synthetic literal check PASS_DEMONSTRATES_MANDATORY_REFUSAL). Defect is in the request encoding, not in any observed process.",
+  "sole_change": {
+    "description": "One representation-only change to the SAME cleanup-only capability argv encoding at its two approved-request description sites: the capability field encoding and the capability-comparison descriptor both change from tuple to list. The raw cmdline bytes and their SHA-256 digest, including the terminal NUL, are unchanged.",
+    "fields": [
+      {
+        "field": "method.capability_field_encoding.argv",
+        "description": "original approved request capability argv field encoding",
+        "from": "tuple(os.fsencode(arg) for arg in exact_target.expected_launch_argv)",
+        "to": "list(os.fsencode(arg) for arg in exact_target.expected_launch_argv)"
+      },
+      {
+        "field": "exact_target.expected_launch_argv_digest_encoding",
+        "description": "original approved request capability-comparison descriptor for the expected launch argv digest",
+        "from": "tuple",
+        "to": "list"
+      }
+    ],
+    "raw_cmdline_sha256_including_terminal_nul": "UNCHANGED",
+    "elements": "byte-identical, same count, same order; no other field of the capability or request changes"
+  },
+  "retained_exactly_from_original_approved_request": {
+    "target_identity": {
+      "pid": 2063940,
+      "boot": "2980de59-4632-4e7a-a253-5498c094f169",
+      "startticks": 80682543,
+      "exe": "/usr/bin/qemu-nbd",
+      "required_uid_before_signal": 0,
+      "expected_launch_argv_sha256": "c06d31cd7abb171ed5004e08d47ff96414aa8a499b6b85320aa222434c8dd24d"
+    },
+    "library": {
+      "path": "/home/isa/aucdev023-r1-executor-remediation-20261021-01/implementation/offline_inspection_executor.py",
+      "sha256": "98bdac4ef805498b31a7374deaa4fe121c3642f4f48e6f2bc66dd7d82439244c",
+      "unchanged": true
+    },
+    "root_only": true,
+    "preconditions": [
+      "Actual separate operator approval of this exact amendment request and its SHA; this proposal alone permits no signal and does not reactivate the prior approval by itself.",
+      "Verify exact library SHA before loading plus original result/launch/read-only proof hashes and target tuple; no source/library/global-policy changes.",
+      "Birth-first proc verification; only matching original boot/start may reach exe/UID/full-argv verification; fresh identity recheck immediately before signal.",
+      "Do not resolve or open filesystem paths inside argv; compare as bytes only; no source disk metadata/content or export connection.",
+      "PID absent or different birth => NO SIGNAL; any unresolved mismatch => STOP; leave unknown resources unresolved; no manual socket/workroot unlink."
+    ],
+    "limits": "At most one Root-controlled invocation, one SIGTERM, 10-second signal wait, 60-second total; no retry, fallback, SIGKILL, escalation, recapture or permission refresh; signal_verified must refuse any mismatch."
+  },
+  "effect_if_approved": "Permits the original one remaining invocation only, and only after fresh checks of every retained precondition; consumes no signal/wait/total budget now; no original-source disk access; no scope expansion of any kind; original observation failure (TEARDOWN_INCOMPLETE_STOP, missing post-hash, 1890.639 s > 900 s lifetime violation, empty birth-argv capture preserved as FAILED evidence) remains unchanged.",
+  "not_changed": [
+    "no scope expansion",
+    "no original disk access",
+    "no budget refresh or permission refresh",
+    "no observation resume/retry/remint",
+    "no repair or backfill of the historical empty argv capture"
+  ],
+  "status": {
+    "authority_issued": false,
+    "executed": false,
+    "signal_issued": false,
+    "operator_decision": "PENDING_NONE_ASSUMED"
+  },
+  "notes": [
+    "Minimal exact-scope encoding amendment only; references the existing adopted cleanup authority rather than creating new authority.",
+    "No executable helper, no new control framework, no source changes accompany this request.",
+    "All binding identities were taken from the approved request and the Control Room pre-invocation review; nothing is fabricated."
+  ]
+}

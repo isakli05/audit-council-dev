@@ -1,0 +1,77 @@
+{
+  "record": "AUCDEV-023-R1-GPT-METADATA-RESIDUAL-CLEANUP-DECISION-20261022-01",
+  "decision_type": "OPERATOR_APPROVAL_TRANSCRIPTION_AND_EXECUTION_OUTCOME",
+  "approval_provenance": {
+    "source": "Latest operator message in the AUCDEV-023-R1 residual-cleanup thread (live/local master checkpoint 125303cdb4f99a2e81b281984f72a1fda25376fe)",
+    "operator_approval_timestamp": "NOT_PROVIDED",
+    "operator_signature": "NONE_EXISTING",
+    "note": "Faithful transcription of the actual operator approval; no signed artifact was invented and no timestamp fabricated."
+  },
+  "approved": {
+    "request_path": "/home/isa/audit-council-dev/docs/chatgpt-project/AUCDEV-023-R1-GPT-METADATA-RESIDUAL-CLEANUP-REQUEST-20261022-01.json",
+    "request_sha256": "87cc793c5460625d50911d2502c5ec688ee3f609d728563e2287ecdffce73351",
+    "adopted_authority_id": "AUCDEV-023-R1-GPT-METADATA-RESIDUAL-CLEANUP-20261022-01",
+    "approved_action": "AUTHORIZE_ONE_KNOWN_PROCESS_CLEANUP_WITH_LAUNCH_ARGV_RECONCILIATION",
+    "inner_binding_approved_request_sha256": "31bafb03733444ce7d8271cccdfbb934a3cf40383f6676d8820e593eb13fff59",
+    "operator_decision_sha256": "9441f783883ac82562abb6e10dee2f75e5cf0e2b8ef2097ae5c8d1504bf1276c",
+    "conditions_as_approved": [
+      "Exact original process identity mandatory: pid 2063940, boot 2980de59-4632-4e7a-a253-5498c094f169, startticks 80682543, exe /usr/bin/qemu-nbd, UID 0 before signal, byte-exact launch argv (expected_launch_argv_sha256 c06d31cd7abb171ed5004e08d47ff96414aa8a499b6b85320aa222434c8dd24d).",
+      "Root-only execution through the unchanged signal_verified library /home/isa/aucdev023-r1-executor-remediation-20261021-01/implementation/offline_inspection_executor.py, sha256 98bdac4ef805498b31a7374deaa4fe121c3642f4f48e6f2bc66dd7d82439244c; never ad hoc shell.",
+      "At most one SIGTERM, 10-second signal wait, 60-second total wall budget; no retry, fallback, SIGKILL, escalation, recapture or permission refresh.",
+      "PID absent or different birth => NO SIGNAL; any unresolved mismatch => STOP; fresh identity recheck immediately before any signal.",
+      "The original empty birth-argv capture (digest e3b0c44298fc1c14) remains FAILED evidence; this cleanup basis does not repair or backfill historical evidence.",
+      "No original-source disk access, no post-disk hash, no collector rerun, no observation resume/retry/remint."
+    ]
+  },
+  "outcome": {
+    "disposition": "STOP_BEFORE_PROTECTED_INVOCATION_ARGV_CONTAINER_TYPE_MISMATCH",
+    "authority_issued": true,
+    "invocation_performed": false,
+    "protected_invocations": 0,
+    "signal_issued": false,
+    "signals": 0,
+    "proc_reads": 1,
+    "retries_consumed": 0,
+    "budget_consumed_seconds": 0,
+    "actual_current_process_state": "SAME_ORIGINAL_BIRTH_PRESENT_AT_2026-10-22T19:30:27.739878+00:00",
+    "post_review_readonly_birth_state_uid_snapshot": {
+      "performed_by": "Root",
+      "authorization": "ONE authorized readonly birth/state/UID check after the initial review",
+      "observed_utc": "2026-10-22T19:30:27.739878+00:00",
+      "pid": 2063940,
+      "boot": "2980de59-4632-4e7a-a253-5498c094f169",
+      "boot_matches_original": true,
+      "startticks": 80682543,
+      "startticks_matches_original": true,
+      "uid": 0,
+      "process_state": "S",
+      "finding": "SAME_ORIGINAL_BIRTH_PRESENT",
+      "exe_argv_reads": false,
+      "full_signal_identity_verification": false,
+      "persistent_or_current_future_state_claim": false,
+      "target_exe_and_argv": "approved expected values, NOT freshly re-observed"
+    },
+    "stop_reason": "Pre-invocation review found the approved request mandates cap.argv = tuple(os.fsencode(arg)...), but the exact unchanged library argv_list returns a LIST of bytes and signal_verified compares argv != cap.argv directly; Python list != tuple even with all byte elements identical. This is a compatibility defect in the approved request itself, NOT an actual process mismatch.",
+    "synthetic_literal_check": "PASS_DEMONSTRATES_MANDATORY_REFUSAL",
+    "source_lines": {
+      "signal_verified_direct_comparison": 1047,
+      "argv_list_definition": 1374
+    }
+  },
+  "evidence": {
+    "preinvocation_review_path": "/home/isa/aucdev023-r1-gpt-residual-cleanup-20261022-01/evidence/CONTROL-ROOM-PREINVOCATION-REVIEW.json",
+    "preinvocation_review_observed_utc": "2026-10-22T19:29:10.894511+00:00",
+    "seven_retained_binding_checks": "all match=true (producer_result, result_record, readonly_review, entry_invocation, handoff_process_state, operator_decision, approved_request)",
+    "source_changes": false
+  },
+  "preserved_unchanged": {
+    "original_observation_outcome": "TEARDOWN_INCOMPLETE_STOP",
+    "post_hash": "MISSING_PRESERVED",
+    "resource_lifetime_violation_seconds": 1890.639,
+    "lifetime_limit_seconds": 900,
+    "prior_incidents_G5_G12_LOST_frozen": "unchanged",
+    "conditional_G12_UNACTIVATED_credential": "unchanged",
+    "disk_safety_immutability_qualification": "NOT_ESTABLISHED"
+  },
+  "next_action_proposed": "Narrow operator amendment of the cleanup-only capability argv encoding from tuple to list of identical filesystem-encoded bytes (AUCDEV-023-R1-GPT-METADATA-RESIDUAL-CLEANUP-ENCODING-AMENDMENT-REQUEST-20261022-01.json); proposed only, not authority, no signal authority consumed."
+}
