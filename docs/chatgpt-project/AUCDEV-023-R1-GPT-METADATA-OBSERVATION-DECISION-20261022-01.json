@@ -1,0 +1,126 @@
+{
+  "action": "APPROVE_ONE_READ_ONLY_GPT_METADATA_OBSERVATION",
+  "authority_id": "AUCDEV-023-R1-GPT-METADATA-OBSERVATION-20261022-01",
+  "event": "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01",
+  "attempt": "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01-AUDITOR-A-R1",
+  "original_offline_authority": "AUCDEV-023-R1-C12-SAFESTART-OFFLINE-INSPECTION-20261021-01",
+  "used_stop_lift_disposition": "AUCDEV-023-R1-OFFLINE-INSPECTION-STOP-LIFT-20261022-01",
+  "approved_request_sha256": "31bafb03733444ce7d8271cccdfbb934a3cf40383f6676d8820e593eb13fff59",
+  "original_request_sha256": "90fb50fcac1598df67fd2d044f0e9a03dce32fc672211469020f5c43184800e5",
+  "target_disk": {
+    "path": "/var/lib/libvirt/images/aucdev-gatew/aucdev-frevp-cxfollowup-20261003-01-work.qcow2",
+    "sha256": "d1de371a0d07ef97fd1d55c794c9a05a4972b9119f3f55fda86e119dbbda321e",
+    "size_bytes": 1747124224,
+    "declared_virtual_size": 42949672960
+  },
+  "vm_domain": {
+    "name": "aucdev-frevp-730d2b29-20261002-02",
+    "uuid": "d8d26fc1-15dc-4602-989c-ea40ec50010e",
+    "required_state": "UNDEFINED"
+  },
+  "accepted_xml": {
+    "path": "/home/isa/aucdev023-pch6b-credential-channel-20261004-01/vm/credchannel-domain.xml",
+    "sha256": "065096925d43240b1c69b2f0c0ae976f7bd6202a30c11228c936e89ce40d30b3",
+    "size": 4417
+  },
+  "work_root": "/home/isa/aucdev023-r1-gpt-collector-20261022-01/work",
+  "future_command": "sudo -n /usr/bin/python3 /home/isa/aucdev023-r1-gpt-collector-20261022-01/implementation/gpt_metadata_collector.py",
+  "method": "READ_ONLY_QCOW2_NBD_MAP_THREE_PRIMARY_GPT_METADATA_READS",
+  "marker_name": "GPT-METADATA-OBSERVATION-ADMISSION.json",
+  "invocations": {
+    "metadata_observation": 1,
+    "retries": 0,
+    "attempt_reset": false,
+    "budget_refresh": false
+  },
+  "grants": [
+    "ONE_READ_ONLY_GPT_METADATA_OBSERVATION"
+  ],
+  "denied": [
+    "VM_MUTATION",
+    "QGA_GUEST_EXEC",
+    "PREARM",
+    "CREDENTIAL_ACCESS_OR_DELIVERY",
+    "AUDITOR_MODEL_EXECUTION",
+    "AUDITOR_B",
+    "QUALIFICATION",
+    "INSTALL",
+    "PARTITION_SLICE",
+    "FUSE_MOUNT",
+    "FILESYSTEM_CONTENT",
+    "ROOT_SELECTION"
+  ],
+  "budgets": {
+    "wall_minutes": 15,
+    "work_dir_mib": 64,
+    "nbd_metadata_reads_max": 3,
+    "aggregate_read_bytes_max": 66560,
+    "temporary_buffer_bytes_max": 1048576
+  },
+  "waives_lost_limitation": false,
+  "scope_widening": "NONE",
+  "operator_provenance": {
+    "source": "ACTUAL_OPERATOR_MESSAGE_IN_CONTROL_ROOM",
+    "decision": "APPROVE_ONE_READ_ONLY_GPT_METADATA_OBSERVATION",
+    "request_path": "docs/chatgpt-project/AUCDEV-023-R1-GPT-METADATA-OBSERVATION-REQUEST-20261022-01.json",
+    "request_sha256": "31bafb03733444ce7d8271cccdfbb934a3cf40383f6676d8820e593eb13fff59",
+    "message_scope": "Exactly ONE new conditional administrator-context read-only GPT metadata observation; original offline operation USED; no renewal/reset/reuse. Exact approved bytes/method/dependencies/read plan only.",
+    "message_conditions": "Actual operator decision, immutable request, exact source/test/control hashes, domain state, XML, source ownership/type/identity and kernel ST_NOATIME before content; failure STOP BEFORE CONTENT; first full hash only after checks; second only after verified teardown and approved initial-hash conditions.",
+    "message_limits": {
+      "wall_minutes": 15,
+      "work_dir_mib": 64,
+      "metadata_bytes": 66560,
+      "full_hashes_max": 2,
+      "invocations": 1,
+      "retries": 0
+    },
+    "message_prohibitions": [
+      "ad hoc real-disk commands",
+      "changed source",
+      "backend substitution",
+      "force-share",
+      "lock override",
+      "unauthorized cleanup",
+      "filesystem inspection/content/mount",
+      "VM/QGA",
+      "PREARM",
+      "credential/OPERATOR_SEND_NOW",
+      "auditor/model execution",
+      "qualification/install",
+      "frozen G5-G12/grant/package/receipt/approval changes"
+    ],
+    "provenance_note": "Faithful structured transcription of the latest actual operator reply; not a separately signed artifact; recording time is not an invented decision timestamp.",
+    "not_a_signed_artifact": true,
+    "no_invented_decision_timestamp": true,
+    "transcription_inputs": [
+      "/home/isa/aucdev023-r1-gpt-metadata-observation-20261022-01/inputs/OPERATOR-MESSAGE-TRANSCRIPTION.json",
+      "/home/isa/aucdev023-r1-gpt-metadata-observation-20261022-01/inputs/APPROVED-REQUEST.json"
+    ],
+    "mandatory_conditions_before_any_target_content": [
+      "FINAL exact request + actual operator decision + reviewed producer/consumer source-test-control byte bindings; faithful root-owned readonly cache; no self-issued permission",
+      "Verified accepted XML; fixed source-bound fresh work root with safe ownership/permissions and no conflicting resources; old spent markers preserved",
+      "Healthy readonly domain-name AND UUID queries establish exact domain UNDEFINED; no lifecycle mutation",
+      "Component-safe no-symlink source metadata, regular UID0/nlink1/exact 1747124224-byte size, before any content read",
+      "PROVEN no-atime filesystem on the HELD source fd BEFORE the first source content read: os.fstatvfs(fd).f_flag must include os.ST_NOATIME, taken from the actual kernel result (never a caller bool or cache assertion); the per-open O_NOATIME flag alone proves nothing because qemu-nbd re-opens /proc/self/fd/N with its own open description — unsupported refuses before hash/map, and no mount/utime/chmod/source change is ever made",
+      "Only then: full pinned SHA-256 is FIRST original-disk content read; standalone qcow2 format precheck captured during that hash; no partial-digest verification; no stale/replaced source acceptance",
+      "Source-bound readonly map and finite numeric metadata read plan only; zero filesystem/content traversal; unexpected layout/bound/integrity failure STOP",
+      "Every signal requires freshly matched executable/fullargv/ownedpath/boot/starttime; incomplete teardown or identity drift STOP; post-identity True required for completion"
+    ]
+  },
+  "pins": {
+    "reviewed_sources": {
+      "/home/isa/aucdev023-r1-gpt-collector-20261022-01/implementation/command_guard.py": "c002acc2f9e6cc51a0fe9fd98c22155caeba8136d3166adb1b623c17a038e7d0",
+      "/home/isa/aucdev023-r1-gpt-collector-20261022-01/implementation/gpt_metadata_collector.py": "ca3bdcc5de98c816512b23d8f1057f521b5afb19bd01cb5b32ad0012d94dfc2c",
+      "/home/isa/aucdev023-r1-gpt-collector-20261022-01/tests/run_collector_checks.py": "37204fac8aa46871b212319edecfc016093aa57a80f45aad97e938f06fff1e1a",
+      "/home/isa/aucdev023-r1-gpt-collector-20261022-01/tests/test_entry.py": "608cb41e6829cdfa3eb65b7171624b84805e78edd00a521c0aec702705c878f3",
+      "/home/isa/aucdev023-r1-gpt-diagnostic-20261022-01/implementation/gpt_diagnostic.py": "78d3fde645f532e5f1d257b547fe89d4e48be5062883d0fd5740476c1eae96f3",
+      "/home/isa/aucdev023-r1-executor-remediation-20261021-01/implementation/offline_inspection_executor.py": "98bdac4ef805498b31a7374deaa4fe121c3642f4f48e6f2bc66dd7d82439244c"
+    },
+    "g12_preexisting_unactivated": [
+      "AUCDEV-023-G12-EXEC-AUDITOR-A-R1-20261020-01",
+      "AUCDEV-023-CRED-DELIVERY-AUDITOR-A-R1-20261021-01"
+    ],
+    "g12_credential_pins_note": "all frozen G12 credential pins remain unchanged from the accepted lineage; this request neither activates nor refreshes them"
+  },
+  "execution_note": "Decision transcription record only; NOT a signed artifact and NOT authority by itself. No control-cache installation, no observation, no real-disk/virsh/domain/QGA access, and no source/test/control change occurred in this preparation task; frozen G12/credential scope unchanged. Root independently validates this transcription against the actual approved request bytes (approved_request_sha256) and the immutable reviewed source hashes, then invokes the immutable approved entry at most once through its actual Root gate."
+}

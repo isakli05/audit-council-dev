@@ -1,0 +1,119 @@
+{
+  "record": "AUCDEV-023-R1-GPT-METADATA-RESIDUAL-CLEANUP-REQUEST-20261022-01",
+  "template_status": "PROPOSED_OPERATOR_DISPOSITION_REQUEST_NOT_AUTHORITY_NOT_EXECUTED",
+  "proposed_authority_id": "AUCDEV-023-R1-GPT-METADATA-RESIDUAL-CLEANUP-20261022-01",
+  "proposed_action": "AUTHORIZE_ONE_KNOWN_PROCESS_CLEANUP_WITH_LAUNCH_ARGV_RECONCILIATION",
+  "binding": {
+    "metadata_authority_id": "AUCDEV-023-R1-GPT-METADATA-OBSERVATION-20261022-01",
+    "attempt": "AUCDEV-023-CAND730D2B29-FRESH-AUDIT-20261002-01-AUDITOR-A-R1",
+    "observation_session_id": "20261022T182826Z-45d0e8f6abed4235",
+    "approved_request_sha256": "31bafb03733444ce7d8271cccdfbb934a3cf40383f6676d8820e593eb13fff59",
+    "operator_decision_sha256": "9441f783883ac82562abb6e10dee2f75e5cf0e2b8ef2097ae5c8d1504bf1276c",
+    "collector_source_sha256": "ca3bdcc5de98c816512b23d8f1057f521b5afb19bd01cb5b32ad0012d94dfc2c",
+    "producer_result_sha256": "202500ea0cbb9a4ebf3b50c4e5c20a08384adab7cf7b12f72173cb75fcc01bf0",
+    "result_record_sha256": "2efef15febf25d42d4d0cc0205a01ab048bb7dfb552cbb5d264767c42fff6656",
+    "readonly_review_sha256": "d7c8bfd83d176aa3e39d98dd97b69bf445073c06aedb4e8340479da7f88f2889",
+    "entry_invocation_sha256": "fb4c0903011ec1ece47109a06617a2da28549a56d0da6804319d30fe1e1c366a",
+    "observation_repository_checkpoint": "3c9a5e3d9d53808dd48a33bb08cae6f8ed5d1dca",
+    "checkpoint_note": "Observation checkpoint, not a perpetual live HEAD; reconcile actual live Git and exact approved cleanup request before any future action.",
+    "handoff_process_state_sha256": "57b2954513975eda442d3a229c6eb95a595cda146248db84c803ce045bcc9e56"
+  },
+  "why_genuinely_new_protected_decision": {
+    "problem": "The original capture of the qemu-nbd child recorded an EMPTY birth argv (digest e3b0c44298fc1c14, the empty-input digest); the full initial argv was NOT_ESTABLISHED. The original process capability therefore CANNOT be silently refreshed or relaxed to permit a signal.",
+    "proposed_reconciliation": "A human explicitly adopts the TRUSTED IMMUTABLE LAUNCH ARGV (the reviewed exact launch argv below) together with the ORIGINAL boot/startticks/exe as a CLEANUP-ONLY baseline for one verified signal.",
+    "evidence_preserved": "The original empty capture is PRESERVED AS FAILED EVIDENCE and is NOT reconstructed, rewritten, or backfilled; the exec/proc-race cause remains a HYPOTHESIS with no arbitrary-argv-tampering claim; the unchanged capture_birth code (which allows two matching empty samples) is not edited."
+  },
+  "exact_target": {
+    "pid": 2063940,
+    "boot": "2980de59-4632-4e7a-a253-5498c094f169",
+    "startticks": 80682543,
+    "exe": "/usr/bin/qemu-nbd",
+    "expected_launch_argv": [
+      "/usr/bin/qemu-nbd",
+      "--read-only",
+      "--persistent",
+      "-f",
+      "qcow2",
+      "-k",
+      "/home/isa/aucdev023-r1-gpt-collector-20261022-01/work/map.sock",
+      "/proc/self/fd/4"
+    ],
+    "expected_launch_argv_sha256": "c06d31cd7abb171ed5004e08d47ff96414aa8a499b6b85320aa222434c8dd24d",
+    "last_known_state": {
+      "observed_utc": "2026-10-22T18:59:59.900016+00:00",
+      "status": "SAME_BIRTH_PRESENT",
+      "state": "S",
+      "same_original_birth": true,
+      "residual_lifetime_seconds": 1890.639,
+      "outlived_900_second_limit": true,
+      "argv_scope": "Full argv matched in earlier detailed readonly review; latest check was birth/state only. All signal prerequisites must be freshly re-evaluated."
+    },
+    "original_birth_capture": {
+      "initial_exe": "/usr/bin/qemu-nbd",
+      "initial_argv_digest": "e3b0c44298fc1c14",
+      "initial_ticks": 80682543,
+      "boot": "2980de59-4632-4e7a-a253-5498c094f169",
+      "full_initial_argv": "EMPTY_CAPTURE_NOT_ESTABLISHED"
+    },
+    "expected_launch_argv_digest_encoding": "SHA-256 of raw Linux /proc/<pid>/cmdline bytes including terminal NUL; capability comparison uses tuple of individually filesystem-encoded argument bytes.",
+    "required_uid_before_signal": 0
+  },
+  "method": {
+    "library": "/home/isa/aucdev023-r1-executor-remediation-20261021-01/implementation/offline_inspection_executor.py",
+    "library_sha256": "98bdac4ef805498b31a7374deaa4fe121c3642f4f48e6f2bc66dd7d82439244c",
+    "library_unchanged": true,
+    "procedure": "fresh birth-first proc verification (no exe/argv reads on a wrong birth); exact exe AND full launch-argv match required before EVERY signal; then at most ONE signal_verified(cleanup_cap, sig=SIGTERM, wait=10.0)",
+    "capability_rule": "uses an explicitly NEW cleanup-only ProcCap bound to exactly the pid/boot/startticks/exe/full launch argv above; it is NOT capture_birth and NOT a refreshed or relaxed original cap",
+    "invocation": "Root-only; total wall budget 60 seconds; any future actual step remains Root-controlled and uses this exact reviewed library, never ad hoc model shell",
+    "no_signal_rule": "PID absent or different birth => NO SIGNAL; any unresolved mismatch => STOP",
+    "capability_field_encoding": {
+      "pid": 2063940,
+      "ticks": "80682543",
+      "boot": "2980de59-4632-4e7a-a253-5498c094f169",
+      "exe": "/usr/bin/qemu-nbd",
+      "argv": "tuple(os.fsencode(arg) for arg in exact_target.expected_launch_argv)",
+      "popen": null,
+      "meaning": "NEW cleanup-only policy capability after explicit human adoption; never a recreated or refreshed original observed cap."
+    },
+    "additional_conditions": [
+      "Actual separate operator approval of this exact finalized request SHA and proposed ID/action, faithfully recorded; this proposal alone permits no signal.",
+      "Verify exact library SHA before loading, original result/launch/read-only proof hashes and target tuple. No source/library/global-policy changes.",
+      "Birth-first check via original known process identity; only matching original boot/start may reach exe/UID/full-argv verification. Require UID0, exact executable and byte-exact launch argv, with fresh identity recheck immediately before signal.",
+      "Do not resolve or open filesystem paths appearing inside argv; compare them as bytes only. No source disk metadata/content or export connection.",
+      "At most one Root-controlled invocation, one SIGTERM, 10-second signal wait and 60-second total; no fallback, escalation, recapture, retries or permission refresh. Existing signal_verified must refuse any mismatch.",
+      "If absent/different birth: no signal; do not touch any reused PID or foreign file. Leave any unknown resource unresolved. No manual socket/workroot unlink. QEMU may perform its ordinary listener cleanup on termination.",
+      "No post-disk hash, collector rerun or metadata-op continuation; original end-to-end failure remains historical even if later process cleanup succeeds."
+    ]
+  },
+  "exclusions": [
+    "retries",
+    "SIGKILL",
+    "process-name kills",
+    "direct kill fallback",
+    "manual socket/workroot unlink",
+    "disk stat/hash/read",
+    "second source hash",
+    "NBD connection",
+    "VM lifecycle mutations",
+    "QGA/guest execution",
+    "PREARM",
+    "credential access",
+    "auditor activation/execution",
+    "installation",
+    "qualification"
+  ],
+  "consequence": "If approved: exactly ONE verified SIGTERM to the exact matched qemu-nbd PID for its normal listener shutdown, with pre-signal birth/exe/full-argv verification from the unchanged reviewed library. The observation RETAINS its failure: no second source hash, no post-identity continuation, no completion/disk-unchanged/safe-start claim, and no observation retry/resume/remint follows cleanup. If the human withholds approval, the existing STOP remains in force unchanged.",
+  "status": {
+    "authority_issued": false,
+    "executed": false,
+    "signal_issued": false,
+    "method_executed": false,
+    "operator_decision": "PENDING_NONE_ASSUMED"
+  },
+  "notes": [
+    "This is a concrete, reviewable operator disposition request only; it is NOT an issued authority and NOT actual cleanup.",
+    "No executable helper, no new control framework, and no source changes accompany this request.",
+    "No routine G12/credential reapproval is requested or implied.",
+    "All binding hashes independently filled from the actual terminal bytes by Control Room; no signature or operator disposition is fabricated."
+  ]
+}
