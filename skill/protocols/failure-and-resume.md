@@ -110,7 +110,7 @@ Which stages each complete label REQUIRES, matching the mechanical gate
 | Label | Mandatory stages | Permitted absences |
 |---|---|---|
 | COMPLETE | both independent passes, both cross-examinations, disagreement ledger, final synthesis | adjudication only (its own documented explicit-skip rule) |
-| COMPLETE_WITH_RESIDUAL_UNCERTAINTY | both independent passes, final synthesis | previously permitted post-independent quota omissions, each with an explicit skip record |
+| COMPLETE_WITH_RESIDUAL_UNCERTAINTY | both independent passes, final synthesis | previously permitted post-independent quota omissions with explicit skip provenance: `phase_skips` for cross-examination, or dedicated `adjudication_skipped` with quota provenance for adjudication |
 
 - An explicit skip record means the stage NEVER ran; a label whose mandatory stage
   carries one is refused (mechanically, at `set_completeness`/`finalize`).

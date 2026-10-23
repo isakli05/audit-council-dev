@@ -373,6 +373,23 @@ class TestSurfaceCompletenessDefinitions(unittest.TestCase):
                 self.assertEqual(derive_mandatory(definition),
                                  set(NORMATIVE[label]))
 
+    def test_cwru_matrix_cell_states_both_skip_provenance_kinds(self):
+        # the mandatory-stage matrix CW_RU "Permitted absences" cell must
+        # name BOTH provenance kinds — generic `phase_skips` records for
+        # cross-examination and the dedicated `adjudication_skipped` flag
+        # with quota provenance for adjudication — never the old blanket
+        # wording implying every omission used phase_skips
+        matrix_rows = [row for row in completeness_rows(FR, CW_RU)
+                       if "previously permitted" in row]
+        self.assertEqual(len(matrix_rows), 1,
+                         "expected exactly one CW_RU matrix row")
+        cell = matrix_rows[0]
+        self.assertIn("explicit skip provenance", cell)
+        self.assertIn("`phase_skips`", cell)
+        self.assertIn("`adjudication_skipped`", cell)
+        self.assertIn("quota provenance", cell)
+        self.assertNotIn("each with an explicit skip record", cell)
+
     # negative controls: the derivation must DETECT swapped/over/under-
     # requiring definitions, not just accept the correct ones
     DETECTOR_CONTROLS = (
