@@ -54,8 +54,9 @@ target repository; the only writable location is `audit-output/audit-council/<ru
   (`{"target": {"repository_root": ..., "expected_head": ...}}` in a fenced
   ```json block; all other brief prose is inert). Before ANY inference phase,
   `AC verify-env --run "$RUN"` must pass; a mismatch fails closed with
-  INVALID_AUDIT_ENVIRONMENT and ZERO model calls, and never yields a product
-  verdict. A stale absolute path in brief prose can NEVER redirect the audit.
+  INVALID_AUDIT_ENVIRONMENT and ZERO model calls through the failed gate, and never
+  yields a product verdict (failed admission). A stale absolute path in brief prose
+  can NEVER redirect the audit.
 - EXPLICIT PHASE SKIPS (v2): the state machine refuses to pass over an
   artifact-bearing phase silently (e.g. finalizing past a quota-deferred
   Codex stage). Record every passed-over phase with
@@ -306,6 +307,13 @@ honest completeness state (99-run-metrics.json is written by the Codex runner):
     # or e.g. --completeness PARTIAL_CODEX_QUOTA --failure-reason "..." per
     # protocols/failure-and-resume.md
 
+`COMPLETE` requires both independent passes, both cross-examinations, the
+disagreement ledger and this final synthesis (adjudication optional only via its
+documented explicit skip); `COMPLETE_WITH_RESIDUAL_UNCERTAINTY` requires both
+independent passes and this synthesis, with only explicitly recorded post-independent
+quota omissions — omitted work never counts as performed, and a missing mandatory
+independent pass stays `PARTIAL_*`.
+
 Report completion to the user pointing at `90-final-audit.md`.
 
 # Resume mode
@@ -316,12 +324,19 @@ Report completion to the user pointing at `90-final-audit.md`.
    fingerprint, and completed artifacts; prints the earliest incomplete phase and the Codex
    session reference. Checksum mismatch (exit 8) or STALE_REPOSITORY (exit 4): stop and
    follow protocols/failure-and-resume.md (§28) — never mix evidence from old and new repo
-   states, never reset the user's changes.
+   states, never reset the user's changes. An integrity failure (checksum mismatch is
+   exit 8; schema failures carry their own codes) never rewrites, replaces, deletes or
+   repeats a completed checkpoint; the failed run is preserved as-is.
 2. Continue from the earliest incomplete phase using the phase instructions above.
    Completed phases are immutable and are never repeated.
 3. QUOTA/AUTH failures recorded earlier: follow protocols/failure-and-resume.md — resume
    the failed Codex stage if the budget governor still permits, otherwise finalize as a
-   PARTIAL report naming which claims lacked second-model adjudication.
+   PARTIAL report naming which claims lacked second-model adjudication. Later Codex
+   phases (4B/6) resume the EXACT stored session id; if it is missing or invalid, stop
+   and report the appropriate PARTIAL classification with the reason — never silently
+   substitute a fresh Codex session; any permitted closeout obeys the actual phase and
+   integrity gates (protocol requirement; the runner does not mechanically enforce it
+   — AUCDEV-008).
 
 # Protocol documents (load ONLY when the phase is reached)
 

@@ -39,10 +39,28 @@ escape, alternate worktree access, unauthorized /tmp, symlink escape. Rules:
   re-invoke `--resume` later when quota resets.
 - Quota exhausted AFTER the independent pass (cross-examination or adjudication):
   keep completed artifacts; do not repeat any completed pass; mark the remaining Codex
-  stage deferred; proceed with final synthesis as a PARTIAL report
-  (`PARTIAL_CODEX_QUOTA` or `COMPLETE_WITH_RESIDUAL_UNCERTAINTY` per judgment) whose
-  `claims_lacking_second_model[]` names exactly which claims lacked second-model
-  adjudication. Unvalidated late findings become UNRESOLVED.
+  stage deferred through that stage's own documented mechanism — a deferred
+  cross-examination stage takes an explicit skip record (`AC advance --skip
+  PHASE='reason'`; the reason is part of the run record). A quota-deferred
+  adjudication is the PREVIOUSLY PERMITTED post-independent quota residual path:
+  it uses the script-mediated `adjudication_skipped` flag that `advance` persists
+  automatically on the legal LEDGER_COMPLETE → FINALIZED transition, WITH explicit
+  quota provenance (the existing failed job/metrics records, the run-state
+  `failure_reason` recorded by finalize's existing `--failure-reason` option, and
+  truthful residual claims in the final report); a generic phase_skips record alone is not
+  the mechanism. This quota path is distinct from the ordinary optional skip —
+  adjudication omitted because NO eligible disputes exist. Eligible unresolved
+  disputes stay UNRESOLVED in the report; never pretend they disappeared. If the
+  legal transition or its provenance cannot be satisfied — or either independent
+  pass did not complete — STOP and report the
+  appropriate `PARTIAL_*` state; otherwise proceed with final synthesis. Label the
+  report `COMPLETE_WITH_RESIDUAL_UNCERTAINTY` only when both independent passes AND
+  the final synthesis ran and the only omissions are these previously permitted
+  post-independent stages, each carrying its explicit provenance (skip record, or
+  the adjudication flag path above); otherwise
+  `PARTIAL_CODEX_QUOTA`. The report's `claims_lacking_second_model[]` names exactly
+  which claims lacked second-model adjudication; it must never claim an omitted stage
+  ran or that the full council completed. Unvalidated late findings become UNRESOLVED.
 - Resume of a quota-deferred Codex stage is permitted only within the budget governor.
   The governor counts SUCCESSFUL stages (independent ≤ 1, cross_examination ≤ 1,
   adjudication ≤ 1, total ≤ 3); a failed/quota-exhausted attempt may be retried on
@@ -65,21 +83,41 @@ diff summary). A new audit run is required.
 ## Claude-side interruption
 
 Interruptions (session restart, crash) leave the run directory consistent at the last
-completed phase. On resume, completeness is corrected to
-`COMPLETE_WITH_RESIDUAL_UNCERTAINTY` or `PARTIAL_CLAUDE_INTERRUPTION` if the run cannot
-be continued.
+completed phase. On resume, completeness is set honestly: `PARTIAL_CLAUDE_INTERRUPTION`
+when the run cannot be continued, or `COMPLETE_WITH_RESIDUAL_UNCERTAINTY` only when
+its mandatory-stage conditions (below) actually hold. An interrupted run is never
+automatically upgraded to a complete label.
 
 ## Completeness states
 
 | State | Meaning |
 |---|---|
-| COMPLETE | full two-model council: independent + cross + (optional) adjudication + synthesis |
-| COMPLETE_WITH_RESIDUAL_UNCERTAINTY | full protocol ran; UNRESOLVED findings remain |
+| COMPLETE | full two-model council: BOTH independent passes, BOTH cross-examinations, the disagreement ledger and final synthesis (adjudication optional only via its documented explicit skip) |
+| COMPLETE_WITH_RESIDUAL_UNCERTAINTY | both independent passes and final synthesis ran; only explicitly recorded post-independent quota omissions; UNRESOLVED findings remain — never claims the full council completed |
 | PARTIAL_CODEX_QUOTA | a Codex stage could not run/finish due to quota |
 | PARTIAL_CODEX_FAILURE | Codex failed (auth, malformed output, process) |
 | PARTIAL_CLAUDE_INTERRUPTION | Opus side was interrupted and could not continue |
 | STALE_REPOSITORY | repository changed mid-audit; results not comparable |
 | INVALID_AUDIT_INPUT | bad brief/invocation; failed before expensive calls |
+| INVALID_AUDIT_ENVIRONMENT | failed admission: environment gate failed; zero model calls through the failed gate; never a product verdict (finalize does not accept this label) |
+
+### Mandatory-stage matrix (shared AUCDEV-004/009 completeness policy)
+
+Which stages each complete label REQUIRES, matching the mechanical gate
+(`COMPLETENESS_MANDATORY_PHASES` in `scripts/state_store.py`, enforced by
+`set_completeness` and `finalize`):
+
+| Label | Mandatory stages | Permitted absences |
+|---|---|---|
+| COMPLETE | both independent passes, both cross-examinations, disagreement ledger, final synthesis | adjudication only (its own documented explicit-skip rule) |
+| COMPLETE_WITH_RESIDUAL_UNCERTAINTY | both independent passes, final synthesis | previously permitted post-independent quota omissions, each with an explicit skip record |
+
+- An explicit skip record means the stage NEVER ran; a label whose mandatory stage
+  carries one is refused (mechanically, at `set_completeness`/`finalize`).
+- Missing mandatory independent work keeps the honest `PARTIAL_*` /
+  `STALE_REPOSITORY` / `INVALID_*` state — it can never become either complete label.
+- A `COMPLETE_WITH_RESIDUAL_UNCERTAINTY` report must never claim omitted work ran,
+  and its residual-uncertainty claims must be truthful.
 
 ## Resume procedure (spec §28)
 
@@ -89,12 +127,23 @@ be continued.
    checksums (mismatch → exit 8: stop, report which artifact), verifies the repository
    fingerprint (exit 4 → STALE_REPOSITORY handling above), verifies completed artifacts,
    and prints the earliest incomplete phase plus the Codex session reference.
-2. Verify the Codex session reference if the next phase needs it (4B/6 resume the exact
-   stored session id; if it is missing or invalid, a fresh Codex session is acceptable
-   for that stage ONLY within budget, and the session id is re-persisted).
-3. Continue from the earliest incomplete phase per SKILL.md. Never repeat a completed
-   phase unless its artifact failed integrity validation (checksum/schema), in which case
-   resume-check reports it and the phase is redone from its own inputs.
+2. Verify the Codex session reference if the next phase needs it: phases 4B/6 resume
+   the EXACT stored session id — the same original Codex thread, never `--last`. If
+   the stored session reference is missing or invalid, STOP: never silently substitute
+   a fresh Codex session; report the stop with the appropriate `PARTIAL_*`
+   classification and the stage that could not continue. Any permitted closeout still
+   obeys the actual phase and integrity gates. (Protocol requirement — the runner does
+   not yet mechanically refuse a fresh launch when no session id is supplied; that
+   hardening boundary remains open as AUCDEV-008.)
+3. Continue from the earliest incomplete phase per SKILL.md. Completed phases are
+   immutable and are NEVER repeated — including after an integrity failure. A checksum
+   mismatch of a completed artifact is a STOP (resume-check exit 8 names the
+   artifact); a reported schema/artifact validation failure is likewise a STOP (it
+   carries its own failure code). Do not rewrite, replace, delete or redo the failed
+   checkpoint; preserve every byte as-is; report the failure and the run's honest
+   status (an appropriate `PARTIAL_*` classification) without mutating the frozen
+   run. Any new run is separately prepared and preserves the old run directory;
+   nothing here authorizes executing one.
 
 ## Write-guard violations
 

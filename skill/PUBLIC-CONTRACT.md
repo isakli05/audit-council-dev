@@ -48,8 +48,8 @@ An environment binding (root realpath, git identity, worktree identity, HEAD, br
 init and re-verified before every inference phase; the digest excludes freeze time. Environment failures carry
 one of nine reasons — `BRIEF_ROOT_MISMATCH`, `BRIEF_HEAD_MISMATCH`, `WORKTREE_IDENTITY_CHANGED`,
 `CWD_OUTSIDE_FROZEN_ROOT`, `PATH_ESCAPE_ATTEMPT`, `ALTERNATE_WORKTREE_ACCESS`, `UNAUTHORIZED_TMP_ACCESS`,
-`REPO_ROOT_REPLACED`, `SYMLINK_ESCAPE` — aborting before inference with zero model calls, never a product
-verdict.
+`REPO_ROOT_REPLACED`, `SYMLINK_ESCAPE` — aborting before inference with zero model calls
+through the failed gate, never a product verdict (failed admission).
 
 ## Model roles and independence
 
@@ -114,14 +114,14 @@ canonical artifacts.
 | State | Meaning |
 |---|---|
 | RUNNING | audit in progress |
-| COMPLETE | all phases finished |
-| COMPLETE_WITH_RESIDUAL_UNCERTAINTY | finished with unresolved questions |
+| COMPLETE | all phases finished: both independent passes, both cross-examinations, disagreement ledger, final synthesis (adjudication optional per its documented explicit skip) |
+| COMPLETE_WITH_RESIDUAL_UNCERTAINTY | finished with unresolved questions: both independent passes and final synthesis ran; only explicitly recorded post-independent quota omissions — omitted work is never claimed as performed |
 | PARTIAL_CODEX_QUOTA | Codex budget/quota exhausted mid-run |
 | PARTIAL_CODEX_FAILURE | Codex failed terminally mid-run |
 | PARTIAL_CLAUDE_INTERRUPTION | orchestrator interrupted |
 | STALE_REPOSITORY | repository changed during the audit |
 | INVALID_AUDIT_INPUT | brief/contract input invalid |
-| INVALID_AUDIT_ENVIRONMENT | environment/binding gate failed (never a product verdict) |
+| INVALID_AUDIT_ENVIRONMENT | failed admission — environment/binding gate failed (never a product verdict) |
 
 ## Governor defaults
 
@@ -133,6 +133,16 @@ CACHEABLE records serve only when still valid against the frozen run
 identity); release gates always fresh. The governor may never skip a
 mandatory independent pass, hide a material dispute, or promote PARTIAL to
 COMPLETE; every budget-driven omission is recorded in run metrics.
+
+## Resume semantics
+
+Resume continues from the earliest incomplete phase; completed phases are immutable and never
+repeated. A later Codex stage resumes the EXACT stored session id; a missing or invalid stored id
+stops the run with an honest PARTIAL report — never silently substituting a fresh session (protocol
+requirement; the runner does not mechanically refuse a fresh launch — AUCDEV-008). An integrity
+failure (checksum/schema) stops recovery: completed checkpoints are never rewritten, replaced,
+deleted or repeated, and the failed run is preserved as-is. Missing mandatory independent work
+keeps an honest PARTIAL_* state — never promoted to either complete label.
 
 ## What is NEVER modified
 
